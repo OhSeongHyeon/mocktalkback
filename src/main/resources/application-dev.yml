@@ -1,0 +1,31 @@
+server:
+  port: ${DEV_SERVER_PORT}
+spring:
+  application:
+    name: mocktalkback
+  datasource:
+    driver-class-name: ${DEV_DB_DRIVER_CLASS_NAME}
+    url: ${DEV_DB_URL}
+    username: ${DEV_DB_USERNAME}
+    password: ${DEV_DB_PASSWORD}
+    
+  jpa:
+    hibernate:
+      ddl-auto: create   # update / create / create-drop / none
+    show-sql: true       # 콘솔에 SQL 출력
+    properties:
+      hibernate:
+        "[format_sql]": true # SQL 포맷
+        dialect: ${DEV_JPA_DIALECT}
+    open-in-view: false  # 웬만하면 false 권장 (N+1 잡기 쉬움)
+
+  data:
+    redis:
+      host: ${DEV_REDIS_HOST}
+      port: ${DEV_REDIS_PORT}
+
+  security:
+    user:              # oauth2-client 의존성 추가하면 시큐리티 비밀번호 안나옴
+      password: "1111" # 직접 지정하면 콘솔에 안 찍히고 이 값 사용
+
+
