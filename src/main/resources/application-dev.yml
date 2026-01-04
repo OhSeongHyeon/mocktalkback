@@ -8,7 +8,9 @@ spring:
     url: ${DEV_DB_URL}
     username: ${DEV_DB_USERNAME}
     password: ${DEV_DB_PASSWORD}
-    
+  jackson:
+    time-zone: Asia/Seoul
+
   jpa:
     hibernate:
       ddl-auto: create   # update / create / create-drop / none
@@ -17,6 +19,8 @@ spring:
       hibernate:
         "[format_sql]": true # SQL 포맷
         dialect: ${DEV_JPA_DIALECT}
+        jdbc:
+          time-zone: Asia/Seoul
     open-in-view: false  # 웬만하면 false 권장 (N+1 잡기 쉬움)
 
   data:
