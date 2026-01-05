@@ -1,4 +1,4 @@
-package com.mocktalkback.global.auth.entity;
+package com.mocktalkback.domain.role.entity;
 
 import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
 
@@ -23,16 +23,16 @@ import lombok.NoArgsConstructor;
 @Table(
     name = "tb_role",
     uniqueConstraints = {
-        @UniqueConstraint(name = "UQ_role_role_name", columnNames = "role_name")
+        @UniqueConstraint(name = "uq_role_role_name", columnNames = "role_name")
     }
 )
-public class Role extends SoftDeleteEntity {
+public class RoleEntity extends SoftDeleteEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "role_id")
     private Long id;
 
-    @Column(name = "role_name", nullable = false, length = 24)
+    @Column(name = "role_name", nullable = false, unique = true, length = 24)
     private String roleName;  // 권한명
 
     @Column(name = "auth_bit", nullable = false)
@@ -59,11 +59,11 @@ public class Role extends SoftDeleteEntity {
         this.authBit = authBit;
     }
 
-    public static Role create(String roleName, int authBit, String description) {
-        return Role.builder()
-                .roleName(roleName)
-                .authBit(authBit)
-                .description(description)
-                .build();
+    public static RoleEntity create(String roleName, int authBit, String description) {
+        return RoleEntity.builder()
+            .roleName(roleName)
+            .authBit(authBit)
+            .description(description)
+            .build();
     }
 }

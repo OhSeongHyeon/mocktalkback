@@ -13,12 +13,12 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create   # update / create / create-drop / none
-    show-sql: true       # 콘솔에 SQL 출력
+      ddl-auto: create        # create-drop / create / update / validate / none
+    show-sql: true              # 콘솔에 SQL 출력
     properties:
       hibernate:
-        "[format_sql]": true # SQL 포맷
-        dialect: ${DEV_JPA_DIALECT}
+        "[format_sql]": true    # SQL 포맷
+        # dialect: ${DEV_JPA_DIALECT}
         jdbc:
           time-zone: Asia/Seoul
     open-in-view: false  # 웬만하면 false 권장 (N+1 잡기 쉬움)
@@ -32,4 +32,7 @@ spring:
     user:              # oauth2-client 의존성 추가하면 시큐리티 비밀번호 안나옴
       password: "1111" # 직접 지정하면 콘솔에 안 찍히고 이 값 사용
 
-
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # baseline-on-migrate: true   # 기존 DB에 붙일 때 유용(초기엔 없어도 됨)
