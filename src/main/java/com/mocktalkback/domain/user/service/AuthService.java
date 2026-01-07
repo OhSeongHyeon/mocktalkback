@@ -1,16 +1,23 @@
 package com.mocktalkback.domain.user.service;
 
+import java.util.UUID;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.mocktalkback.domain.role.repository.RoleRepository;
 import com.mocktalkback.domain.role.type.RoleNames;
+import com.mocktalkback.domain.user.controller.dto.AuthTokens;
 import com.mocktalkback.domain.user.controller.dto.LoginRequest;
 import com.mocktalkback.domain.user.controller.dto.RegisterRequest;
 import com.mocktalkback.domain.user.controller.dto.TokenResponse;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.mocktalkback.global.auth.jwt.RefreshTokenService;
 
 @Service
 public class AuthService {
@@ -18,17 +25,19 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
     private final JwtTokenProvider jwt;
 
     public AuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwt
-    ) {
+            RefreshTokenService refreshTokenService,
+            JwtTokenProvider jwt) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.refreshTokenService = refreshTokenService;
         this.jwt = jwt;
     }
 
@@ -53,7 +62,7 @@ public class AuthService {
 
         userRepository.save(user);
     }
-    
+
     private String resolveHandle(RegisterRequest req) {
         // 1) 사용자가 입력한 handle이 있으면 그걸 우선 사용
         String input = req.handle();
@@ -85,12 +94,13 @@ public class AuthService {
     }
 
     private String truncateTo24(String s) {
-        if (s == null) return null;
+        if (s == null)
+            return null;
         return (s.length() <= 24) ? s : s.substring(0, 24);
     }
 
     @Transactional(readOnly = true)
-    public TokenResponse login(LoginRequest req) {
+    public AuthTokens login(LoginRequest req) {
         UserEntity u = userRepository.findByEmail(req.email())
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
@@ -102,13 +112,111 @@ public class AuthService {
             throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
-        String token = jwt.createAccessToken(
+        String access = jwt.createAccessToken(
                 u.getId(),
                 u.getEmail(),
                 u.getRole().getRoleName(),
-                u.getRole().getAuthBit()
-        );
+                u.getRole().getAuthBit());
 
-        return new TokenResponse(token, "Bearer", jwt.accessTtlSec());
+        String refresh = refreshTokenService.issue(u.getId()).refreshToken();
+
+        return new AuthTokens(access, jwt.accessTtlSec(), refresh, jwt.refreshTtlSec());
     }
+
+    @Transactional(readOnly = true)
+    public TokenResponse refresh(String refreshToken) {
+        var rotated = refreshTokenService.rotate(refreshToken);
+
+        var user = userRepository.findWithRoleById(rotated.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        String access = jwt.createAccessToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole().getRoleName(),
+                user.getRole().getAuthBit());
+
+        return new TokenResponse(access, "Bearer", jwt.accessTtlSec());
+    }
+
+    @Transactional(readOnly = true)
+    public TokenResponse refreshAccess(Long userId) {
+        var user = userRepository.findWithRoleById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        String access = jwt.createAccessToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole().getRoleName(),
+                user.getRole().getAuthBit());
+
+        return new TokenResponse(access, "Bearer", jwt.accessTtlSec());
+    }
+
+    @Transactional
+    public Long upsertOAuthUser(String email, String displayName, String providerUserId) {
+        return userRepository.findByEmail(email)
+                .map(UserEntity::getId)
+                .orElseGet(() -> {
+                    var role = roleRepository.findByRoleName(RoleNames.USER)
+                            .orElseThrow(() -> new IllegalStateException("USER 역할 없음"));
+
+                    String handle = generateUniqueHandle(displayName, displayName); // 너 기존 로직 재사용
+                    String dummyPw = passwordEncoder.encode(UUID.randomUUID().toString());
+
+                    var user = UserEntity.createLocal(
+                            role,
+                            email,
+                            dummyPw,
+                            displayName, // userName 정책 애매하면 displayName으로 채워도 됨
+                            displayName,
+                            handle);
+                    return userRepository.save(user).getId();
+                });
+    }
+
+    private String generateUniqueHandle(String displayName, String userName) {
+        String base = HandleGenerator.baseFrom(displayName, userName);
+        String handle = trim24(base);
+
+        int tries = 0;
+        while (userRepository.existsByHandle(handle)) {
+            if (++tries > 20) {
+                throw new IllegalStateException("handle 생성 실패(재시도 초과)");
+            }
+            handle = trim24(base + HandleGenerator.randomSuffix());
+        }
+        return handle;
+    }
+
+    private String trim24(String s) {
+        return (s.length() <= 24) ? s : s.substring(0, 24);
+    }
+
+    @Transactional
+    public Long upsertGoogleUser(String email, String name, String sub) {
+        return userRepository.findByEmail(email)
+                .map(UserEntity::getId)
+                .orElseGet(() -> {
+                    var role = roleRepository.findByRoleName(RoleNames.USER)
+                            .orElseThrow(() -> new IllegalStateException("USER 역할 없음"));
+
+                    String displayName = (name == null || name.isBlank()) ? "google-user" : name;
+                    String handle = generateUniqueHandle(displayName, displayName);
+
+                    // pw_hash NOT NULL이면 더미 비번 해시라도 넣어야 함
+                    String dummyPw = passwordEncoder.encode(java.util.UUID.randomUUID().toString());
+
+                    var user = UserEntity.createLocal(
+                            role,
+                            email,
+                            dummyPw,
+                            displayName,
+                            displayName,
+                            handle);
+
+                    return userRepository.save(user).getId();
+                });
+    }
+
 }

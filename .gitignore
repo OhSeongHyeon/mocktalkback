@@ -180,5 +180,6 @@ out/
 ### other ###
 .env
 .env.*
+**/cookies*
 AGENTS.md
 GEMINI.md

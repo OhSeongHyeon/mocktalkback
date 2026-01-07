@@ -31,6 +31,13 @@ spring:
   security:
     user:              # oauth2-client 의존성 추가하면 시큐리티 비밀번호 안나옴
       password: "1111" # 직접 지정하면 콘솔에 안 찍히고 이 값 사용
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: [openid, email, profile]
 
   flyway:
     enabled: true

@@ -1,4 +1,4 @@
-package com.mocktalkback.devtmp;
+package com.mocktalkback.seed;
 
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
