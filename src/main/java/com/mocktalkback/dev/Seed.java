@@ -13,7 +13,7 @@ import com.mocktalkback.domain.role.type.RoleNames;
 
 @Profile("dev")
 @Configuration
-public class RoleSeed {
+public class Seed {
 
     @Bean
     ApplicationRunner roleSeeder(RoleRepository roleRepository) {

@@ -26,6 +26,7 @@ import lombok.NoArgsConstructor;
 @Table(
     name = "tb_users",
     uniqueConstraints = {
+        @UniqueConstraint(name = "uq_tb_users_login_id", columnNames = "login_id"),
         @UniqueConstraint(name = "uq_tb_users_email", columnNames = "email"),
         @UniqueConstraint(name = "uq_tb_users_handle", columnNames = "handle")
     },
@@ -47,6 +48,9 @@ public class UserEntity extends SoftDeleteEntity {
         foreignKey = @ForeignKey(name = "fk_tb_users_tb_role")
     )
     private RoleEntity role;
+
+    @Column(name = "login_id", nullable = false, length = 128)
+    private String loginId;
 
     @Column(name = "email", nullable = false, length = 128)
     private String email;
@@ -75,6 +79,7 @@ public class UserEntity extends SoftDeleteEntity {
     @Builder(access = AccessLevel.PRIVATE)
     private UserEntity(
             RoleEntity role,
+            String loginId,
             String email,
             String pwHash,
             String userName,
@@ -85,6 +90,7 @@ public class UserEntity extends SoftDeleteEntity {
             boolean locked
     ) {
         this.role = role;
+        this.loginId = loginId;
         this.email = email;
         this.pwHash = pwHash;
         this.userName = userName;
@@ -97,6 +103,7 @@ public class UserEntity extends SoftDeleteEntity {
 
     public static UserEntity createLocal(
             RoleEntity role,
+            String loginId,
             String email,
             String encodedPw,
             String userName,
@@ -105,6 +112,7 @@ public class UserEntity extends SoftDeleteEntity {
     ) {
         return UserEntity.builder()
                 .role(role)
+                .loginId(loginId)
                 .email(email)
                 .pwHash(encodedPw)
                 .userName(userName)

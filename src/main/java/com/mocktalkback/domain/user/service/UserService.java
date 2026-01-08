@@ -1,0 +1,142 @@
+package com.mocktalkback.domain.user.service;
+
+import java.security.SecureRandom;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import com.mocktalkback.domain.role.entity.RoleEntity;
+import com.mocktalkback.domain.role.repository.RoleRepository;
+import com.mocktalkback.domain.role.type.RoleNames;
+import com.mocktalkback.domain.user.dto.JoinRequest;
+import com.mocktalkback.domain.user.dto.LoginRequest;
+import com.mocktalkback.domain.user.dto.TokenResponse;
+import com.mocktalkback.domain.user.entity.UserEntity;
+import com.mocktalkback.domain.user.repository.UserRepository;
+import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class UserService {
+
+    private static final int HANDLE_LENGTH = 12;
+    private static final int HANDLE_TRIES = 10;
+    private static final char[] HANDLE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
+    private static final SecureRandom HANDLE_RANDOM = new SecureRandom();
+    
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwt;
+    
+    @Transactional
+    public void join(JoinRequest joinDto) {
+        if (!joinDto.password().equals(joinDto.confirmPassword())) {
+            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+
+        String loginId = joinDto.loginId().trim();
+        if (!StringUtils.hasText(loginId)) {
+            throw new IllegalArgumentException("아이디를 입력해주세요.");
+        }
+        if (userRepository.existsByLoginId(loginId)) {
+            throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
+        }
+        String email = joinDto.email().trim();
+        if (userRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+
+        String userName = resolveOptional(joinDto.userName(), loginId);
+        String displayName = resolveOptional(joinDto.displayName(), userName);
+
+        requireMaxLength(userName, 32, "사용자명");
+        requireMaxLength(displayName, 16, "표시명");
+
+        String handle;
+        if (StringUtils.hasText(joinDto.handle())) {
+            handle = joinDto.handle().trim();
+            requireMaxLength(handle, 24, "핸들");
+            if (userRepository.existsByHandle(handle)) {
+                throw new IllegalArgumentException("이미 사용 중인 핸들입니다.");
+            }
+        } else {
+            handle = generateUniqueHandle();
+        }
+
+        RoleEntity role = roleRepository.findByRoleName(RoleNames.USER)
+                .orElseThrow(() -> new IllegalStateException("기본 권한이 없습니다."));
+
+        String encodedPw = passwordEncoder.encode(joinDto.password());
+        UserEntity user = UserEntity.createLocal(
+                role,
+                loginId,
+                email,
+                encodedPw,
+                userName,
+                displayName,
+                handle
+        );
+
+        userRepository.save(user);
+    }
+
+    private String resolveOptional(String value, String fallback) {
+        if (StringUtils.hasText(value)) {
+            return value.trim();
+        }
+        return fallback;
+    }
+
+    private void requireMaxLength(String value, int max, String fieldName) {
+        if (value.length() > max) {
+            throw new IllegalArgumentException(fieldName + "은 " + max + "자 이하이어야 합니다.");
+        }
+    }
+
+    private String generateUniqueHandle() {
+        for (int i = 0; i < HANDLE_TRIES; i++) {
+            String candidate = randomHandle(HANDLE_LENGTH);
+            if (!userRepository.existsByHandle(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("사용 가능한 핸들을 생성하지 못했습니다.");
+    }
+
+    private String randomHandle(int length) {
+        char[] buffer = new char[length];
+        for (int i = 0; i < length; i++) {
+            buffer[i] = HANDLE_CHARS[HANDLE_RANDOM.nextInt(HANDLE_CHARS.length)];
+        }
+        return new String(buffer);
+    }
+
+    @Transactional(readOnly = true)
+    public TokenResponse login(LoginRequest req) {
+        UserEntity u = userRepository.findByLoginId(req.loginId())
+                .orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다."));
+
+        if (!u.isEnabled() || u.isLocked()) {
+            throw new IllegalStateException("계정이 비활성화/잠금 상태입니다.");
+        }
+
+        if (!passwordEncoder.matches(req.password(), u.getPwHash())) {
+            throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
+        }
+
+        String token = jwt.createAccessToken(
+                u.getId(),
+                u.getEmail(),
+                u.getRole().getRoleName(),
+                u.getRole().getAuthBit()
+        );
+
+        return new TokenResponse(token, "Bearer", jwt.accessTtlSec());
+    }
+
+}
