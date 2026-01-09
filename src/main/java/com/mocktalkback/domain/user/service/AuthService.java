@@ -10,18 +10,19 @@ import org.springframework.util.StringUtils;
 import com.mocktalkback.domain.role.entity.RoleEntity;
 import com.mocktalkback.domain.role.repository.RoleRepository;
 import com.mocktalkback.domain.role.type.RoleNames;
+import com.mocktalkback.domain.user.dto.AuthTokens;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
-import com.mocktalkback.domain.user.dto.TokenResponse;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
+import com.mocktalkback.global.auth.jwt.RefreshTokenService;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class UserService {
+public class AuthService {
 
     private static final int HANDLE_LENGTH = 12;
     private static final int HANDLE_TRIES = 10;
@@ -32,6 +33,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwt;
+    private final RefreshTokenService refreshTokenService;
     
     @Transactional
     public void join(JoinRequest joinDto) {
@@ -117,7 +119,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public TokenResponse login(LoginRequest req) {
+    public AuthTokens login(LoginRequest req) {
         UserEntity u = userRepository.findByLoginId(req.loginId())
                 .orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다."));
 
@@ -131,12 +133,13 @@ public class UserService {
 
         String token = jwt.createAccessToken(
                 u.getId(),
-                u.getEmail(),
                 u.getRole().getRoleName(),
                 u.getRole().getAuthBit()
         );
 
-        return new TokenResponse(token, "Bearer", jwt.accessTtlSec());
+        RefreshTokenService.IssuedRefresh issued = refreshTokenService.issue(u.getId());
+
+        return new AuthTokens(token, jwt.accessTtlSec(), issued.refreshToken(), issued.refreshExpiresInSec());
     }
 
 }

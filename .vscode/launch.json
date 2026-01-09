@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-MocktalkbackApplication<mocktalkback>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.mocktalkback.MocktalkbackApplication",
+            "projectName": "mocktalkback",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

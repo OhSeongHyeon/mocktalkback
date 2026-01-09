@@ -1,0 +1,30 @@
+package com.mocktalkback.dev;
+
+import org.springframework.context.annotation.Profile;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.mocktalkback.global.common.ApiResponse;
+
+import lombok.RequiredArgsConstructor;
+
+@Profile("dev")
+@RequiredArgsConstructor
+@RestController
+public class TestAuthController {
+
+    @PreAuthorize("hasRole('USER')")
+    @PostMapping("/api/dev/user")
+    public ResponseEntity<ApiResponse<String>> userOnly() {
+        return ResponseEntity.ok(ApiResponse.ok("user"));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/api/dev/admin")
+    public ResponseEntity<ApiResponse<String>> healthCheck() {
+        return ResponseEntity.ok(ApiResponse.ok("admin"));
+    }
+
+}

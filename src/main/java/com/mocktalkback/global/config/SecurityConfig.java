@@ -2,22 +2,22 @@ package com.mocktalkback.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mocktalkback.global.auth.jwt.JwtAccessDeniedHandler;
+import com.mocktalkback.global.auth.jwt.JwtAuthEntryPoint;
 import com.mocktalkback.global.auth.jwt.JwtAuthFilter;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
-import com.mocktalkback.global.common.ApiResponse;
+import com.mocktalkback.global.auth.OriginAllowlistFilter;
 
-import jakarta.servlet.http.HttpServletResponse;
-
+@EnableMethodSecurity
 @EnableWebSecurity
 @Configuration
 public class SecurityConfig {
@@ -36,7 +36,9 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             JwtAuthFilter jwtAuthFilter,
-            ObjectMapper objectMapper
+            OriginAllowlistFilter originAllowlistFilter,
+            JwtAuthEntryPoint jwtAuthEntryPoint,
+            JwtAccessDeniedHandler jwtAccessDeniedHandler
     ) throws Exception {
         http
                 .csrf(auth -> auth.disable())
@@ -45,7 +47,10 @@ public class SecurityConfig {
 
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/auth/join", "/auth/login", "/health").permitAll()
+                        .requestMatchers("/", "/api/health",
+                                "/api/auth/join", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout"
+                        )
+                        .permitAll()
                         .anyRequest().authenticated());
 
         http
@@ -54,18 +59,12 @@ public class SecurityConfig {
 
         http
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.setCharacterEncoding("UTF-8");
-                            objectMapper.writeValue(
-                                    response.getWriter(),
-                                    ApiResponse.fail("Unauthorized")
-                            );
-                        }));
+                        .authenticationEntryPoint(jwtAuthEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler));
 
         http
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(originAllowlistFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthFilter, OriginAllowlistFilter.class);
 
         return http.build();
     }
