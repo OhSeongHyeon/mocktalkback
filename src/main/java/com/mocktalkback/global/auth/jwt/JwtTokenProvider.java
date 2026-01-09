@@ -76,7 +76,7 @@ public class JwtTokenProvider {
                 .getPayload();
     }
 
-    public String createRefreshToken(Long userId, String sid, String jti) {
+    public String createRefreshToken(Long userId, String sid, String jti, boolean rememberMe) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(refreshTtlSec);
 
@@ -85,6 +85,7 @@ public class JwtTokenProvider {
                 .subject(String.valueOf(userId))
                 .claim("typ", "refresh")
                 .claim("sid", sid)
+                .claim("rm", rememberMe)
                 .id(jti)  // jti
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))

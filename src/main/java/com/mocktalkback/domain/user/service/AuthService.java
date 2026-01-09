@@ -13,13 +13,19 @@ import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.dto.AuthTokens;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
+import com.mocktalkback.domain.user.dto.RefreshTokens;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
+import com.mocktalkback.global.auth.jwt.RefreshTokenService.Rotated;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -137,9 +143,39 @@ public class AuthService {
                 u.getRole().getAuthBit()
         );
 
-        RefreshTokenService.IssuedRefresh issued = refreshTokenService.issue(u.getId());
+        RefreshTokenService.IssuedRefresh issued = refreshTokenService.issue(u.getId(), req.rememberMe());
 
         return new AuthTokens(token, jwt.accessTtlSec(), issued.refreshToken(), issued.refreshExpiresInSec());
+    }
+
+    @Transactional(readOnly = true)
+    public RefreshTokens refresh(String refreshToken) {
+        Rotated rotated = refreshTokenService.rotate(refreshToken);
+
+        UserEntity user = userRepository.findById(rotated.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        if (!user.isEnabled() || user.isLocked()) {
+            try {
+                refreshTokenService.revoke(refreshToken);
+            } catch (ResponseStatusException ignored) {
+            }
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+
+        String access = jwt.createAccessToken(
+                user.getId(),
+                user.getRole().getRoleName(),
+                user.getRole().getAuthBit()
+        );
+
+        return new RefreshTokens(
+                access,
+                jwt.accessTtlSec(),
+                rotated.refreshToken(),
+                rotated.refreshExpiresInSec(),
+                rotated.rememberMe()
+        );
     }
 
 }

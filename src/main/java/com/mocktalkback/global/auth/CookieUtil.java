@@ -29,6 +29,19 @@ public class CookieUtil {
                 .build();
     }
 
+    public ResponseCookie createSession(String refreshToken) {
+
+        final String samSite = "Lax";
+        final String path = "/api/auth";
+
+        return ResponseCookie.from(COOKIE_NAME, refreshToken)
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite(samSite)
+                .path(path)
+                .build();
+    }
+
     public ResponseCookie clear() {
 
         final String samSite = "Lax";

@@ -36,7 +36,7 @@ public class RefreshTokenService {
         this.rotateScript = script;
     }
 
-    public IssuedRefresh issue(Long userId) {
+    public IssuedRefresh issue(Long userId, boolean rememberMe) {
         String sid = UUID.randomUUID().toString();
         String jti = UUID.randomUUID().toString();
 
@@ -51,7 +51,7 @@ public class RefreshTokenService {
         saveAbsExp(sid, absExpEpochSec, absTtlSec);
         saveSidJti(sid, jti, jtiTtlSec);
 
-        String refresh = jwt.createRefreshToken(userId, sid, jti);
+        String refresh = jwt.createRefreshToken(userId, sid, jti, rememberMe);
         return new IssuedRefresh(refresh, sid, jti, jtiTtlSec);
     }
 
@@ -61,6 +61,7 @@ public class RefreshTokenService {
         Long userId = Long.valueOf(c.getSubject());
         String sid = (String) c.get("sid");
         String jti = c.getId();
+        boolean rememberMe = resolveRememberMe(c);
 
         if (sid == null || jti == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "REFRESH_INVALID");
@@ -86,8 +87,8 @@ public class RefreshTokenService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "REFRESH_EXPIRED");
         }
 
-        String newRefresh = jwt.createRefreshToken(userId, sid, newJti);
-        return new Rotated(userId, newRefresh, result);
+        String newRefresh = jwt.createRefreshToken(userId, sid, newJti, rememberMe);
+        return new Rotated(userId, newRefresh, result, rememberMe);
     }
 
     public void revoke(String refreshToken) {
@@ -126,6 +127,20 @@ public class RefreshTokenService {
         }
     }
 
+    private boolean resolveRememberMe(Claims c) {
+        Object raw = c.get("rm");
+        if (raw instanceof Boolean value) {
+            return value;
+        }
+        if (raw instanceof String value) {
+            return Boolean.parseBoolean(value);
+        }
+        if (raw instanceof Number value) {
+            return value.intValue() != 0;
+        }
+        return true;
+    }
+
     public record IssuedRefresh(
             String refreshToken,
             String sid,
@@ -136,7 +151,8 @@ public class RefreshTokenService {
     public record Rotated(
             Long userId,
             String refreshToken,
-            long refreshExpiresInSec
+            long refreshExpiresInSec,
+            boolean rememberMe
     ) {}
 
 

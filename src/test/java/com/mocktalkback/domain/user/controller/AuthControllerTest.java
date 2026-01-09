@@ -9,26 +9,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mocktalkback.domain.role.entity.RoleEntity;
-import com.mocktalkback.domain.role.type.AuthBits;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.dto.AuthTokens;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
-import com.mocktalkback.domain.user.entity.UserEntity;
-import com.mocktalkback.domain.user.repository.UserRepository;
+import com.mocktalkback.domain.user.dto.RefreshTokens;
 import com.mocktalkback.domain.user.service.AuthService;
 import com.mocktalkback.global.auth.CookieUtil;
 import com.mocktalkback.global.auth.OriginAllowlistFilter;
@@ -38,10 +33,12 @@ import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
 import com.mocktalkback.global.config.SecurityConfig;
 import jakarta.servlet.http.Cookie;
+import org.springframework.web.server.ResponseStatusException;
 
 @WebMvcTest(controllers = AuthController.class)
 @Import({
         SecurityConfig.class,
+        JwtTokenProvider.class,
         JwtAuthEntryPoint.class,
         JwtAccessDeniedHandler.class,
         CookieUtil.class,
@@ -49,6 +46,7 @@ import jakarta.servlet.http.Cookie;
 })
 @TestPropertySource(properties = {
         "DEV_SERVER_PORT=0",
+        "JWT_SECRET=abcdefghijklmnopqrstuvwxyz012345",
         "SECURITY_COOKIE_SECURE=false",
         "SECURITY_ORIGIN_ALLOWLIST=http://localhost:5173"
 })
@@ -64,12 +62,6 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService authService;
-
-    @MockitoBean
-    private UserRepository userRepository;
-
-    @MockitoBean
-    private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
     private RefreshTokenService refreshTokenService;
@@ -106,7 +98,7 @@ class AuthControllerTest {
         when(authService.login(any(LoginRequest.class)))
                 .thenReturn(new AuthTokens("access-token", 3600, "refresh-token", 1200));
 
-        LoginRequest req = new LoginRequest("user01", "password12");
+        LoginRequest req = new LoginRequest("user01", "password12", false);
 
         // When: 로그인 API 호출
         var result = mockMvc.perform(post("/api/auth/login")
@@ -139,14 +131,9 @@ class AuthControllerTest {
     // refresh 요청이 성공하면 쿠키 회전과 access 토큰 반환이 되어야 한다.
     @Test
     void refresh_rotates_cookie_and_returns_access_token() throws Exception {
-        // Given: refresh 회전 성공과 사용자 조회
-        when(refreshTokenService.rotate("old-refresh"))
-                .thenReturn(new RefreshTokenService.Rotated(1L, "new-refresh", 600));
-
-        UserEntity user = userWithRole(RoleNames.USER, AuthBits.READ);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(jwtTokenProvider.createAccessToken(1L, RoleNames.USER, AuthBits.READ)).thenReturn("new-access");
-        when(jwtTokenProvider.accessTtlSec()).thenReturn(3600L);
+        // Given: refresh 성공 응답
+        when(authService.refresh("old-refresh"))
+                .thenReturn(new RefreshTokens("new-access", 3600, "new-refresh", 600, true));
 
         // When: refresh API 호출
         var result = mockMvc.perform(post("/api/auth/refresh")
@@ -163,14 +150,9 @@ class AuthControllerTest {
     // 잠긴 계정은 refresh 시 401 처리되고 세션이 폐기되어야 한다.
     @Test
     void refresh_with_locked_user_returns_unauthorized_and_revokes() throws Exception {
-        // Given: 회전 성공했지만 사용자가 잠김
-        when(refreshTokenService.rotate("old-refresh"))
-                .thenReturn(new RefreshTokenService.Rotated(1L, "new-refresh", 600));
-        doNothing().when(refreshTokenService).revoke("old-refresh");
-
-        UserEntity user = userWithRole(RoleNames.USER, AuthBits.READ);
-        ReflectionTestUtils.setField(user, "locked", true);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        // Given: refresh 실패(잠김/비활성 등)
+        when(authService.refresh("old-refresh"))
+                .thenThrow(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 
         // When: refresh API 호출
         var result = mockMvc.perform(post("/api/auth/refresh")
@@ -181,7 +163,7 @@ class AuthControllerTest {
         result.andExpect(status().isUnauthorized())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
 
-        verify(refreshTokenService).revoke("old-refresh");
+        verify(authService).refresh("old-refresh");
     }
 
     // logout은 refresh 세션을 폐기하고 쿠키를 삭제해야 한다.
@@ -202,18 +184,4 @@ class AuthControllerTest {
         verify(refreshTokenService).revoke("old-refresh");
     }
 
-    private UserEntity userWithRole(String roleName, int authBit) {
-        RoleEntity role = RoleEntity.create(roleName, authBit, "role");
-        UserEntity user = UserEntity.createLocal(
-                role,
-                "loginId",
-                "email@example.com",
-                "pw",
-                "userName",
-                "displayName",
-                "handle"
-        );
-        ReflectionTestUtils.setField(user, "id", 1L);
-        return user;
-    }
 }
