@@ -12,19 +12,20 @@ CREATE TABLE tb_role (
 );
 
 CREATE TABLE tb_users (
-    user_id      BIGSERIAL PRIMARY KEY,
-    role_id      BIGINT       NOT NULL,
-    email        VARCHAR(128) NOT NULL,
-    pw_hash      VARCHAR(255) NOT NULL,
-    user_name    VARCHAR(32)  NOT NULL,
-    display_name VARCHAR(16)  NOT NULL,
-    handle       VARCHAR(24)  NOT NULL,
-    user_point   INT          NOT NULL DEFAULT 0,
-    is_enabled   BOOLEAN      NOT NULL DEFAULT true,
-    is_locked    BOOLEAN      NOT NULL DEFAULT false,
-    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    deleted_at   TIMESTAMPTZ,
+    user_id           BIGSERIAL PRIMARY KEY,
+    role_id           BIGINT       NOT NULL,
+    email             VARCHAR(128),
+    pw_hash           VARCHAR(255) NOT NULL,
+    user_name         VARCHAR(32)  NOT NULL,
+    display_name      VARCHAR(16)  NOT NULL,
+    handle            VARCHAR(24)  NOT NULL,
+    user_point        INT          NOT NULL DEFAULT 0,
+    is_email_verified BOOLEAN      NOT NULL DEFAULT false,
+    is_enabled        BOOLEAN      NOT NULL DEFAULT true,
+    is_locked         BOOLEAN      NOT NULL DEFAULT false,
+    created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    deleted_at        TIMESTAMPTZ,
     CONSTRAINT uq_tb_users_email UNIQUE (email),
     CONSTRAINT uq_tb_users_handle UNIQUE (handle),
     CONSTRAINT fk_tb_users_tb_role
@@ -98,19 +99,20 @@ COMMENT ON CONSTRAINT uq_role_role_name ON tb_role IS '역할명 유니크 제�
 /* ---------- tb_users ---------- */
 COMMENT ON TABLE tb_users IS '사용자(계정) 테이블';
 
-COMMENT ON COLUMN tb_users.user_id      IS '사용자 PK';
-COMMENT ON COLUMN tb_users.role_id      IS '역할 FK(tb_role.role_id)';
-COMMENT ON COLUMN tb_users.email        IS '로그인 ID(이메일, 유니크)';
-COMMENT ON COLUMN tb_users.pw_hash      IS '비밀번호 해시(평문 금지)';
-COMMENT ON COLUMN tb_users.user_name    IS '실명/이름(서비스 정책에 따라 의미 정의)';
-COMMENT ON COLUMN tb_users.display_name IS '노출 닉네임(표시용)';
-COMMENT ON COLUMN tb_users.handle       IS '고유 핸들/아이디(유니크, URL/멘션용)';
-COMMENT ON COLUMN tb_users.user_point   IS '포인트/점수(기본 0)';
-COMMENT ON COLUMN tb_users.is_enabled   IS '계정 활성 여부(true=로그인/사용 가능)';
-COMMENT ON COLUMN tb_users.is_locked    IS '계정 잠금 여부(true=로그인 차단/제한)';
-COMMENT ON COLUMN tb_users.created_at   IS '생성 시각';
-COMMENT ON COLUMN tb_users.updated_at   IS '수정 시각';
-COMMENT ON COLUMN tb_users.deleted_at   IS '소프트 삭제 시각(NULL이면 활성)';
+COMMENT ON COLUMN tb_users.user_id           IS '사용자 PK';
+COMMENT ON COLUMN tb_users.role_id           IS '역할 FK(tb_role.role_id)';
+COMMENT ON COLUMN tb_users.email             IS '로그인 ID(이메일, 유니크)';
+COMMENT ON COLUMN tb_users.pw_hash           IS '비밀번호 해시(평문 금지)';
+COMMENT ON COLUMN tb_users.user_name         IS '실명/이름(서비스 정책에 따라 의미 정의)';
+COMMENT ON COLUMN tb_users.display_name      IS '노출 닉네임(표시용)';
+COMMENT ON COLUMN tb_users.handle            IS '고유 핸들/아이디(유니크, URL/멘션용)';
+COMMENT ON COLUMN tb_users.user_point        IS '포인트/점수(기본 0)';
+COMMENT ON COLUMN tb_users.is_email_verified IS '이메일 인증 여부(true=이메일 인증자)';
+COMMENT ON COLUMN tb_users.is_enabled        IS '계정 활성 여부(true=로그인/사용 가능)';
+COMMENT ON COLUMN tb_users.is_locked         IS '계정 잠금 여부(true=로그인 차단/제한)';
+COMMENT ON COLUMN tb_users.created_at        IS '생성 시각';
+COMMENT ON COLUMN tb_users.updated_at        IS '수정 시각';
+COMMENT ON COLUMN tb_users.deleted_at        IS '소프트 삭제 시각(NULL이면 활성)';
 
 COMMENT ON CONSTRAINT uq_tb_users_email   ON tb_users IS '이메일 유니크 제약';
 COMMENT ON CONSTRAINT uq_tb_users_handle  ON tb_users IS '핸들 유니크 제약';

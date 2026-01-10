@@ -11,6 +11,7 @@ import com.mocktalkback.domain.role.entity.RoleEntity;
 import com.mocktalkback.domain.role.repository.RoleRepository;
 import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.dto.AuthTokens;
+import com.mocktalkback.domain.user.dto.AccessTokenResult;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
 import com.mocktalkback.domain.user.dto.RefreshTokens;
@@ -19,6 +20,7 @@ import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService.Rotated;
+import com.mocktalkback.global.auth.oauth2.OAuth2CodeService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwt;
     private final RefreshTokenService refreshTokenService;
+    private final OAuth2CodeService oAuth2CodeService;
     
     @Transactional
     public void join(JoinRequest joinDto) {
@@ -176,6 +179,29 @@ public class AuthService {
                 rotated.refreshExpiresInSec(),
                 rotated.rememberMe()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public AccessTokenResult exchangeOAuth2Code(String code) {
+        Long userId = oAuth2CodeService.consume(code);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "OAUTH2_CODE_INVALID");
+        }
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        if (!user.isEnabled() || user.isLocked()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+
+        String access = jwt.createAccessToken(
+                user.getId(),
+                user.getRole().getRoleName(),
+                user.getRole().getAuthBit()
+        );
+
+        return new AccessTokenResult(access, jwt.accessTtlSec());
     }
 
 }

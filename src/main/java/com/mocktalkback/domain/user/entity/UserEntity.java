@@ -70,6 +70,9 @@ public class UserEntity extends SoftDeleteEntity {
     @Column(name = "user_point", nullable = false)
     private int userPoint;
 
+    @Column(name = "is_email_verified", nullable = false)
+    private boolean emailVerified = false;
+
     @Column(name = "is_enabled", nullable = false)
     private boolean enabled = true;
 
@@ -78,16 +81,17 @@ public class UserEntity extends SoftDeleteEntity {
 
     @Builder(access = AccessLevel.PRIVATE)
     private UserEntity(
-            RoleEntity role,
-            String loginId,
-            String email,
-            String pwHash,
-            String userName,
-            String displayName,
-            String handle,
-            int userPoint,
-            boolean enabled,
-            boolean locked
+        RoleEntity role,
+        String loginId,
+        String email,
+        String pwHash,
+        String userName,
+        String displayName,
+        String handle,
+        int userPoint,
+        boolean emailVerified,
+        boolean enabled,
+        boolean locked
     ) {
         this.role = role;
         this.loginId = loginId;
@@ -97,31 +101,58 @@ public class UserEntity extends SoftDeleteEntity {
         this.displayName = displayName;
         this.handle = handle;
         this.userPoint = userPoint;
+        this.emailVerified = emailVerified;
         this.enabled = enabled;
         this.locked = locked;
     }
 
     public static UserEntity createLocal(
-            RoleEntity role,
-            String loginId,
-            String email,
-            String encodedPw,
-            String userName,
-            String displayName,
-            String handle
+        RoleEntity role,
+        String loginId,
+        String email,
+        String encodedPw,
+        String userName,
+        String displayName,
+        String handle
     ) {
         return UserEntity.builder()
-                .role(role)
-                .loginId(loginId)
-                .email(email)
-                .pwHash(encodedPw)
-                .userName(userName)
-                .displayName(displayName)
-                .handle(handle)
-                .userPoint(0)
-                .enabled(true)
-                .locked(false)
-                .build();
+            .role(role)
+            .loginId(loginId)
+            .email(email)
+            .pwHash(encodedPw)
+            .userName(userName)
+            .displayName(displayName)
+            .handle(handle)
+            .userPoint(0)
+            .emailVerified(false)
+            .enabled(true)
+            .locked(false)
+            .build();
+    }
+
+    public static UserEntity createOAuth(
+        RoleEntity role,
+        String loginId,
+        String email,
+        String encodedPw,
+        String userName,
+        String displayName,
+        String handle,
+        boolean emailVerified
+    ) {
+        return UserEntity.builder()
+            .role(role)
+            .loginId(loginId)
+            .email(email)
+            .pwHash(encodedPw)
+            .userName(userName)
+            .displayName(displayName)
+            .handle(handle)
+            .userPoint(0)
+            .emailVerified(emailVerified)
+            .enabled(true)
+            .locked(false)
+            .build();
     }
 
     public void changePassword(String encodedPw) {

@@ -22,18 +22,18 @@ public class Seed {
 
     @Bean
     ApplicationRunner seeder(
-            RoleRepository roleRepository,
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+        RoleRepository roleRepository,
+        UserRepository userRepository,
+        PasswordEncoder passwordEncoder
     ) {
         return args -> seed(roleRepository, userRepository, passwordEncoder);
     }
 
     @Transactional
     void seed(
-            RoleRepository roleRepository,
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+        RoleRepository roleRepository,
+        UserRepository userRepository,
+        PasswordEncoder passwordEncoder
     ) {
         upsertRole(roleRepository, RoleNames.USER, AuthBits.READ, "기본 사용자(읽기)");
         upsertRole(roleRepository, RoleNames.WRITER, AuthBits.READ | AuthBits.WRITE, "작성 가능(읽기+쓰기)");
@@ -49,82 +49,82 @@ public class Seed {
     }
 
     private void seedUsers(
-            RoleRepository roleRepository,
-            UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+        RoleRepository roleRepository,
+        UserRepository userRepository,
+        PasswordEncoder passwordEncoder
     ) {
         seedUser(
-                userRepository,
-                roleRepository,
-                RoleNames.USER,
-                "seed_user",
-                "seed_user@example.com",
-                "Seed User",
-                "SeedUser",
-                "seed_user",
-                passwordEncoder.encode(SEED_PASSWORD)
+            userRepository,
+            roleRepository,
+            RoleNames.USER,
+            "seed_user",
+            "seed_user@example.com",
+            "Seed User",
+            "SeedUser",
+            "seed_user",
+            passwordEncoder.encode(SEED_PASSWORD)
         );
         seedUser(
-                userRepository,
-                roleRepository,
-                RoleNames.WRITER,
-                "seed_writer",
-                "seed_writer@example.com",
-                "Seed Writer",
-                "SeedWriter",
-                "seed_writer",
-                passwordEncoder.encode(SEED_PASSWORD)
+            userRepository,
+            roleRepository,
+            RoleNames.WRITER,
+            "seed_writer",
+            "seed_writer@example.com",
+            "Seed Writer",
+            "SeedWriter",
+            "seed_writer",
+            passwordEncoder.encode(SEED_PASSWORD)
         );
         seedUser(
-                userRepository,
-                roleRepository,
-                RoleNames.MODERATOR,
-                "seed_moderator",
-                "seed_moderator@example.com",
-                "Seed Moderator",
-                "SeedMod",
-                "seed_moderator",
-                passwordEncoder.encode(SEED_PASSWORD)
+            userRepository,
+            roleRepository,
+            RoleNames.MODERATOR,
+            "seed_moderator",
+            "seed_moderator@example.com",
+            "Seed Moderator",
+            "SeedMod",
+            "seed_moderator",
+            passwordEncoder.encode(SEED_PASSWORD)
         );
         seedUser(
-                userRepository,
-                roleRepository,
-                RoleNames.ADMIN,
-                "seed_admin",
-                "seed_admin@example.com",
-                "Seed Admin",
-                "SeedAdmin",
-                "seed_admin",
-                passwordEncoder.encode(SEED_PASSWORD)
+            userRepository,
+            roleRepository,
+            RoleNames.ADMIN,
+            "seed_admin",
+            "seed_admin@example.com",
+            "Seed Admin",
+            "SeedAdmin",
+            "seed_admin",
+            passwordEncoder.encode(SEED_PASSWORD)
         );
     }
 
     private void seedUser(
-            UserRepository userRepository,
-            RoleRepository roleRepository,
-            String roleName,
-            String loginId,
-            String email,
-            String userName,
-            String displayName,
-            String handle,
-            String encodedPw
+        UserRepository userRepository,
+        RoleRepository roleRepository,
+        String roleName,
+        String loginId,
+        String email,
+        String userName,
+        String displayName,
+        String handle,
+        String encodedPw
     ) {
         if (userRepository.existsByLoginId(loginId)
-                || userRepository.existsByEmail(email)
-                || userRepository.existsByHandle(handle)) {
+            || userRepository.existsByEmail(email)
+            || userRepository.existsByHandle(handle)) {
             return;
         }
         RoleEntity role = roleRepository.findByRoleName(roleName)
-                .orElseThrow(() -> new IllegalStateException("권한이 없습니다: " + roleName));
+            .orElseThrow(() -> new IllegalStateException("권한이 없습니다: " + roleName));
         UserEntity user = UserEntity.createLocal(
-                role,
-                loginId,
-                email,
-                encodedPw,
-                userName,
-                displayName,
-                handle
+            role,
+            loginId,
+            email,
+            encodedPw,
+            userName,
+            displayName,
+            handle
         );
         userRepository.save(user);
     }

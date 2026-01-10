@@ -31,7 +31,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         final String path = request.getServletPath();
         final List<String> skip = List.of("/", "/api/health",
-            "/api/auth/join", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout"
+            "/api/auth/join", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+            "/api/auth/oauth2/callback"
         );
         return skip.contains(path);
     }

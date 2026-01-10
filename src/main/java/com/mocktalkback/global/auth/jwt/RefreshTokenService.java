@@ -97,9 +97,9 @@ public class RefreshTokenService {
         redis.delete(List.of(key(sid), absKey(sid)));
     }
 
-    private void saveSidJti(String sid, String jti) {
-        saveSidJti(sid, jti, jwt.refreshTtlSec());
-    }
+    // private void saveSidJti(String sid, String jti) {
+    //     saveSidJti(sid, jti, jwt.refreshTtlSec());
+    // }
 
     private void saveSidJti(String sid, String jti, long ttlSec) {
         redis.opsForValue().set(key(sid), jti, Duration.ofSeconds(ttlSec));

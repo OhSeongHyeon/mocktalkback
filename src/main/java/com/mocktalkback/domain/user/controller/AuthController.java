@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.mocktalkback.domain.user.dto.AuthTokens;
+import com.mocktalkback.domain.user.dto.AccessTokenResult;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
+import com.mocktalkback.domain.user.dto.OAuth2CodeRequest;
 import com.mocktalkback.domain.user.dto.RefreshTokens;
 import com.mocktalkback.domain.user.dto.TokenResponse;
 import com.mocktalkback.domain.user.service.AuthService;
@@ -90,6 +92,16 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.clear().toString())
                 .build();
+    }
+
+    @PostMapping("/oauth2/callback")
+    public ResponseEntity<TokenResponse> oauth2Callback(@RequestBody @Valid OAuth2CodeRequest req) {
+        AccessTokenResult result = userService.exchangeOAuth2Code(req.code());
+        return ResponseEntity.ok(new TokenResponse(
+                result.accessToken(),
+                "Bearer",
+                result.accessExpiresInSec()
+        ));
     }
 
 }
