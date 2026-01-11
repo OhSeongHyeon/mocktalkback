@@ -14,3 +14,9 @@ app:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS:60}
     redirect-path: ${OAUTH2_REDIRECT_PATH:/oauth/callback}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

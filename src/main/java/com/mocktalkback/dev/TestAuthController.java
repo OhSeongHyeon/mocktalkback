@@ -6,7 +6,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mocktalkback.global.common.ApiResponse;
+import com.mocktalkback.global.common.ApiEnvelope;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,14 +17,14 @@ public class TestAuthController {
 
     @PreAuthorize("hasRole('USER')")
     @PostMapping("/api/dev/user")
-    public ResponseEntity<ApiResponse<String>> userOnly() {
-        return ResponseEntity.ok(ApiResponse.ok("user"));
+    public ResponseEntity<ApiEnvelope<String>> userOnly() {
+        return ResponseEntity.ok(ApiEnvelope.ok("user"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/api/dev/admin")
-    public ResponseEntity<ApiResponse<String>> healthCheck() {
-        return ResponseEntity.ok(ApiResponse.ok("admin"));
+    public ResponseEntity<ApiEnvelope<String>> healthCheck() {
+        return ResponseEntity.ok(ApiEnvelope.ok("admin"));
     }
 
 }

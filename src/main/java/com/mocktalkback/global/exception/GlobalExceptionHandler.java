@@ -1,6 +1,6 @@
 package com.mocktalkback.global.exception;
 
-import com.mocktalkback.global.common.ApiResponse;
+import com.mocktalkback.global.common.ApiEnvelope;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
@@ -25,86 +25,86 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     // 요청 바디 Bean Validation(@Valid) 검증 실패 처리.
-    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentNotValid(
+    public ResponseEntity<ApiEnvelope<Void>> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex
     ) {
         String message = extractFieldErrors(ex.getBindingResult());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(message));
+                .body(ApiEnvelope.fail(message));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     // 파라미터/경로/쿼리 @Validated 검증 실패 처리.
-    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(
+    public ResponseEntity<ApiEnvelope<Void>> handleConstraintViolation(
             ConstraintViolationException ex
     ) {
         String message = extractConstraintViolations(ex.getConstraintViolations());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(message));
+                .body(ApiEnvelope.fail(message));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     // 경로/쿼리 파라미터 타입 불일치 처리.
-    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+    public ResponseEntity<ApiEnvelope<Void>> handleTypeMismatch(
             MethodArgumentTypeMismatchException ex
     ) {
         String message = "Invalid parameter: " + ex.getName();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(message));
+                .body(ApiEnvelope.fail(message));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     // 잘못된 JSON 등 요청 바디 파싱 실패 처리.
-    public ResponseEntity<ApiResponse<Void>> handleNotReadable(
+    public ResponseEntity<ApiEnvelope<Void>> handleNotReadable(
             HttpMessageNotReadableException ex
     ) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail("Malformed request body"));
+                .body(ApiEnvelope.fail("Malformed request body"));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     // 지원하지 않는 HTTP 메서드 요청 처리.
-    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+    public ResponseEntity<ApiEnvelope<Void>> handleMethodNotSupported(
             HttpRequestMethodNotSupportedException ex
     ) {
         String message = "지원하지 않는 HTTP 메서드입니다: " + ex.getMethod();
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(ApiResponse.fail(message));
+                .body(ApiEnvelope.fail(message));
     }
 
     @ExceptionHandler(AuthenticationException.class)
     // 인증 실패(미인증) 처리.
-    public ResponseEntity<ApiResponse<Void>> handleAuthentication(
+    public ResponseEntity<ApiEnvelope<Void>> handleAuthentication(
             AuthenticationException ex
     ) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail("Unauthorized"));
+                .body(ApiEnvelope.fail("Unauthorized"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     // 인가 실패(권한 부족) 처리.
-    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(
+    public ResponseEntity<ApiEnvelope<Void>> handleAccessDenied(
             AccessDeniedException ex
     ) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.fail("Forbidden"));
+                .body(ApiEnvelope.fail("Forbidden"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     // 서비스/컨트롤러에서 발생한 잘못된 인자 처리.
-    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(
+    public ResponseEntity<ApiEnvelope<Void>> handleIllegalArgument(
             IllegalArgumentException ex
     ) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.fail(ex.getMessage()));
+                .body(ApiEnvelope.fail(ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
     // 처리되지 않은 모든 예외의 최종 처리.
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception ex) {
+    public ResponseEntity<ApiEnvelope<Void>> handleException(Exception ex) {
         log.error("Unhandled exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.fail("Internal server error"));
+                .body(ApiEnvelope.fail("Internal server error"));
     }
 
     private String extractFieldErrors(BindingResult result) {

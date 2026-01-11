@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.mocktalkback.domain.user.dto.AuthTokens;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.mocktalkback.domain.user.dto.AccessTokenResult;
+import com.mocktalkback.domain.user.dto.AuthTokens;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
 import com.mocktalkback.domain.user.dto.OAuth2CodeRequest;
@@ -20,15 +22,23 @@ import com.mocktalkback.domain.user.dto.TokenResponse;
 import com.mocktalkback.domain.user.service.AuthService;
 import com.mocktalkback.global.auth.CookieUtil;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
-import com.mocktalkback.global.common.ApiResponse;
-import org.springframework.web.server.ResponseStatusException;
+import com.mocktalkback.global.common.ApiEnvelope;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
+@Tag(name = "Auth", description = "로그인/회원가입/토큰 갱신 API")
 public class AuthController {
 
     private final AuthService userService;
@@ -36,12 +46,30 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
 
     @PostMapping("/join")
-    public ResponseEntity<ApiResponse<Void>> join(@Valid @RequestBody JoinRequest joinDto) {
+    @Operation(summary = "회원가입", description = "로컬 계정 회원가입")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "가입 성공",
+                    content = @Content(schema = @Schema(implementation = ApiEnvelope.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "요청 값 오류")
+    })
+    public ResponseEntity<ApiEnvelope<Void>> join(@Valid @RequestBody JoinRequest joinDto) {
         userService.join(joinDto);
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ResponseEntity.ok(ApiEnvelope.ok());
     }
 
     @PostMapping("/login")
+    @Operation(summary = "로그인", description = "아이디/비밀번호로 로그인하고 Access Token을 발급합니다.")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "로그인 성공",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "인증 실패")
+    })
     public ResponseEntity<TokenResponse> login(@RequestBody @Valid LoginRequest req) {
         AuthTokens tokens = userService.login(req);
         ResponseCookie cookie = req.rememberMe()
@@ -53,7 +81,21 @@ public class AuthController {
     }
     
     @PostMapping("/refresh")
+    @Operation(summary = "토큰 갱신", description = "Refresh 쿠키로 Access Token을 재발급합니다.")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "갱신 성공",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "Refresh 토큰 만료/무효")
+    })
     public ResponseEntity<TokenResponse> refresh(
+            @Parameter(
+                    in = ParameterIn.COOKIE,
+                    name = CookieUtil.COOKIE_NAME,
+                    description = "HttpOnly Refresh Token 쿠키"
+            )
             @CookieValue(value = CookieUtil.COOKIE_NAME, required = false) String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -80,7 +122,16 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(summary = "로그아웃", description = "Refresh 토큰을 폐기하고 쿠키를 삭제합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "로그아웃 성공")
+    })
     public ResponseEntity<Void> logout(
+            @Parameter(
+                    in = ParameterIn.COOKIE,
+                    name = CookieUtil.COOKIE_NAME,
+                    description = "HttpOnly Refresh Token 쿠키"
+            )
             @CookieValue(value = CookieUtil.COOKIE_NAME, required = false) String refreshToken
     ) {
         if (refreshToken != null && !refreshToken.isBlank()) {
@@ -95,6 +146,15 @@ public class AuthController {
     }
 
     @PostMapping("/oauth2/callback")
+    @Operation(summary = "OAuth2 코드 교환", description = "1회용 코드를 Access Token으로 교환합니다.")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "교환 성공",
+                    content = @Content(schema = @Schema(implementation = TokenResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "코드 만료/무효")
+    })
     public ResponseEntity<TokenResponse> oauth2Callback(@RequestBody @Valid OAuth2CodeRequest req) {
         AccessTokenResult result = userService.exchangeOAuth2Code(req.code());
         return ResponseEntity.ok(new TokenResponse(

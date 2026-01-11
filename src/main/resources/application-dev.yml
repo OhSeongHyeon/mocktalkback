@@ -65,3 +65,13 @@ app:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS:60}
     redirect-path: ${OAUTH2_REDIRECT_PATH:http://localhost:5173/oauth/callback}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
+
+# swagger
+# http://localhost:8081/swagger-ui.html
+# http://localhost:8081/swagger-ui/index.html
+# http://localhost:8081/v3/api-docs
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
