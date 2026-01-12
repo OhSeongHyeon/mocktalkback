@@ -22,7 +22,7 @@ import com.mocktalkback.domain.user.dto.TokenResponse;
 import com.mocktalkback.domain.user.service.AuthService;
 import com.mocktalkback.global.auth.CookieUtil;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
-import com.mocktalkback.global.common.ApiEnvelope;
+import com.mocktalkback.global.common.dto.ApiEnvelope;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

@@ -31,6 +31,9 @@ import com.mocktalkback.global.auth.jwt.JwtAccessDeniedHandler;
 import com.mocktalkback.global.auth.jwt.JwtAuthEntryPoint;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
+import com.mocktalkback.global.auth.oauth2.CustomOAuth2UserService;
+import com.mocktalkback.global.auth.oauth2.OAuth2LoginFailureHandler;
+import com.mocktalkback.global.auth.oauth2.OAuth2LoginSuccessHandler;
 import com.mocktalkback.global.config.SecurityConfig;
 import jakarta.servlet.http.Cookie;
 import org.springframework.web.server.ResponseStatusException;
@@ -66,6 +69,15 @@ class AuthControllerTest {
     @MockitoBean
     private RefreshTokenService refreshTokenService;
 
+    @MockitoBean
+    private CustomOAuth2UserService customOAuth2UserService;
+
+    @MockitoBean
+    private OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+
+    @MockitoBean
+    private OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+
     // 회원가입 API는 성공 응답을 반환해야 한다.
     @Test
     void join_returns_ok() throws Exception {
@@ -75,7 +87,7 @@ class AuthControllerTest {
                 "user01@example.com",
                 "password12",
                 "password12",
-                null,
+                "홍길동",
                 null,
                 null
         );

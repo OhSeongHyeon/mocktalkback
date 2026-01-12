@@ -12,7 +12,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mocktalkback.global.common.ApiEnvelope;
+import com.mocktalkback.global.common.dto.ApiEnvelope;
+import com.mocktalkback.global.common.dto.ApiError;
+import com.mocktalkback.global.common.dto.ErrorCode;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -53,7 +55,8 @@ public class OriginAllowlistFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
-            objectMapper.writeValue(response.getWriter(), ApiEnvelope.fail("Invalid origin"));
+            ApiError error = ApiError.of(ErrorCode.COMMON_FORBIDDEN, "Invalid origin", request.getRequestURI(), null);
+            objectMapper.writeValue(response.getWriter(), ApiEnvelope.fail(error));
             return;
         }
         filterChain.doFilter(request, response);

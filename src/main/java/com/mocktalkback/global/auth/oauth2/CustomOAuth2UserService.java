@@ -26,6 +26,7 @@ import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.entity.UserOAuthLinkEntity;
 import com.mocktalkback.domain.user.repository.UserOAuthLinkRepository;
 import com.mocktalkback.domain.user.repository.UserRepository;
+import com.mocktalkback.global.common.util.HandleGenerator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -33,16 +34,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
-    private static final int HANDLE_LENGTH = 12;
-    private static final int HANDLE_TRIES = 10;
     private static final int LOGIN_TRIES = 10;
-    private static final char[] HANDLE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final UserOAuthLinkRepository userOAuthLinkRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final HandleGenerator handleGenerator;
 
     private final DefaultOAuth2UserService delegate = new DefaultOAuth2UserService();
 
@@ -96,7 +95,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             return existingLink.getUser();
         }
 
-        String handle = generateUniqueHandle();
+        String handle = handleGenerator.generateUniqueHandle();
         int loginDigits = OAuth2ProviderType.GITHUB.equals(provider) ? 6 : 4;
         String loginId = generateUniqueLoginId(handle, loginDigits);
         String email = resolveEmailValue(provider, rawEmail, loginId);
@@ -222,24 +221,6 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             return Boolean.parseBoolean(value);
         }
         return false;
-    }
-
-    private String generateUniqueHandle() {
-        for (int i = 0; i < HANDLE_TRIES; i++) {
-            String candidate = randomHandle(HANDLE_LENGTH);
-            if (!userRepository.existsByHandle(candidate)) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException("사용 가능한 핸들을 생성하지 못했습니다.");
-    }
-
-    private String randomHandle(int length) {
-        char[] buffer = new char[length];
-        for (int i = 0; i < length; i++) {
-            buffer[i] = HANDLE_CHARS[RANDOM.nextInt(HANDLE_CHARS.length)];
-        }
-        return new String(buffer);
     }
 
     private String generateUniqueLoginId(String handle, int digits) {

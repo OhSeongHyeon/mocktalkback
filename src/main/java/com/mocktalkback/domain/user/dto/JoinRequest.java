@@ -28,15 +28,16 @@ public record JoinRequest(
         @Size(min = 8, max = 64)
         String confirmPassword,
 
-        @Schema(description = "사용자명", example = "mocktalk_user")
+        @Schema(description = "이름", example = "name")
+        @NotBlank
         @Size(max = 32)
         String userName,
 
-        @Schema(description = "표시명", example = "MockTalk")
+        @Schema(description = "닉네임", example = "MockTalk")
         @Size(max = 16)
         String displayName,
 
-        @Schema(description = "핸들", example = "mocktalk01")
+        @Schema(description = "핸들", example = "handle1234")
         @Size(max = 24)
         String handle
 ) {

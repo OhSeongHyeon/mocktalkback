@@ -1,7 +1,5 @@
 package com.mocktalkback.domain.user.service;
 
-import java.security.SecureRandom;
-
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +19,7 @@ import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService.Rotated;
 import com.mocktalkback.global.auth.oauth2.OAuth2CodeService;
+import com.mocktalkback.global.common.util.HandleGenerator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,11 +30,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-
-    private static final int HANDLE_LENGTH = 12;
-    private static final int HANDLE_TRIES = 10;
-    private static final char[] HANDLE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
-    private static final SecureRandom HANDLE_RANDOM = new SecureRandom();
     
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -43,6 +37,7 @@ public class AuthService {
     private final JwtTokenProvider jwt;
     private final RefreshTokenService refreshTokenService;
     private final OAuth2CodeService oAuth2CodeService;
+    private final HandleGenerator handleGenerator;
     
     @Transactional
     public void join(JoinRequest joinDto) {
@@ -76,7 +71,7 @@ public class AuthService {
                 throw new IllegalArgumentException("이미 사용 중인 핸들입니다.");
             }
         } else {
-            handle = generateUniqueHandle();
+            handle = handleGenerator.generateUniqueHandle();
         }
 
         RoleEntity role = roleRepository.findByRoleName(RoleNames.USER)
@@ -107,24 +102,6 @@ public class AuthService {
         if (value.length() > max) {
             throw new IllegalArgumentException(fieldName + "은 " + max + "자 이하이어야 합니다.");
         }
-    }
-
-    private String generateUniqueHandle() {
-        for (int i = 0; i < HANDLE_TRIES; i++) {
-            String candidate = randomHandle(HANDLE_LENGTH);
-            if (!userRepository.existsByHandle(candidate)) {
-                return candidate;
-            }
-        }
-        throw new IllegalStateException("사용 가능한 핸들을 생성하지 못했습니다.");
-    }
-
-    private String randomHandle(int length) {
-        char[] buffer = new char[length];
-        for (int i = 0; i < length; i++) {
-            buffer[i] = HANDLE_CHARS[HANDLE_RANDOM.nextInt(HANDLE_CHARS.length)];
-        }
-        return new String(buffer);
     }
 
     @Transactional(readOnly = true)

@@ -8,7 +8,9 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mocktalkback.global.common.ApiEnvelope;
+import com.mocktalkback.global.common.dto.ApiEnvelope;
+import com.mocktalkback.global.common.dto.ApiError;
+import com.mocktalkback.global.common.dto.ErrorCode;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,6 +33,7 @@ public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getWriter(), ApiEnvelope.fail("Unauthorized"));
+        ApiError error = ApiError.of(ErrorCode.COMMON_UNAUTHORIZED, request.getRequestURI());
+        objectMapper.writeValue(response.getWriter(), ApiEnvelope.fail(error));
     }
 }
