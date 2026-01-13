@@ -26,7 +26,9 @@ public class Seed {
         UserRepository userRepository,
         PasswordEncoder passwordEncoder
     ) {
-        return args -> seed(roleRepository, userRepository, passwordEncoder);
+        return args -> {
+            // seed(roleRepository, userRepository, passwordEncoder);
+        };
     }
 
     @Transactional
@@ -37,7 +39,7 @@ public class Seed {
     ) {
         upsertRole(roleRepository, RoleNames.USER, AuthBits.READ, "기본 사용자(읽기)");
         upsertRole(roleRepository, RoleNames.WRITER, AuthBits.READ | AuthBits.WRITE, "작성 가능(읽기+쓰기)");
-        upsertRole(roleRepository, RoleNames.MANAGER, AuthBits.READ | AuthBits.WRITE | AuthBits.DELETE, "모더레이터(읽기+쓰기+삭제)");
+        upsertRole(roleRepository, RoleNames.MANAGER, AuthBits.READ | AuthBits.WRITE | AuthBits.DELETE, "매니저(읽기+쓰기+삭제)");
         upsertRole(roleRepository, RoleNames.ADMIN, AuthBits.READ | AuthBits.WRITE | AuthBits.DELETE | AuthBits.ADMIN, "전체 권한");
         seedUsers(roleRepository, userRepository, passwordEncoder);
     }

@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.file.entity;
 
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 import com.mocktalkback.domain.file.type.MediaKind;
 
 import jakarta.persistence.Column;
@@ -47,6 +47,12 @@ public class FileClassEntity extends SoftDeleteEntity {
         MediaKind mediaKind
     ) {
         this.code = code;
+        this.name = name;
+        this.description = description;
+        this.mediaKind = mediaKind;
+    }
+
+    public void update(String name, String description, MediaKind mediaKind) {
         this.name = name;
         this.description = description;
         this.mediaKind = mediaKind;

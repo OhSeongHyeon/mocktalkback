@@ -395,6 +395,13 @@ COMMENT ON COLUMN tb_role.description IS '역할 설명';
 COMMENT ON COLUMN tb_role.created_at IS '생성일자';
 COMMENT ON COLUMN tb_role.updated_at IS '수정일자';
 
+INSERT INTO tb_role (role_name, auth_bit, description)
+VALUES
+  ('USER', 1, '기본 사용자(읽기)'),
+  ('WRITER', 3, '작성 가능(읽기+쓰기)'),
+  ('MANAGER', 7, '매니저(읽기+쓰기+삭제)'),
+  ('ADMIN', 15, '전체 권한');
+
 
 
 CREATE TABLE tb_user_files
@@ -749,6 +756,18 @@ CREATE INDEX IF NOT EXISTS ix_tb_comment_files_file_id
 
 CREATE INDEX IF NOT EXISTS ix_tb_board_files_file_id
   ON tb_board_files (file_id);
+
+CREATE INDEX IF NOT EXISTS ix_tb_user_files_file_id
+  ON tb_user_files (file_id);
+
+CREATE INDEX IF NOT EXISTS ix_tb_article_files_article_id
+  ON tb_article_files (article_id);
+
+CREATE INDEX IF NOT EXISTS ix_tb_comment_files_comment_id
+  ON tb_comment_files (comment_id);
+
+CREATE INDEX IF NOT EXISTS ix_tb_board_files_board_id
+  ON tb_board_files (board_id);
 
 CREATE INDEX IF NOT EXISTS ix_tb_user_files_file_id
   ON tb_user_files (file_id);

@@ -1,7 +1,7 @@
 package com.mocktalkback.domain.article.entity;
 
 import com.mocktalkback.domain.board.entity.BoardEntity;
-import com.mocktalkback.domain.common.entity.BaseTimeEntity;
+import com.mocktalkback.global.common.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -52,6 +52,10 @@ public class ArticleCategoryEntity extends BaseTimeEntity {
     @Builder
     private ArticleCategoryEntity(BoardEntity board, String categoryName) {
         this.board = board;
+        this.categoryName = categoryName;
+    }
+
+    public void updateName(String categoryName) {
         this.categoryName = categoryName;
     }
 }

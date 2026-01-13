@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.board.entity;
 
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 
 import jakarta.persistence.Column;
@@ -10,7 +10,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -41,8 +40,7 @@ public class BoardEntity extends SoftDeleteEntity {
     @Column(name = "slug", nullable = false, length = 80)
     private String slug;
 
-    @Lob
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "text")
     private String description;
 
     @Enumerated(EnumType.STRING)
@@ -51,6 +49,18 @@ public class BoardEntity extends SoftDeleteEntity {
 
     @Builder
     private BoardEntity(
+        String boardName,
+        String slug,
+        String description,
+        ContentVisibility visibility
+    ) {
+        this.boardName = boardName;
+        this.slug = slug;
+        this.description = description;
+        this.visibility = visibility;
+    }
+
+    public void update(
         String boardName,
         String slug,
         String description,

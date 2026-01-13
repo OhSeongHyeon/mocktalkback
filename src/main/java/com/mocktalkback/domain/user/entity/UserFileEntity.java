@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.user.entity;
 
-import com.mocktalkback.domain.common.entity.BaseTimeEntity;
+import com.mocktalkback.global.common.entity.BaseTimeEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
 
 import jakarta.persistence.Column;

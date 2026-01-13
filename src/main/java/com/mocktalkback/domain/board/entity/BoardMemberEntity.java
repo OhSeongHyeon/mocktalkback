@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.board.entity;
 
-import com.mocktalkback.domain.common.entity.BaseTimeEntity;
+import com.mocktalkback.global.common.entity.BaseTimeEntity;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.user.entity.UserEntity;
 

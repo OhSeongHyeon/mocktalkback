@@ -6,7 +6,7 @@ INSERT INTO tb_role (role_name, auth_bit, description)
 VALUES
   ('USER', 1, '기본 사용자(읽기)'),
   ('WRITER', 3, '작성 가능(읽기+쓰기)'),
-  ('MANAGER', 7, '모더레이터(읽기+쓰기+삭제)'),
+  ('MANAGER', 7, '매니저(읽기+쓰기+삭제)'),
   ('ADMIN', 15, '전체 권한');
 
 -- Users

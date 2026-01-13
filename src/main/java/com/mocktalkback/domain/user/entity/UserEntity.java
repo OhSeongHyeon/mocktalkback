@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.user.entity;
 
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 import com.mocktalkback.domain.role.entity.RoleEntity;
 
 import jakarta.persistence.Column;

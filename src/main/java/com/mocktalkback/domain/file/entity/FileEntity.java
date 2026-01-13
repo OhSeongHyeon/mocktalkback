@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.file.entity;
 
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -56,6 +56,20 @@ public class FileEntity extends SoftDeleteEntity {
 
     @Builder
     private FileEntity(
+        FileClassEntity fileClass,
+        String fileName,
+        String storageKey,
+        Long fileSize,
+        String mimeType
+    ) {
+        this.fileClass = fileClass;
+        this.fileName = fileName;
+        this.storageKey = storageKey;
+        this.fileSize = fileSize;
+        this.mimeType = mimeType;
+    }
+
+    public void update(
         FileClassEntity fileClass,
         String fileName,
         String storageKey,

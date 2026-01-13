@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.notification.entity;
 
-import com.mocktalkback.domain.common.entity.BaseTimeEntity;
+import com.mocktalkback.global.common.entity.BaseTimeEntity;
 import com.mocktalkback.domain.notification.type.NotificationType;
 import com.mocktalkback.domain.notification.type.ReferenceType;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -90,6 +90,10 @@ public class NotificationEntity extends BaseTimeEntity {
         this.redirectUrl = redirectUrl;
         this.referenceType = referenceType;
         this.referenceId = referenceId;
+        this.read = read;
+    }
+
+    public void updateRead(boolean read) {
         this.read = read;
     }
 }

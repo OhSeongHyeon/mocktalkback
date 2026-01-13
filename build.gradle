@@ -38,23 +38,32 @@ dependencies {
 	implementation 'io.github.openfeign.querydsl:querydsl-jpa:7.1'
 	implementation 'io.github.openfeign.querydsl:querydsl-core:7.1'  // core 빼도되지만 버전 강제
 
+	// MapStruct
+	implementation "org.mapstruct:mapstruct:1.6.3"
+	annotationProcessor "org.mapstruct:mapstruct-processor:1.6.3"
+	testAnnotationProcessor "org.mapstruct:mapstruct-processor:1.6.3"
+
 	// jwt
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
 	implementation 'io.github.cdimascio:dotenv-java:3.2.0'  //.env | https://github.com/cdimascio/dotenv-java
 	implementation 'org.bouncycastle:bcprov-jdk18on:1.83'  // argon2
 
-	// implementation 'org.flywaydb:flyway-core'  // flyway -- PostgreSQL 은 core 만 있으면됨
+	implementation 'org.flywaydb:flyway-core'  // flyway
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
 	// implementation 'org.flywaydb:flyway-mysql'
 	// runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
-	runtimeOnly 'org.postgresql:postgresql'
 
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'  // devtools
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 	annotationProcessor 'org.projectlombok:lombok'
+
+	// Lombok + MapStruct binding (Lombok 사용 시 권장)
+	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
 	// QueryDSL APT (Boot 3 = jakarta)
 	annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:7.1:jakarta'  // QueryDSL Q-class
@@ -67,7 +76,7 @@ dependencies {
 }
 
 // QueryDSL Q-class generated sources
-def querydslDir = '$buildDir/generated/querydsl'
+def querydslDir = "$buildDir/generated/querydsl"
 sourceSets {
 	main {
 		java {

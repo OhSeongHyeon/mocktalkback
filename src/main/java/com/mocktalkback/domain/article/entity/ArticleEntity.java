@@ -1,7 +1,7 @@
 package com.mocktalkback.domain.article.entity;
 
 import com.mocktalkback.domain.board.entity.BoardEntity;
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.entity.UserEntity;
 
@@ -15,7 +15,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -64,8 +63,7 @@ public class ArticleEntity extends SoftDeleteEntity {
     @Column(name = "title", nullable = false, length = 255)
     private String title;
 
-    @Lob
-    @Column(name = "content", nullable = false)
+    @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
 
     @Column(name = "hit", nullable = false)
@@ -92,6 +90,20 @@ public class ArticleEntity extends SoftDeleteEntity {
         this.title = title;
         this.content = content;
         this.hit = hit;
+        this.notice = notice;
+    }
+
+    public void update(
+        ArticleCategoryEntity category,
+        ContentVisibility visibility,
+        String title,
+        String content,
+        boolean notice
+    ) {
+        this.category = category;
+        this.visibility = visibility;
+        this.title = title;
+        this.content = content;
         this.notice = notice;
     }
 }

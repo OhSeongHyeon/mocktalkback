@@ -1,7 +1,7 @@
 package com.mocktalkback.domain.comment.entity;
 
 import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 import com.mocktalkback.domain.user.entity.UserEntity;
 
 import jakarta.persistence.Column;
@@ -12,7 +12,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -64,8 +63,7 @@ public class CommentEntity extends SoftDeleteEntity {
     @Column(name = "depth", nullable = false)
     private int depth;
 
-    @Lob
-    @Column(name = "content", nullable = false)
+    @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
 
     @Builder
@@ -82,6 +80,10 @@ public class CommentEntity extends SoftDeleteEntity {
         this.parentComment = parentComment;
         this.rootComment = rootComment;
         this.depth = depth;
+        this.content = content;
+    }
+
+    public void updateContent(String content) {
         this.content = content;
     }
 }
