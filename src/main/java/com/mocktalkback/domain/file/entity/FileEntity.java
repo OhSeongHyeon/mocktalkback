@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,7 +22,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
-    name = "tb_files"
+    name = "tb_files",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uq_tb_files_storage_key", columnNames = "storage_key")
+    }
 )
 public class FileEntity extends SoftDeleteEntity {
 
@@ -34,7 +38,7 @@ public class FileEntity extends SoftDeleteEntity {
     @JoinColumn(
         name = "file_class_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_files_tb_file_classes")
+        foreignKey = @ForeignKey(name = "fk_tb_files_file_class_id__tb_file_classes")
     )
     private FileClassEntity fileClass;
 

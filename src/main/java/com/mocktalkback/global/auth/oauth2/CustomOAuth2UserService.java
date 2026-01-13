@@ -125,7 +125,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             String displayName = resolveDisplayName(provider, name, loginId, userName);
             boolean emailVerified = resolveEmailVerified(provider, attributes);
 
-            RoleEntity role = roleRepository.findByRoleName(RoleNames.USER)
+            RoleEntity role = roleRepository.findByRoleName(RoleNames.WRITER)
                     .orElseThrow(() -> new IllegalStateException("기본 권한이 없습니다."));
 
             String randomPw = UUID.randomUUID().toString();

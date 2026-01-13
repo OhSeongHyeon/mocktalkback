@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.role.entity;
 
-import com.mocktalkback.domain.common.entity.SoftDeleteEntity;
+import com.mocktalkback.domain.common.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,16 +23,16 @@ import lombok.NoArgsConstructor;
 @Table(
     name = "tb_role",
     uniqueConstraints = {
-        @UniqueConstraint(name = "uq_role_role_name", columnNames = "role_name")
+        @UniqueConstraint(name = "uq_tb_role_role_name", columnNames = "role_name")
     }
 )
-public class RoleEntity extends SoftDeleteEntity {
+public class RoleEntity extends BaseTimeEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "role_id")
     private Long id;
 
-    @Column(name = "role_name", nullable = false, unique = true, length = 24)
+    @Column(name = "role_name", nullable = false, length = 24)
     private String roleName;  // 권한명
 
     @Column(name = "auth_bit", nullable = false)

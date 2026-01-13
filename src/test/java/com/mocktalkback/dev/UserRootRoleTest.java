@@ -101,7 +101,7 @@ class UserRootRoleTest {
         // Given
         String user = RoleNames.USER;
         String writer = RoleNames.WRITER;
-        String moderator = RoleNames.MODERATOR;
+        String manager = RoleNames.MANAGER;
         String admin = RoleNames.ADMIN;
 
         // When
@@ -110,7 +110,7 @@ class UserRootRoleTest {
         assertAll(
                 () -> assertEquals("USER", user),
                 () -> assertEquals("WRITER", writer),
-                () -> assertEquals("MODERATOR", moderator),
+                () -> assertEquals("MANAGER", manager),
                 () -> assertEquals("ADMIN", admin)
         );
     }

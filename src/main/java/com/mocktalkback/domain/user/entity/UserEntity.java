@@ -45,7 +45,7 @@ public class UserEntity extends SoftDeleteEntity {
     @JoinColumn(
         name = "role_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_users_tb_role")
+        foreignKey = @ForeignKey(name = "fk_tb_users_role_id__tb_role")
     )
     private RoleEntity role;
 

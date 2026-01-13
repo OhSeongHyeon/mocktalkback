@@ -1,7 +1,7 @@
-package com.mocktalkback.domain.user.entity;
+package com.mocktalkback.domain.article.entity;
 
 import com.mocktalkback.domain.common.entity.BaseTimeEntity;
-import com.mocktalkback.domain.file.entity.FileEntity;
+import com.mocktalkback.domain.user.entity.UserEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,43 +24,47 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
-    name = "tb_user_files",
+    name = "tb_article_reactions",
     uniqueConstraints = {
         @UniqueConstraint(
-            name = "uq_tb_user_files_user_id_file_id",
-            columnNames = {"user_id", "file_id"}
+            name = "uq_tb_article_reactions_user_id_article_id",
+            columnNames = {"user_id", "article_id"}
         )
     },
     indexes = {
-        @Index(name = "ix_tb_user_files_file_id", columnList = "file_id")
+        @Index(name = "ix_tb_article_reactions_article_id", columnList = "article_id")
     }
 )
-public class UserFileEntity extends BaseTimeEntity {
+public class ArticleReactionEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_file_id", nullable = false)
+    @Column(name = "article_reaction_id", nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "user_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_user_files_user_id__tb_users")
+        foreignKey = @ForeignKey(name = "fk_tb_article_reactions_user_id__tb_users")
     )
     private UserEntity user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
-        name = "file_id",
+        name = "article_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_user_files_file_id__tb_files")
+        foreignKey = @ForeignKey(name = "fk_tb_article_reactions_article_id__tb_articles")
     )
-    private FileEntity file;
+    private ArticleEntity article;
+
+    @Column(name = "reaction_type", nullable = false)
+    private short reactionType;
 
     @Builder
-    private UserFileEntity(UserEntity user, FileEntity file) {
+    private ArticleReactionEntity(UserEntity user, ArticleEntity article, short reactionType) {
         this.user = user;
-        this.file = file;
+        this.article = article;
+        this.reactionType = reactionType;
     }
 }

@@ -1,4 +1,4 @@
-package com.mocktalkback.domain.user.entity;
+package com.mocktalkback.domain.article.entity;
 
 import com.mocktalkback.domain.common.entity.BaseTimeEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
@@ -24,43 +24,43 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
-    name = "tb_user_files",
+    name = "tb_article_files",
     uniqueConstraints = {
         @UniqueConstraint(
-            name = "uq_tb_user_files_user_id_file_id",
-            columnNames = {"user_id", "file_id"}
+            name = "uq_tb_article_files_article_id_file_id",
+            columnNames = {"article_id", "file_id"}
         )
     },
     indexes = {
-        @Index(name = "ix_tb_user_files_file_id", columnList = "file_id")
+        @Index(name = "ix_tb_article_files_file_id", columnList = "file_id")
     }
 )
-public class UserFileEntity extends BaseTimeEntity {
+public class ArticleFileEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_file_id", nullable = false)
+    @Column(name = "article_file_id", nullable = false)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-        name = "user_id",
-        nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_user_files_user_id__tb_users")
-    )
-    private UserEntity user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "file_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_user_files_file_id__tb_files")
+        foreignKey = @ForeignKey(name = "fk_tb_article_files_file_id__tb_files")
     )
     private FileEntity file;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+        name = "article_id",
+        nullable = false,
+        foreignKey = @ForeignKey(name = "fk_tb_article_files_article_id__tb_articles")
+    )
+    private ArticleEntity article;
+
     @Builder
-    private UserFileEntity(UserEntity user, FileEntity file) {
-        this.user = user;
+    private ArticleFileEntity(FileEntity file, ArticleEntity article) {
         this.file = file;
+        this.article = article;
     }
 }

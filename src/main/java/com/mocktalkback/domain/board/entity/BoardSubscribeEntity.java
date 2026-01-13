@@ -1,7 +1,7 @@
-package com.mocktalkback.domain.user.entity;
+package com.mocktalkback.domain.board.entity;
 
 import com.mocktalkback.domain.common.entity.BaseTimeEntity;
-import com.mocktalkback.domain.file.entity.FileEntity;
+import com.mocktalkback.domain.user.entity.UserEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,43 +24,43 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
-    name = "tb_user_files",
+    name = "tb_board_subscribes",
     uniqueConstraints = {
         @UniqueConstraint(
-            name = "uq_tb_user_files_user_id_file_id",
-            columnNames = {"user_id", "file_id"}
+            name = "uq_tb_board_subscribes_user_id_board_id",
+            columnNames = {"user_id", "board_id"}
         )
     },
     indexes = {
-        @Index(name = "ix_tb_user_files_file_id", columnList = "file_id")
+        @Index(name = "ix_tb_board_subscribes_board_id", columnList = "board_id")
     }
 )
-public class UserFileEntity extends BaseTimeEntity {
+public class BoardSubscribeEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_file_id", nullable = false)
+    @Column(name = "board_subscribe_id", nullable = false)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
         name = "user_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_user_files_user_id__tb_users")
+        foreignKey = @ForeignKey(name = "fk_tb_board_subscribes_user_id__tb_users")
     )
     private UserEntity user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(
-        name = "file_id",
+        name = "board_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_user_files_file_id__tb_files")
+        foreignKey = @ForeignKey(name = "fk_tb_board_subscribes_board_id__tb_board")
     )
-    private FileEntity file;
+    private BoardEntity board;
 
     @Builder
-    private UserFileEntity(UserEntity user, FileEntity file) {
+    private BoardSubscribeEntity(UserEntity user, BoardEntity board) {
         this.user = user;
-        this.file = file;
+        this.board = board;
     }
 }

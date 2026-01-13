@@ -37,11 +37,11 @@ import lombok.NoArgsConstructor;
     name = "tb_user_oauth_links",
     uniqueConstraints = {
         @UniqueConstraint(
-            name = "uq_tb_user_oauth_links_provider_user",
+            name = "uq_tb_user_oauth_links_provider_provider_id",
             columnNames = {"provider", "provider_id"}
         ),
         @UniqueConstraint(
-            name = "uq_tb_user_oauth_links_user_provider",
+            name = "uq_tb_user_oauth_links_user_id_provider",
             columnNames = {"user_id", "provider"}
         )
     }
@@ -57,7 +57,7 @@ public class UserOAuthLinkEntity extends BaseTimeEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    @Column(name = "provider", nullable = false, length = 16)
+    @Column(name = "provider", nullable = false, length = 24)
     private String provider;
 
     @Column(name = "provider_id", nullable = false, length = 128)

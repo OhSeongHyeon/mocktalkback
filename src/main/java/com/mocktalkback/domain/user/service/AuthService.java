@@ -74,7 +74,7 @@ public class AuthService {
             handle = handleGenerator.generateUniqueHandle();
         }
 
-        RoleEntity role = roleRepository.findByRoleName(RoleNames.USER)
+        RoleEntity role = roleRepository.findByRoleName(RoleNames.WRITER)
                 .orElseThrow(() -> new IllegalStateException("기본 권한이 없습니다."));
 
         String encodedPw = passwordEncoder.encode(joinDto.password());
