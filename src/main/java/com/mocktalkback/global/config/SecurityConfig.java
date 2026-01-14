@@ -90,6 +90,7 @@ public class SecurityConfig {
                         .requestMatchers("/", "/api/health",
                                 "/api/auth/join", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/oauth2/callback",
+                                "/uploads/**",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
                         )
                         .permitAll()

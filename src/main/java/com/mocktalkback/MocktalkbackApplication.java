@@ -10,12 +10,19 @@ import io.github.cdimascio.dotenv.Dotenv;
 @ConfigurationPropertiesScan
 public class MocktalkbackApplication {
 
-	public static void main(String[] args) {
-		Dotenv dotenv = Dotenv.configure()
-				.ignoreIfMissing()
-				.load();
-		dotenv.entries().forEach(entry -> System.setProperty(entry.getKey(), entry.getValue()));
-		SpringApplication.run(MocktalkbackApplication.class, args);
-	}
+    public static void main(String[] args) {
+        String profile = System.getProperty(
+            "spring.profiles.active", 
+            System.getenv().getOrDefault("SPRING_PROFILES_ACTIVE", "dev")
+        );
+
+        if ("dev".equals(profile)) {
+            Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+            dotenv.entries().forEach(e -> System.setProperty(e.getKey(), e.getValue()));
+        }
+
+        SpringApplication.run(MocktalkbackApplication.class, args);
+    }
+
 
 }

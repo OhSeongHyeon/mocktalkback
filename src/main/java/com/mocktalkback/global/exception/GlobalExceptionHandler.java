@@ -16,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.ApiError;
@@ -82,11 +84,26 @@ public class GlobalExceptionHandler {
         return buildError(ErrorCode.COMMON_BAD_REQUEST, request, ex.getMessage(), null);
     }
 
+    // 업로드 최대 용량 초과 처리.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiEnvelope<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return buildError(ErrorCode.COMMON_PAYLOAD_TOO_LARGE, request, "파일 사이즈 제한 50MB", null);
+    }
+
     // 처리되지 않은 모든 예외의 최종 처리.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiEnvelope<Void>> handleException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception", ex);
         return buildError(ErrorCode.COMMON_INTERNAL_ERROR, request, null, null);
+    }
+
+    // ResponseStatusException을 상태 코드 그대로 응답.
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiEnvelope<Void>> handleResponseStatus(ResponseStatusException ex, HttpServletRequest request) {
+        ErrorCode errorCode = resolveErrorCode(ex.getStatusCode().value());
+        ApiError error = ApiError.of(errorCode, ex.getReason(), request.getRequestURI(), null);
+        return ResponseEntity.status(ex.getStatusCode())
+            .body(ApiEnvelope.fail(error));
     }
 
     private Map<String, Object> extractFieldErrorDetails(BindingResult result) {
@@ -117,6 +134,20 @@ public class GlobalExceptionHandler {
         ApiError error = ApiError.of(errorCode, reason, path, details);
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .body(ApiEnvelope.fail(error));
+    }
+
+    private ErrorCode resolveErrorCode(int statusCode) {
+        return switch (statusCode) {
+            case 400 -> ErrorCode.COMMON_BAD_REQUEST;
+            case 401 -> ErrorCode.COMMON_UNAUTHORIZED;
+            case 403 -> ErrorCode.COMMON_FORBIDDEN;
+            case 404 -> ErrorCode.COMMON_NOT_FOUND;
+            case 405 -> ErrorCode.COMMON_METHOD_NOT_ALLOWED;
+            case 409 -> ErrorCode.COMMON_CONFLICT;
+            case 429 -> ErrorCode.COMMON_TOO_MANY_REQUESTS;
+            case 413 -> ErrorCode.COMMON_PAYLOAD_TOO_LARGE;
+            default -> ErrorCode.COMMON_INTERNAL_ERROR;
+        };
     }
 
 }

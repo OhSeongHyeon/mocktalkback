@@ -72,11 +72,15 @@ public class AuthController {
     })
     public ResponseEntity<TokenResponse> login(@RequestBody @Valid LoginRequest req) {
         AuthTokens tokens = userService.login(req);
-        ResponseCookie cookie = req.rememberMe()
+        ResponseCookie refreshCookie = req.rememberMe()
                 ? cookieUtil.create(tokens.refreshToken(), tokens.refreshExpiresInSec())
                 : cookieUtil.createSession(tokens.refreshToken());
+        ResponseCookie logoutCookie = req.rememberMe()
+                ? cookieUtil.createLogout(tokens.refreshToken(), tokens.refreshExpiresInSec())
+                : cookieUtil.createLogoutSession(tokens.refreshToken());
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, logoutCookie.toString())
                 .body(new TokenResponse(tokens.accessToken(), "Bearer", tokens.accessExpiresInSec()));
     }
     
@@ -100,6 +104,7 @@ public class AuthController {
         if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.clear().toString())
+                .header(HttpHeaders.SET_COOKIE, cookieUtil.clearLogout().toString())
                 .build();
         }
 
@@ -107,16 +112,21 @@ public class AuthController {
             RefreshTokens tokens = userService.refresh(refreshToken);
 
             // 새 refresh 쿠키로 회전
-            ResponseCookie cookie = tokens.rememberMe()
+            ResponseCookie refreshCookie = tokens.rememberMe()
                     ? cookieUtil.create(tokens.refreshToken(), tokens.refreshExpiresInSec())
                     : cookieUtil.createSession(tokens.refreshToken());
+            ResponseCookie logoutCookie = tokens.rememberMe()
+                    ? cookieUtil.createLogout(tokens.refreshToken(), tokens.refreshExpiresInSec())
+                    : cookieUtil.createLogoutSession(tokens.refreshToken());
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, logoutCookie.toString())
                     .body(new TokenResponse(tokens.accessToken(), "Bearer", tokens.accessExpiresInSec()));
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .header(HttpHeaders.SET_COOKIE, cookieUtil.clear().toString())
+                    .header(HttpHeaders.SET_COOKIE, cookieUtil.clearLogout().toString())
                     .build();
         }
     }
@@ -142,6 +152,7 @@ public class AuthController {
         }
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookieUtil.clear().toString())
+                .header(HttpHeaders.SET_COOKIE, cookieUtil.clearLogout().toString())
                 .build();
     }
 

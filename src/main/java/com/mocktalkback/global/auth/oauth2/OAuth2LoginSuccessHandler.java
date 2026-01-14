@@ -69,10 +69,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         boolean rememberMe = resolveRememberMe(request);
         RefreshTokenService.IssuedRefresh issued = refreshTokenService.issue(userId, rememberMe);
-        ResponseCookie cookie = rememberMe
+        ResponseCookie refreshCookie = rememberMe
                 ? cookieUtil.create(issued.refreshToken(), issued.refreshExpiresInSec())
                 : cookieUtil.createSession(issued.refreshToken());
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        ResponseCookie logoutCookie = rememberMe
+                ? cookieUtil.createLogout(issued.refreshToken(), issued.refreshExpiresInSec())
+                : cookieUtil.createLogoutSession(issued.refreshToken());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, logoutCookie.toString());
 
         String code = oAuth2CodeService.issue(userId);
         response.sendRedirect(buildRedirectUrl(code));

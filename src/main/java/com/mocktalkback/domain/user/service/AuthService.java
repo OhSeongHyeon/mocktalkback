@@ -109,8 +109,11 @@ public class AuthService {
         UserEntity u = userRepository.findByLoginId(req.loginId())
                 .orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다."));
 
+        if (u.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "탈퇴한 계정입니다.");
+        }
         if (!u.isEnabled() || u.isLocked()) {
-            throw new IllegalStateException("계정이 비활성화/잠금 상태입니다.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "계정이 비활성화/잠금 상태입니다.");
         }
 
         if (!passwordEncoder.matches(req.password(), u.getPwHash())) {

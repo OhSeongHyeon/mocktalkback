@@ -9,8 +9,15 @@ spring:
     url: ${DEV_DB_URL}
     username: ${DEV_DB_USERNAME}
     password: ${DEV_DB_PASSWORD}
+    hikari:
+      connection-test-query: "SELECT 1"
   jackson:
     time-zone: Asia/Seoul
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 60MB
 
   jpa:
     hibernate:
@@ -66,6 +73,10 @@ app:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS:60}
     redirect-path: ${OAUTH2_REDIRECT_PATH:http://localhost:5173/oauth/callback}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
+  file:
+    storage-dir: ${FILE_STORAGE_DIR:uploads}
+
+SECURITY_ORIGIN_ALLOWLIST: ${SECURITY_ORIGIN_ALLOWLIST:http://localhost:5173,http://localhost:8081}
 
 # swagger
 # http://localhost:8081/swagger-ui.html

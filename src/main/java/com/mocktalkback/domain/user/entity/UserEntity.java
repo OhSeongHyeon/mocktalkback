@@ -163,4 +163,24 @@ public class UserEntity extends SoftDeleteEntity {
         this.userPoint += delta;
     }
 
+    public void updateProfile(String userName, String displayName, String handle) {
+        this.userName = userName;
+        this.displayName = displayName;
+        this.handle = handle;
+    }
+
+    public void updateEmail(String email) {
+        this.email = email;
+    }
+
+    public void deactivate() {
+        this.enabled = false;
+        this.locked = true;
+    }
+
+    public void softDeleteAccount() {
+        softDelete();
+        deactivate();
+    }
+
 }
