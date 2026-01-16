@@ -1,5 +1,7 @@
 package com.mocktalkback.global.auth;
 
+import java.util.Optional;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -29,5 +31,33 @@ public class CurrentUserService {
         }
 
         throw new IllegalStateException("사용자 식별자를 확인할 수 없습니다.");
+    }
+
+    public Optional<Long> getOptionalUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Optional.empty();
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Long) {
+            return Optional.of((Long) principal);
+        }
+        if (principal instanceof Integer) {
+            return Optional.of(((Integer) principal).longValue());
+        }
+        if (principal instanceof String) {
+            String value = (String) principal;
+            if ("anonymousUser".equals(value)) {
+                return Optional.empty();
+            }
+            try {
+                return Optional.of(Long.valueOf(value));
+            } catch (NumberFormatException ex) {
+                return Optional.empty();
+            }
+        }
+
+        return Optional.empty();
     }
 }

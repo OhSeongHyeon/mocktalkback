@@ -24,6 +24,9 @@ public record UserProfileResponse(
     @Schema(description = "핸들", example = "handle1234")
     String handle,
 
+    @Schema(description = "포인트", example = "0")
+    int userPoint,
+
     @Schema(description = "프로필 이미지")
     FileResponse profileImage
 ) {

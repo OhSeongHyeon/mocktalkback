@@ -15,6 +15,9 @@ public final class FileClassCode {
     public static final String ARTICLE_CONTENT_IMAGE = "ARTICLE_CONTENT_IMAGE"; // 본문 이미지(에디터 업로드)
     public static final String ARTICLE_CONTENT_VIDEO = "ARTICLE_CONTENT_VIDEO"; // 본문 비디오
 
+    // BOARD (게시판)
+    public static final String BOARD_IMAGE = "BOARD_IMAGE"; // 게시판 대표 이미지
+
     // COMMENT (댓글) - 있으면
     public static final String COMMENT_ATTACHMENT = "COMMENT_ATTACHMENT";
 

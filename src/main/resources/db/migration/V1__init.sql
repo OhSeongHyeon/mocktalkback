@@ -104,7 +104,7 @@ COMMENT ON COLUMN tb_articles.article_id IS '글번호';
 COMMENT ON COLUMN tb_articles.board_id IS '포럼번호, ON DELETE CASCADE';
 COMMENT ON COLUMN tb_articles.user_id IS '회원번호, ON DELETE CASCADE';
 COMMENT ON COLUMN tb_articles.article_category_id IS '게시글 카테고리 번호, ON DELETE SET NULL';
-COMMENT ON COLUMN tb_articles.visibility IS '공개 범위 PUBLIC, MEMBERS, MANAGERS, ADMINS';
+COMMENT ON COLUMN tb_articles.visibility IS '공개 범위 PUBLIC, MEMBERS, MODERATORS, ADMINS';
 COMMENT ON COLUMN tb_articles.title IS '글제목';
 COMMENT ON COLUMN tb_articles.content IS '글내용';
 COMMENT ON COLUMN tb_articles.hit IS '조회수';
@@ -115,7 +115,7 @@ COMMENT ON COLUMN tb_articles.deleted_at IS '삭제일자';
 
 
 
-CREATE TABLE tb_board
+CREATE TABLE tb_boards
 (
   board_id    BIGINT       NOT NULL GENERATED ALWAYS AS IDENTITY,
   board_name  VARCHAR(255) NOT NULL,
@@ -128,16 +128,16 @@ CREATE TABLE tb_board
   PRIMARY KEY (board_id)
 );
 
-COMMENT ON TABLE tb_board IS '커뮤니티 - 게시판 주제 or 커뮤니티';
+COMMENT ON TABLE tb_boards IS '커뮤니티 - 게시판 주제 or 커뮤니티';
 
-COMMENT ON COLUMN tb_board.board_id IS '게시판번호';
-COMMENT ON COLUMN tb_board.board_name IS '게시판명';
-COMMENT ON COLUMN tb_board.slug IS 'url 용 (예: /b/spring)';
-COMMENT ON COLUMN tb_board.description IS '게시판 설명';
-COMMENT ON COLUMN tb_board.visibility IS 'PUBLIC/GROUP/PRIVATE/UNLISTED';
-COMMENT ON COLUMN tb_board.created_at IS '생성일자';
-COMMENT ON COLUMN tb_board.updated_at IS '수정일자';
-COMMENT ON COLUMN tb_board.deleted_at IS '삭제여부';
+COMMENT ON COLUMN tb_boards.board_id IS '게시판번호';
+COMMENT ON COLUMN tb_boards.board_name IS '게시판명';
+COMMENT ON COLUMN tb_boards.slug IS 'url 용 (예: /b/spring)';
+COMMENT ON COLUMN tb_boards.description IS '게시판 설명';
+COMMENT ON COLUMN tb_boards.visibility IS 'PUBLIC/GROUP/PRIVATE/UNLISTED';
+COMMENT ON COLUMN tb_boards.created_at IS '생성일자';
+COMMENT ON COLUMN tb_boards.updated_at IS '수정일자';
+COMMENT ON COLUMN tb_boards.deleted_at IS '삭제여부';
 
 
 
@@ -179,7 +179,7 @@ COMMENT ON COLUMN tb_board_members.board_manager_id IS '게시판 멤버 번호'
 COMMENT ON COLUMN tb_board_members.user_id IS '회원번호, ON DELETE CASCADE';
 COMMENT ON COLUMN tb_board_members.board_id IS '포럼번호, ON DELETE CASCADE';
 COMMENT ON COLUMN tb_board_members.granted_by_user_id IS '누가 부여했는지';
-COMMENT ON COLUMN tb_board_members.board_role IS '관리자 및 멤버(일반유저), CHECK (OWNER, MODERATOR, MEMBER, BANNED)';
+COMMENT ON COLUMN tb_board_members.board_role IS '관리자 및 멤버(일반유저), CHECK (OWNER, MODERATOR, MEMBER, PENDING, BANNED)';
 COMMENT ON COLUMN tb_board_members.created_at IS '생성일자';
 COMMENT ON COLUMN tb_board_members.updated_at IS '수정일자';
 
@@ -381,13 +381,6 @@ COMMENT ON COLUMN tb_role.description IS '역할 설명';
 COMMENT ON COLUMN tb_role.created_at IS '생성일자';
 COMMENT ON COLUMN tb_role.updated_at IS '수정일자';
 
-INSERT INTO tb_role (role_name, auth_bit, description)
-VALUES
-  ('USER', 1, '기본 사용자(읽기)'),
-  ('WRITER', 3, '작성 가능(읽기+쓰기)'),
-  ('MANAGER', 7, '매니저(읽기+쓰기+삭제)'),
-  ('ADMIN', 15, '전체 권한');
-
 
 
 CREATE TABLE tb_user_files
@@ -510,14 +503,14 @@ ALTER TABLE tb_article_reactions
     REFERENCES tb_articles (article_id);
 
 ALTER TABLE tb_articles
-  ADD CONSTRAINT fk_tb_articles_board_id__tb_board
+  ADD CONSTRAINT fk_tb_articles_board_id__tb_boards
     FOREIGN KEY (board_id)
-    REFERENCES tb_board (board_id);
+    REFERENCES tb_boards (board_id);
 
 ALTER TABLE tb_board_members
-  ADD CONSTRAINT fk_tb_board_members_board_id__tb_board
+  ADD CONSTRAINT fk_tb_board_members_board_id__tb_boards
     FOREIGN KEY (board_id)
-    REFERENCES tb_board (board_id);
+    REFERENCES tb_boards (board_id);
 
 ALTER TABLE tb_board_subscribes
   ADD CONSTRAINT fk_tb_board_subscribes_user_id__tb_users
@@ -525,9 +518,9 @@ ALTER TABLE tb_board_subscribes
     REFERENCES tb_users (user_id);
 
 ALTER TABLE tb_board_subscribes
-  ADD CONSTRAINT fk_tb_board_subscribes_board_id__tb_board
+  ADD CONSTRAINT fk_tb_board_subscribes_board_id__tb_boards
     FOREIGN KEY (board_id)
-    REFERENCES tb_board (board_id);
+    REFERENCES tb_boards (board_id);
 
 ALTER TABLE tb_article_bookmarks
   ADD CONSTRAINT fk_tb_article_bookmarks_user_id__tb_users
@@ -565,9 +558,9 @@ ALTER TABLE tb_comment_reactions
     REFERENCES tb_users (user_id);
 
 ALTER TABLE tb_article_categories
-  ADD CONSTRAINT fk_tb_article_categories_board_id__tb_board
+  ADD CONSTRAINT fk_tb_article_categories_board_id__tb_boards
     FOREIGN KEY (board_id)
-    REFERENCES tb_board (board_id);
+    REFERENCES tb_boards (board_id);
 
 ALTER TABLE tb_articles
   ADD CONSTRAINT fk_tb_articles_article_category_id__tb_article_categories
@@ -630,15 +623,15 @@ ALTER TABLE tb_board_files
     REFERENCES tb_files (file_id);
 
 ALTER TABLE tb_board_files
-  ADD CONSTRAINT fk_tb_board_files_board_id__tb_board
+  ADD CONSTRAINT fk_tb_board_files_board_id__tb_boards
     FOREIGN KEY (board_id)
-    REFERENCES tb_board (board_id);
+    REFERENCES tb_boards (board_id);
 
-ALTER TABLE tb_board
-  ADD CONSTRAINT uq_tb_board_board_name UNIQUE (board_name);
+ALTER TABLE tb_boards
+  ADD CONSTRAINT uq_tb_boards_board_name UNIQUE (board_name);
 
-ALTER TABLE tb_board
-  ADD CONSTRAINT uq_tb_board_slug UNIQUE (slug);
+ALTER TABLE tb_boards
+  ADD CONSTRAINT uq_tb_boards_slug UNIQUE (slug);
 
 ALTER TABLE tb_users
   ADD CONSTRAINT uq_tb_users_login_id UNIQUE (login_id);

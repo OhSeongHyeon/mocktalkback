@@ -2,6 +2,7 @@ package com.mocktalkback.domain.board.controller;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -26,10 +27,13 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mocktalkback.domain.board.dto.BoardCreateRequest;
+import com.mocktalkback.domain.board.dto.BoardDetailResponse;
 import com.mocktalkback.domain.board.dto.BoardResponse;
 import com.mocktalkback.domain.board.dto.BoardUpdateRequest;
 import com.mocktalkback.domain.board.service.BoardService;
-import com.mocktalkback.domain.role.type.ContentVisibility;
+import com.mocktalkback.domain.board.type.BoardVisibility;
+import com.mocktalkback.domain.article.service.ArticleService;
+import com.mocktalkback.global.common.dto.PageResponse;
 
 @WebMvcTest(controllers = BoardController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -49,6 +53,9 @@ class BoardControllerTest {
     @MockitoBean
     private BoardService boardService;
 
+    @MockitoBean
+    private ArticleService articleService;
+
     // 게시판 생성 API는 성공 응답을 반환해야 한다.
     @Test
     void create_returns_ok() throws Exception {
@@ -57,16 +64,17 @@ class BoardControllerTest {
             "notice",
             "notice",
             "notice board",
-            ContentVisibility.PUBLIC
+            BoardVisibility.PUBLIC
         );
         BoardResponse response = new BoardResponse(
             1L,
             "notice",
             "notice",
             "notice board",
-            ContentVisibility.PUBLIC,
+            BoardVisibility.PUBLIC,
             FIXED_TIME,
             FIXED_TIME,
+            null,
             null
         );
         when(boardService.create(any(BoardCreateRequest.class))).thenReturn(response);
@@ -86,15 +94,19 @@ class BoardControllerTest {
     @Test
     void findById_returns_board() throws Exception {
         // Given: 게시판 응답
-        BoardResponse response = new BoardResponse(
+        BoardDetailResponse response = new BoardDetailResponse(
             1L,
             "notice",
             "notice",
             "notice board",
-            ContentVisibility.PUBLIC,
+            BoardVisibility.PUBLIC,
             FIXED_TIME,
             FIXED_TIME,
-            null
+            null,
+            null,
+            null,
+            null,
+            false
         );
         when(boardService.findById(1L)).thenReturn(response);
 
@@ -117,9 +129,10 @@ class BoardControllerTest {
                 "notice",
                 "notice",
                 "notice board",
-                ContentVisibility.PUBLIC,
+                BoardVisibility.PUBLIC,
                 FIXED_TIME,
                 FIXED_TIME,
+                null,
                 null
             ),
             new BoardResponse(
@@ -127,22 +140,36 @@ class BoardControllerTest {
                 "free",
                 "free",
                 "free board",
-                ContentVisibility.PUBLIC,
+                BoardVisibility.PUBLIC,
                 FIXED_TIME,
                 FIXED_TIME,
+                null,
                 null
             )
         );
-        when(boardService.findAll()).thenReturn(responses);
+        PageResponse<BoardResponse> pageResponse = new PageResponse<>(
+            responses,
+            0,
+            10,
+            2,
+            1,
+            false,
+            false
+        );
+        when(boardService.findAll(eq(0), eq(10))).thenReturn(pageResponse);
 
         // When: 게시판 목록 API 호출
-        ResultActions result = mockMvc.perform(get("/api/boards"));
+        ResultActions result = mockMvc.perform(get("/api/boards")
+            .param("page", "0")
+            .param("size", "10"));
 
         // Then: 응답 리스트 확인
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data[0].id").value(1L))
-            .andExpect(jsonPath("$.data[1].id").value(2L));
+            .andExpect(jsonPath("$.data.items[0].id").value(1L))
+            .andExpect(jsonPath("$.data.items[1].id").value(2L))
+            .andExpect(jsonPath("$.data.page").value(0))
+            .andExpect(jsonPath("$.data.size").value(10));
     }
 
     // 게시판 수정 API는 변경된 응답을 반환해야 한다.
@@ -153,16 +180,17 @@ class BoardControllerTest {
             "notice updated",
             "notice",
             "notice updated",
-            ContentVisibility.MEMBERS
+            BoardVisibility.GROUP
         );
         BoardResponse response = new BoardResponse(
             1L,
             "notice updated",
             "notice",
             "notice updated",
-            ContentVisibility.MEMBERS,
+            BoardVisibility.GROUP,
             FIXED_TIME,
             FIXED_TIME,
+            null,
             null
         );
         when(boardService.update(1L, request)).thenReturn(response);

@@ -2,13 +2,14 @@ package com.mocktalkback.domain.board.dto;
 
 import java.time.Instant;
 
+import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.file.dto.FileResponse;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Board response")
-public record BoardResponse(
+@Schema(description = "Board detail response")
+public record BoardDetailResponse(
     @Schema(description = "Board id", example = "1")
     Long id,
 
@@ -34,6 +35,15 @@ public record BoardResponse(
     Instant deletedAt,
 
     @Schema(description = "Board image")
-    FileResponse boardImage
+    FileResponse boardImage,
+
+    @Schema(description = "Owner display name", example = "user123@handle")
+    String ownerDisplayName,
+
+    @Schema(description = "Member status", example = "MEMBER")
+    BoardRole memberStatus,
+
+    @Schema(description = "Subscribed flag", example = "true")
+    boolean subscribed
 ) {
 }

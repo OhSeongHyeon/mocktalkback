@@ -54,7 +54,7 @@ public class BoardSubscribeEntity extends BaseTimeEntity {
     @JoinColumn(
         name = "board_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_board_subscribes_board_id__tb_board")
+        foreignKey = @ForeignKey(name = "fk_tb_board_subscribes_board_id__tb_boards")
     )
     private BoardEntity board;
 

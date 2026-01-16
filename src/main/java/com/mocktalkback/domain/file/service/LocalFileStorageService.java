@@ -66,8 +66,17 @@ public class LocalFileStorageService implements FileStorage {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
         }
-        if (FileClassCode.PROFILE_IMAGE.equals(fileClassCode)) {
+        if (FileClassCode.PROFILE_IMAGE.equals(fileClassCode)
+            || FileClassCode.BOARD_IMAGE.equals(fileClassCode)) {
             validateImage(file);
+            return;
+        }
+        if (FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)) {
+            validateImage(file);
+            return;
+        }
+        if (FileClassCode.ARTICLE_CONTENT_VIDEO.equals(fileClassCode)) {
+            validateVideo(file);
         }
     }
 
@@ -75,6 +84,16 @@ public class LocalFileStorageService implements FileStorage {
         String contentType = file.getContentType();
         if (!StringUtils.hasText(contentType) || !contentType.startsWith("image/")) {
             throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
+        }
+    }
+
+    private void validateVideo(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (!StringUtils.hasText(contentType)) {
+            throw new IllegalArgumentException("영상 파일만 업로드할 수 있습니다.");
+        }
+        if (!"video/mp4".equals(contentType) && !"video/webm".equals(contentType)) {
+            throw new IllegalArgumentException("MP4 또는 WebM 영상만 업로드할 수 있습니다.");
         }
     }
 

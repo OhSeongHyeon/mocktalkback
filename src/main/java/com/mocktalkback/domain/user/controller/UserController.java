@@ -1,5 +1,7 @@
 package com.mocktalkback.domain.user.controller;
 
+import java.util.List;
+
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
 import com.mocktalkback.domain.comment.dto.CommentResponse;
 import com.mocktalkback.domain.user.dto.UserDeleteRequest;
+import com.mocktalkback.domain.user.dto.UserMentionResponse;
 import com.mocktalkback.domain.user.dto.UserProfileResponse;
 import com.mocktalkback.domain.user.dto.UserProfileUpdateRequest;
 import com.mocktalkback.domain.user.service.UserService;
@@ -120,5 +123,24 @@ public class UserController {
         @RequestParam(name = "size", defaultValue = "10") int size
     ) {
         return ApiEnvelope.ok(userService.getMyComments(page, size));
+    }
+
+    @GetMapping("/mentions")
+    @Operation(summary = "멘션 추천", description = "핸들 기준으로 멘션 후보를 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content = @Content(schema = @Schema(implementation = ApiEnvelope.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    public ApiEnvelope<List<UserMentionResponse>> getMentionSuggestions(
+        @Parameter(description = "검색 키워드(핸들)", example = "mock")
+        @RequestParam(name = "keyword") String keyword,
+        @Parameter(description = "최대 반환 개수(기본 10)", example = "10")
+        @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        return ApiEnvelope.ok(userService.getMentionSuggestions(keyword, size));
     }
 }

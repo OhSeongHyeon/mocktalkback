@@ -57,7 +57,7 @@ public class BoardMemberEntity extends BaseTimeEntity {
     @JoinColumn(
         name = "board_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_board_members_board_id__tb_board")
+        foreignKey = @ForeignKey(name = "fk_tb_board_members_board_id__tb_boards")
     )
     private BoardEntity board;
 
@@ -83,5 +83,11 @@ public class BoardMemberEntity extends BaseTimeEntity {
         this.board = board;
         this.grantedByUser = grantedByUser;
         this.boardRole = boardRole;
+    }
+
+    // 가입 승인 처리(역할 변경 + 승인자 기록)
+    public void approve(UserEntity approver) {
+        this.boardRole = BoardRole.MEMBER;
+        this.grantedByUser = approver;
     }
 }

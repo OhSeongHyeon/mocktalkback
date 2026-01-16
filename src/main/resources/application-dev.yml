@@ -75,8 +75,9 @@ app:
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
   file:
     storage-dir: ${FILE_STORAGE_DIR:uploads}
-
-SECURITY_ORIGIN_ALLOWLIST: ${SECURITY_ORIGIN_ALLOWLIST:http://localhost:5173,http://localhost:8081}
+  sanitize:
+    allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS:http://localhost:8081}
+    allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES:https://www.youtube.com/embed,https://www.youtube-nocookie.com/embed}
 
 # swagger
 # http://localhost:8081/swagger-ui.html

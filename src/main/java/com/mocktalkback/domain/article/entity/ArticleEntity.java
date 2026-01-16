@@ -37,7 +37,7 @@ public class ArticleEntity extends SoftDeleteEntity {
     @JoinColumn(
         name = "board_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_articles_board_id__tb_board")
+        foreignKey = @ForeignKey(name = "fk_tb_articles_board_id__tb_boards")
     )
     private BoardEntity board;
 
@@ -105,5 +105,9 @@ public class ArticleEntity extends SoftDeleteEntity {
         this.title = title;
         this.content = content;
         this.notice = notice;
+    }
+
+    public void increaseHit() {
+        this.hit += 1;
     }
 }

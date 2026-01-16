@@ -4,5 +4,6 @@ public enum BoardRole {
     OWNER,
     MODERATOR,
     MEMBER,
+    PENDING,
     BANNED
 }

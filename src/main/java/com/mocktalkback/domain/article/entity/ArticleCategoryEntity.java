@@ -42,7 +42,7 @@ public class ArticleCategoryEntity extends BaseTimeEntity {
     @JoinColumn(
         name = "board_id",
         nullable = false,
-        foreignKey = @ForeignKey(name = "fk_tb_article_categories_board_id__tb_board")
+        foreignKey = @ForeignKey(name = "fk_tb_article_categories_board_id__tb_boards")
     )
     private BoardEntity board;
 

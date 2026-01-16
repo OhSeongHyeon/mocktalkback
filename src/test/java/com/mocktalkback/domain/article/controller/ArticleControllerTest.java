@@ -26,9 +26,12 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
+import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
+import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.service.ArticleService;
+import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 
 @WebMvcTest(controllers = ArticleController.class)
@@ -93,21 +96,30 @@ class ArticleControllerTest {
     @Test
     void findById_returns_article() throws Exception {
         // Given: 게시글 응답
-        ArticleResponse response = new ArticleResponse(
-            10L,
+        ArticleBoardResponse boardResponse = new ArticleBoardResponse(
             1L,
+            "notice",
+            "notice",
+            "notice board",
+            BoardVisibility.PUBLIC,
+            null
+        );
+        ArticleDetailResponse response = new ArticleDetailResponse(
+            10L,
+            boardResponse,
             2L,
-            3L,
+            "author",
             ContentVisibility.PUBLIC,
             "title",
             "content",
             5L,
+            0L,
             false,
             FIXED_TIME,
             FIXED_TIME,
-            null
+            List.of()
         );
-        when(articleService.findById(10L)).thenReturn(response);
+        when(articleService.findDetailById(10L, true)).thenReturn(response);
 
         // When: 게시글 조회 API 호출
         ResultActions result = mockMvc.perform(get("/api/articles/10"));

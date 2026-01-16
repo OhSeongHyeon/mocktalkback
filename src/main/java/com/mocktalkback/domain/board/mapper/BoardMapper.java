@@ -6,6 +6,7 @@ import org.mapstruct.Mapping;
 import com.mocktalkback.domain.board.dto.BoardCreateRequest;
 import com.mocktalkback.domain.board.dto.BoardFileCreateRequest;
 import com.mocktalkback.domain.board.dto.BoardFileResponse;
+import com.mocktalkback.domain.board.dto.BoardDetailResponse;
 import com.mocktalkback.domain.board.dto.BoardMemberCreateRequest;
 import com.mocktalkback.domain.board.dto.BoardMemberResponse;
 import com.mocktalkback.domain.board.dto.BoardResponse;
@@ -15,13 +16,16 @@ import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.entity.BoardFileEntity;
 import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.entity.BoardSubscribeEntity;
+import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.file.entity.FileEntity;
+import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.global.config.MapstructConfig;
 
 @Mapper(config = MapstructConfig.class)
 public interface BoardMapper {
 
+    @Mapping(target = "boardImage", ignore = true)
     BoardResponse toResponse(BoardEntity entity);
 
     @Mapping(target = "userId", source = "user.id")
@@ -44,6 +48,43 @@ public interface BoardMapper {
             .description(request.description())
             .visibility(request.visibility())
             .build();
+    }
+
+    default BoardResponse toResponse(BoardEntity entity, FileResponse boardImage) {
+        return new BoardResponse(
+            entity.getId(),
+            entity.getBoardName(),
+            entity.getSlug(),
+            entity.getDescription(),
+            entity.getVisibility(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt(),
+            entity.getDeletedAt(),
+            boardImage
+        );
+    }
+
+    default BoardDetailResponse toDetailResponse(
+        BoardEntity entity,
+        FileResponse boardImage,
+        String ownerDisplayName,
+        BoardRole memberStatus,
+        boolean subscribed
+    ) {
+        return new BoardDetailResponse(
+            entity.getId(),
+            entity.getBoardName(),
+            entity.getSlug(),
+            entity.getDescription(),
+            entity.getVisibility(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt(),
+            entity.getDeletedAt(),
+            boardImage,
+            ownerDisplayName,
+            memberStatus,
+            subscribed
+        );
     }
 
     default BoardMemberEntity toEntity(

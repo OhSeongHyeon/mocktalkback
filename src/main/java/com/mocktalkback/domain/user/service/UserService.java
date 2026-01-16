@@ -33,6 +33,7 @@ import com.mocktalkback.domain.file.type.MediaKind;
 import com.mocktalkback.domain.user.dto.UserProfileResponse;
 import com.mocktalkback.domain.user.dto.UserProfileUpdateRequest;
 import com.mocktalkback.domain.user.dto.UserDeleteRequest;
+import com.mocktalkback.domain.user.dto.UserMentionResponse;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.entity.UserFileEntity;
 import com.mocktalkback.domain.user.repository.UserFileRepository;
@@ -47,6 +48,7 @@ import lombok.RequiredArgsConstructor;
 public class UserService {
 
     private static final int MAX_PAGE_SIZE = 50;
+    private static final int MAX_MENTION_SIZE = 10;
     private static final Sort MY_CONTENT_SORT = Sort.by(
         Sort.Order.desc("createdAt"),
         Sort.Order.desc("updatedAt"),
@@ -78,6 +80,7 @@ public class UserService {
             user.getUserName(),
             user.getDisplayName(),
             user.getHandle(),
+            user.getUserPoint(),
             profileImage
         );
     }
@@ -147,6 +150,28 @@ public class UserService {
         Page<CommentEntity> result = commentRepository.findByUserId(userId, pageable);
         Page<CommentResponse> mapped = result.map(commentMapper::toResponse);
         return PageResponse.from(mapped);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserMentionResponse> getMentionSuggestions(String keyword, int size) {
+        String normalized = normalizeKeyword(keyword);
+        if (!StringUtils.hasText(normalized)) {
+            return List.of();
+        }
+        int resolvedSize = normalizeMentionSize(size);
+        Pageable pageable = PageRequest.of(0, resolvedSize, Sort.by(Sort.Order.asc("handle")));
+        Page<UserEntity> result = userRepository.findByHandleContainingIgnoreCaseAndDeletedAtIsNull(
+            normalized,
+            pageable
+        );
+        return result.stream()
+            .map(user -> new UserMentionResponse(
+                user.getId(),
+                user.getHandle(),
+                user.getDisplayName(),
+                findProfileImage(user.getId())
+            ))
+            .toList();
     }
 
     private void updateProfileImage(UserEntity user, MultipartFile profileImage) {
@@ -230,6 +255,20 @@ public class UserService {
             throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         return size;
+    }
+
+    private int normalizeMentionSize(int size) {
+        if (size <= 0) {
+            return MAX_MENTION_SIZE;
+        }
+        return Math.min(size, MAX_MENTION_SIZE);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return "";
+        }
+        return keyword.trim();
     }
 
     private String normalizeRequired(String value, String fieldName) {

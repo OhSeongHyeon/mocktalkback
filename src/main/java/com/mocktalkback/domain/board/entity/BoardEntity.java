@@ -1,7 +1,7 @@
 package com.mocktalkback.domain.board.entity;
 
 import com.mocktalkback.global.common.entity.SoftDeleteEntity;
-import com.mocktalkback.domain.role.type.ContentVisibility;
+import com.mocktalkback.domain.board.type.BoardVisibility;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,10 +21,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(
-    name = "tb_board",
+    name = "tb_boards",
     uniqueConstraints = {
-        @UniqueConstraint(name = "uq_tb_board_board_name", columnNames = "board_name"),
-        @UniqueConstraint(name = "uq_tb_board_slug", columnNames = "slug")
+        @UniqueConstraint(name = "uq_tb_boards_board_name", columnNames = "board_name"),
+        @UniqueConstraint(name = "uq_tb_boards_slug", columnNames = "slug")
     }
 )
 public class BoardEntity extends SoftDeleteEntity {
@@ -45,14 +45,14 @@ public class BoardEntity extends SoftDeleteEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility", nullable = false, length = 10)
-    private ContentVisibility visibility;
+    private BoardVisibility visibility;
 
     @Builder
     private BoardEntity(
         String boardName,
         String slug,
         String description,
-        ContentVisibility visibility
+        BoardVisibility visibility
     ) {
         this.boardName = boardName;
         this.slug = slug;
@@ -64,7 +64,7 @@ public class BoardEntity extends SoftDeleteEntity {
         String boardName,
         String slug,
         String description,
-        ContentVisibility visibility
+        BoardVisibility visibility
     ) {
         this.boardName = boardName;
         this.slug = slug;

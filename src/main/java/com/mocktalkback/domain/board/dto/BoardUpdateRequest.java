@@ -1,6 +1,6 @@
 package com.mocktalkback.domain.board.dto;
 
-import com.mocktalkback.domain.role.type.ContentVisibility;
+import com.mocktalkback.domain.board.type.BoardVisibility;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -24,6 +24,6 @@ public record BoardUpdateRequest(
 
     @Schema(description = "Visibility", example = "PUBLIC")
     @NotNull
-    ContentVisibility visibility
+    BoardVisibility visibility
 ) {
 }
