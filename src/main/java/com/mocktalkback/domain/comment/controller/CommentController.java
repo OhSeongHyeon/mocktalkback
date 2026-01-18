@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
+import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
+import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.service.CommentService;
@@ -59,6 +61,14 @@ public class CommentController {
         @RequestBody @Valid CommentUpdateRequest request
     ) {
         return ApiEnvelope.ok(commentService.update(id, request));
+    }
+
+    @PostMapping("/comments/{id}/reactions")
+    public ApiEnvelope<CommentReactionSummaryResponse> toggleReaction(
+        @PathVariable("id") Long id,
+        @RequestBody @Valid CommentReactionToggleRequest request
+    ) {
+        return ApiEnvelope.ok(commentService.toggleReaction(id, request));
     }
 
     @DeleteMapping("/comments/{id}")

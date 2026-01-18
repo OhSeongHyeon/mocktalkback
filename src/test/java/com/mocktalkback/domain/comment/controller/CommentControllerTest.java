@@ -64,6 +64,9 @@ class CommentControllerTest {
             FIXED_TIME,
             FIXED_TIME,
             null,
+            0L,
+            0L,
+            (short) 0,
             List.of()
         );
         when(commentService.createRoot(10L, request)).thenReturn(response);
@@ -94,6 +97,9 @@ class CommentControllerTest {
             FIXED_TIME,
             FIXED_TIME,
             null,
+            0L,
+            0L,
+            (short) 0,
             List.of()
         );
         List<CommentTreeResponse> responses = List.of(
@@ -108,6 +114,9 @@ class CommentControllerTest {
                 FIXED_TIME,
                 FIXED_TIME,
                 null,
+                0L,
+                0L,
+                (short) 0,
                 List.of(reply)
             )
         );
@@ -148,6 +157,9 @@ class CommentControllerTest {
             FIXED_TIME,
             FIXED_TIME,
             null,
+            0L,
+            0L,
+            (short) 0,
             List.of()
         );
         when(commentService.update(100L, request)).thenReturn(response);

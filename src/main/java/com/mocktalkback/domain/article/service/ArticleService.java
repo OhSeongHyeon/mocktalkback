@@ -1,10 +1,12 @@
 package com.mocktalkback.domain.article.service;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -19,6 +21,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
+import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
 import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
@@ -27,9 +31,12 @@ import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.entity.ArticleFileEntity;
+import com.mocktalkback.domain.article.entity.ArticleReactionEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
 import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
+import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
+import com.mocktalkback.domain.article.repository.ArticleReactionRepository.ArticleReactionCountView;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.board.entity.BoardFileEntity;
 import com.mocktalkback.domain.board.entity.BoardEntity;
@@ -50,6 +57,7 @@ import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.global.common.sanitize.HtmlSanitizer;
+import com.mocktalkback.global.common.util.ReactionTypeValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -73,6 +81,7 @@ public class ArticleService {
     private final CommentRepository commentRepository;
     private final ArticleCategoryRepository articleCategoryRepository;
     private final ArticleFileRepository articleFileRepository;
+    private final ArticleReactionRepository articleReactionRepository;
     private final ArticleMapper articleMapper;
     private final FileMapper fileMapper;
     private final CurrentUserService currentUserService;
@@ -124,6 +133,8 @@ public class ArticleService {
         }
 
         long commentCount = getCommentCount(article.getId());
+        ReactionCounts reactionCounts = getReactionCounts(article.getId());
+        short myReaction = resolveMyReaction(article.getId(), user);
         List<FileResponse> attachments = resolveAttachments(article.getId());
         FileResponse boardImage = resolveBoardImage(board.getId());
         ArticleBoardResponse boardResponse = new ArticleBoardResponse(
@@ -145,10 +156,55 @@ public class ArticleService {
             article.getContent(),
             article.getHit(),
             commentCount,
+            reactionCounts.likeCount(),
+            reactionCounts.dislikeCount(),
+            myReaction,
             article.isNotice(),
             article.getCreatedAt(),
             article.getUpdatedAt(),
             attachments
+        );
+    }
+
+    @Transactional
+    public ArticleReactionSummaryResponse toggleReaction(Long articleId, ArticleReactionToggleRequest request) {
+        if (request.reactionType() == null) {
+            throw new IllegalArgumentException("reactionType은 필수입니다.");
+        }
+        short reactionType = request.reactionType();
+        ReactionTypeValidator.validate(reactionType);
+        if (reactionType == 0) {
+            throw new IllegalArgumentException("reactionType은 -1 또는 1만 허용됩니다.");
+        }
+
+        UserEntity user = getCurrentUser();
+        ArticleEntity article = getArticleForReaction(articleId, user);
+
+        ArticleReactionEntity existing = articleReactionRepository
+            .findByUserIdAndArticleId(user.getId(), article.getId())
+            .orElse(null);
+
+        short myReaction = reactionType;
+        if (existing == null) {
+            ArticleReactionEntity created = ArticleReactionEntity.builder()
+                .user(user)
+                .article(article)
+                .reactionType(reactionType)
+                .build();
+            articleReactionRepository.save(created);
+        } else if (existing.getReactionType() == reactionType) {
+            articleReactionRepository.delete(existing);
+            myReaction = 0;
+        } else {
+            existing.updateReactionType(reactionType);
+        }
+
+        ReactionCounts counts = getReactionCounts(article.getId());
+        return new ArticleReactionSummaryResponse(
+            article.getId(),
+            counts.likeCount(),
+            counts.dislikeCount(),
+            myReaction
         );
     }
 
@@ -197,9 +253,10 @@ public class ArticleService {
         }
 
         Map<Long, Long> commentCounts = loadCommentCounts(pageResult.getContent(), pinnedEntities);
+        Map<Long, ReactionCounts> reactionCounts = loadReactionCounts(pageResult.getContent(), pinnedEntities);
 
-        List<ArticleSummaryResponse> pinned = mapSummaries(pinnedEntities, commentCounts);
-        List<ArticleSummaryResponse> items = mapSummaries(pageResult.getContent(), commentCounts);
+        List<ArticleSummaryResponse> pinned = mapSummaries(pinnedEntities, commentCounts, reactionCounts);
+        List<ArticleSummaryResponse> items = mapSummaries(pageResult.getContent(), commentCounts, reactionCounts);
 
         PageResponse<ArticleSummaryResponse> pageResponse = new PageResponse<>(
             items,
@@ -226,7 +283,13 @@ public class ArticleService {
 
     @Transactional
     public void delete(Long id) {
-        articleRepository.deleteById(id);
+        ArticleEntity entity = articleRepository.findByIdAndDeletedAtIsNull(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
+        UserEntity user = getCurrentUser();
+        requireOwnership(user, entity);
+        if (!entity.isDeleted()) {
+            entity.softDelete();
+        }
     }
 
     private BoardEntity getBoard(Long boardId) {
@@ -237,6 +300,11 @@ public class ArticleService {
     private BoardEntity getBoardForRead(Long boardId) {
         return boardRepository.findByIdAndDeletedAtIsNull(boardId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found"));
+    }
+
+    private UserEntity getCurrentUser() {
+        Long userId = currentUserService.getUserId();
+        return getUser(userId);
     }
 
     private UserEntity getUser(Long userId) {
@@ -319,6 +387,16 @@ public class ArticleService {
         return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
     }
 
+    private void requireOwnership(UserEntity user, ArticleEntity entity) {
+        if (entity.getUser().getId().equals(user.getId())) {
+            return;
+        }
+        if (isManagerOrAdmin(user)) {
+            return;
+        }
+        throw new AccessDeniedException("게시글 삭제 권한이 없습니다.");
+    }
+
     private Map<Long, Long> loadCommentCounts(
         List<ArticleEntity> items,
         List<ArticleEntity> pinned
@@ -336,11 +414,72 @@ public class ArticleService {
             ));
     }
 
+    private Map<Long, ReactionCounts> loadReactionCounts(
+        List<ArticleEntity> items,
+        List<ArticleEntity> pinned
+    ) {
+        List<ArticleEntity> combined = new ArrayList<>(items);
+        combined.addAll(pinned);
+        List<Long> articleIds = combined.stream()
+            .map(ArticleEntity::getId)
+            .toList();
+        if (articleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, ReactionCounts> counts = new HashMap<>();
+        List<ArticleReactionCountView> result = articleReactionRepository.countByArticleIds(articleIds);
+        for (ArticleReactionCountView row : result) {
+            ReactionCounts current = counts.getOrDefault(row.getArticleId(), ReactionCounts.empty());
+            if (row.getReactionType() == 1) {
+                counts.put(row.getArticleId(), new ReactionCounts(current.likeCount() + row.getCount(), current.dislikeCount()));
+            } else if (row.getReactionType() == -1) {
+                counts.put(row.getArticleId(), new ReactionCounts(current.likeCount(), current.dislikeCount() + row.getCount()));
+            }
+        }
+        return counts;
+    }
+
     private long getCommentCount(Long articleId) {
         return commentRepository.countByArticleIds(List.of(articleId)).stream()
             .findFirst()
             .map(CommentRepository.CommentCountView::getCount)
             .orElse(0L);
+    }
+
+    private ReactionCounts getReactionCounts(Long articleId) {
+        long likeCount = articleReactionRepository.countByArticleIdAndReactionType(articleId, (short) 1);
+        long dislikeCount = articleReactionRepository.countByArticleIdAndReactionType(articleId, (short) -1);
+        return new ReactionCounts(likeCount, dislikeCount);
+    }
+
+    private short resolveMyReaction(Long articleId, UserEntity user) {
+        if (user == null) {
+            return 0;
+        }
+        return articleReactionRepository.findByUserIdAndArticleId(user.getId(), articleId)
+            .map(ArticleReactionEntity::getReactionType)
+            .orElse((short) 0);
+    }
+
+    private ArticleEntity getArticleForReaction(Long articleId, UserEntity user) {
+        ArticleEntity article = articleRepository.findByIdAndDeletedAtIsNull(articleId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
+
+        BoardEntity board = article.getBoard();
+        BoardMemberEntity member = boardMemberRepository
+            .findByUserIdAndBoardId(user.getId(), board.getId())
+            .orElse(null);
+
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+
+        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        if (!allowed.contains(article.getVisibility())) {
+            throw new AccessDeniedException("게시글 반응 권한이 없습니다.");
+        }
+        return article;
     }
 
     private List<FileResponse> resolveAttachments(Long articleId) {
@@ -366,7 +505,8 @@ public class ArticleService {
 
     private List<ArticleSummaryResponse> mapSummaries(
         List<ArticleEntity> articles,
-        Map<Long, Long> commentCounts
+        Map<Long, Long> commentCounts,
+        Map<Long, ReactionCounts> reactionCounts
     ) {
         return articles.stream()
             .map(article -> new ArticleSummaryResponse(
@@ -377,6 +517,8 @@ public class ArticleService {
                 article.getTitle(),
                 article.getHit(),
                 commentCounts.getOrDefault(article.getId(), 0L),
+                reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty()).likeCount(),
+                reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty()).dislikeCount(),
                 article.isNotice(),
                 article.getCreatedAt()
             ))
@@ -403,5 +545,11 @@ public class ArticleService {
             throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         return size;
+    }
+
+    private record ReactionCounts(long likeCount, long dislikeCount) {
+        private static ReactionCounts empty() {
+            return new ReactionCounts(0, 0);
+        }
     }
 }

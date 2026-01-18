@@ -2,6 +2,7 @@ package com.mocktalkback.domain.comment.service;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,9 +22,13 @@ import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
+import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
+import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
+import com.mocktalkback.domain.comment.entity.CommentReactionEntity;
+import com.mocktalkback.domain.comment.repository.CommentReactionRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.notification.service.NotificationService;
 import com.mocktalkback.domain.board.entity.BoardEntity;
@@ -36,6 +41,7 @@ import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
+import com.mocktalkback.global.common.util.ReactionTypeValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -50,6 +56,7 @@ public class CommentService {
     );
 
     private final CommentRepository commentRepository;
+    private final CommentReactionRepository commentReactionRepository;
     private final UserRepository userRepository;
     private final ArticleRepository articleRepository;
     private final BoardMemberRepository boardMemberRepository;
@@ -104,7 +111,8 @@ public class CommentService {
 
     @Transactional(readOnly = true)
     public CommentPageResponse<CommentTreeResponse> getArticleComments(Long articleId, int page, int size) {
-        ArticleEntity article = getAccessibleArticle(articleId, null);
+        UserEntity currentUser = currentUserService.getOptionalUserId().map(this::getUser).orElse(null);
+        ArticleEntity article = getAccessibleArticle(articleId, currentUser);
         int resolvedPage = normalizePage(page);
         int resolvedSize = normalizeSize(size);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ROOT_COMMENT_SORT);
@@ -124,9 +132,17 @@ public class CommentService {
                 article.getId(),
                 rootIds
             );
+            List<Long> commentIds = treeEntities.stream()
+                .map(CommentEntity::getId)
+                .toList();
+            Map<Long, ReactionCounts> reactionCounts = getReactionCounts(commentIds);
+            Map<Long, Short> myReactions = getMyReactions(currentUser, commentIds);
+
             Map<Long, CommentTreeResponse> nodeMap = new LinkedHashMap<>();
             for (CommentEntity entity : treeEntities) {
-                nodeMap.put(entity.getId(), toTreeResponse(entity));
+                ReactionCounts counts = reactionCounts.getOrDefault(entity.getId(), ReactionCounts.empty());
+                short myReaction = myReactions.getOrDefault(entity.getId(), (short) 0);
+                nodeMap.put(entity.getId(), toTreeResponse(entity, counts, myReaction));
             }
             for (CommentEntity entity : treeEntities) {
                 CommentTreeResponse node = nodeMap.get(entity.getId());
@@ -148,10 +164,59 @@ public class CommentService {
 
         Page<CommentTreeResponse> treePage = rootPage.map(root -> {
             CommentTreeResponse node = rootNodeMap.get(root.getId());
-            return node == null ? toTreeResponse(root) : node;
+            if (node != null) {
+                return node;
+            }
+            return toTreeResponse(root, ReactionCounts.empty(), (short) 0);
         });
 
         return CommentPageResponse.from(treePage);
+    }
+
+    @Transactional
+    public CommentReactionSummaryResponse toggleReaction(Long commentId, CommentReactionToggleRequest request) {
+        if (request.reactionType() == null) {
+            throw new IllegalArgumentException("reactionType은 필수입니다.");
+        }
+        short reactionType = request.reactionType();
+        ReactionTypeValidator.validate(reactionType);
+        if (reactionType == 0) {
+            throw new IllegalArgumentException("reactionType은 -1 또는 1만 허용됩니다.");
+        }
+
+        UserEntity user = getCurrentUser();
+        CommentEntity comment = getComment(commentId);
+        if (comment.isDeleted()) {
+            throw new IllegalArgumentException("삭제된 댓글에는 반응할 수 없습니다.");
+        }
+        getAccessibleArticle(comment.getArticle().getId(), user);
+
+        CommentReactionEntity existing = commentReactionRepository
+            .findByUserIdAndCommentId(user.getId(), comment.getId())
+            .orElse(null);
+
+        short myReaction = reactionType;
+        if (existing == null) {
+            CommentReactionEntity created = CommentReactionEntity.builder()
+                .user(user)
+                .comment(comment)
+                .reactionType(reactionType)
+                .build();
+            commentReactionRepository.save(created);
+        } else if (existing.getReactionType() == reactionType) {
+            commentReactionRepository.delete(existing);
+            myReaction = 0;
+        } else {
+            existing.updateReactionType(reactionType);
+        }
+
+        ReactionCounts counts = getReactionCounts(comment.getId());
+        return new CommentReactionSummaryResponse(
+            comment.getId(),
+            counts.likeCount(),
+            counts.dislikeCount(),
+            myReaction
+        );
     }
 
     @Transactional
@@ -224,6 +289,10 @@ public class CommentService {
     }
 
     private CommentTreeResponse toTreeResponse(CommentEntity entity) {
+        return toTreeResponse(entity, ReactionCounts.empty(), (short) 0);
+    }
+
+    private CommentTreeResponse toTreeResponse(CommentEntity entity, ReactionCounts counts, short myReaction) {
         String content = entity.isDeleted() ? "삭제된 댓글입니다." : entity.getContent();
         Long parentId = entity.getParentComment() == null ? null : entity.getParentComment().getId();
         Long rootId = entity.getRootComment() == null ? entity.getId() : entity.getRootComment().getId();
@@ -238,6 +307,9 @@ public class CommentService {
             entity.getCreatedAt(),
             entity.getUpdatedAt(),
             entity.getDeletedAt(),
+            counts.likeCount(),
+            counts.dislikeCount(),
+            myReaction,
             new ArrayList<>()
         );
     }
@@ -292,6 +364,43 @@ public class CommentService {
             throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         return size;
+    }
+
+    private ReactionCounts getReactionCounts(Long commentId) {
+        long likeCount = commentReactionRepository.countByCommentIdAndReactionType(commentId, (short) 1);
+        long dislikeCount = commentReactionRepository.countByCommentIdAndReactionType(commentId, (short) -1);
+        return new ReactionCounts(likeCount, dislikeCount);
+    }
+
+    private Map<Long, ReactionCounts> getReactionCounts(List<Long> commentIds) {
+        if (commentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, ReactionCounts> counts = new HashMap<>();
+        List<CommentReactionRepository.CommentReactionCountView> views =
+            commentReactionRepository.countByCommentIds(commentIds);
+        for (CommentReactionRepository.CommentReactionCountView view : views) {
+            ReactionCounts current = counts.getOrDefault(view.getCommentId(), ReactionCounts.empty());
+            if (view.getReactionType() == 1) {
+                counts.put(view.getCommentId(), new ReactionCounts(view.getCount(), current.dislikeCount()));
+            } else if (view.getReactionType() == -1) {
+                counts.put(view.getCommentId(), new ReactionCounts(current.likeCount(), view.getCount()));
+            }
+        }
+        return counts;
+    }
+
+    private Map<Long, Short> getMyReactions(UserEntity user, List<Long> commentIds) {
+        if (user == null || commentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Short> result = new HashMap<>();
+        List<CommentReactionRepository.CommentReactionUserView> views =
+            commentReactionRepository.findUserReactions(user.getId(), commentIds);
+        for (CommentReactionRepository.CommentReactionUserView view : views) {
+            result.put(view.getCommentId(), view.getReactionType());
+        }
+        return result;
     }
 
     private boolean canAccessBoard(BoardEntity board, UserEntity user, BoardMemberEntity member) {
@@ -367,5 +476,11 @@ public class CommentService {
             return displayName;
         }
         return user.getUserName();
+    }
+
+    private record ReactionCounts(long likeCount, long dislikeCount) {
+        private static ReactionCounts empty() {
+            return new ReactionCounts(0, 0);
+        }
     }
 }

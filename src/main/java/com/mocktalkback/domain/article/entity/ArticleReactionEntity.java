@@ -67,4 +67,8 @@ public class ArticleReactionEntity extends BaseTimeEntity {
         this.article = article;
         this.reactionType = reactionType;
     }
+
+    public void updateReactionType(short reactionType) {
+        this.reactionType = reactionType;
+    }
 }

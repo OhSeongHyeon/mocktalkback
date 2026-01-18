@@ -272,7 +272,8 @@ public class BoardService {
                 throw new AccessDeniedException("가입 요청이 제한된 사용자입니다.");
             }
             if (existing.getBoardRole() == BoardRole.PENDING) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입 요청이 존재합니다.");
+                boardMemberRepository.delete(existing);
+                return new BoardMemberStatusResponse(boardId, null);
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 사용자입니다.");
         }

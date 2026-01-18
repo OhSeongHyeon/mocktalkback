@@ -37,6 +37,15 @@ public record ArticleDetailResponse(
     @Schema(description = "Comment count", example = "0")
     long commentCount,
 
+    @Schema(description = "Like count", example = "0")
+    long likeCount,
+
+    @Schema(description = "Dislike count", example = "0")
+    long dislikeCount,
+
+    @Schema(description = "My reaction (-1 dislike, 0 none, 1 like)", example = "0")
+    short myReaction,
+
     @Schema(description = "Notice flag", example = "false")
     boolean notice,
 

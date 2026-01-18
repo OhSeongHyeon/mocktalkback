@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
+import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.service.ArticleService;
@@ -73,6 +75,14 @@ public class ArticleController {
         @RequestBody @Valid ArticleUpdateRequest request
     ) {
         return ApiEnvelope.ok(articleService.update(id, request));
+    }
+
+    @PostMapping("/{id}/reactions")
+    public ApiEnvelope<ArticleReactionSummaryResponse> toggleReaction(
+        @PathVariable("id") Long id,
+        @RequestBody @Valid ArticleReactionToggleRequest request
+    ) {
+        return ApiEnvelope.ok(articleService.toggleReaction(id, request));
     }
 
     @DeleteMapping("/{id}")

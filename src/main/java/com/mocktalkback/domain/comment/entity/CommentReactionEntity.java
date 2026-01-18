@@ -67,4 +67,8 @@ public class CommentReactionEntity extends BaseTimeEntity {
         this.comment = comment;
         this.reactionType = reactionType;
     }
+
+    public void updateReactionType(short reactionType) {
+        this.reactionType = reactionType;
+    }
 }

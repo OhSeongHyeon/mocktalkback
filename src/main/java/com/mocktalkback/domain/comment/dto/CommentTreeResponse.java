@@ -37,6 +37,15 @@ public record CommentTreeResponse(
     @Schema(description = "삭제 시각")
     Instant deletedAt,
 
+    @Schema(description = "좋아요 수", example = "10")
+    long likeCount,
+
+    @Schema(description = "싫어요 수", example = "2")
+    long dislikeCount,
+
+    @Schema(description = "내 반응 (-1 dislike, 0 none, 1 like)", example = "1")
+    short myReaction,
+
     @Schema(description = "하위 댓글")
     List<CommentTreeResponse> children
 ) {
