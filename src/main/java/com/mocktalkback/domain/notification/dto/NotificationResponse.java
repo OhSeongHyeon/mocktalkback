@@ -18,6 +18,12 @@ public record NotificationResponse(
     @Schema(description = "Sender id", example = "2")
     Long senderId,
 
+    @Schema(description = "Sender name", example = "MockTalker")
+    String senderName,
+
+    @Schema(description = "Sender handle", example = "mocktalker")
+    String senderHandle,
+
     @Schema(description = "Notification type", example = "ARTICLE_COMMENT")
     NotificationType notiType,
 
@@ -29,6 +35,9 @@ public record NotificationResponse(
 
     @Schema(description = "Reference id", example = "1")
     Long referenceId,
+
+    @Schema(description = "Article title", example = "Hello world")
+    String articleTitle,
 
     @Schema(description = "Read flag", example = "false")
     boolean read,

@@ -1,13 +1,11 @@
 package com.mocktalkback.domain.notification.controller;
 
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,19 +16,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mocktalkback.domain.notification.dto.NotificationCreateRequest;
 import com.mocktalkback.domain.notification.dto.NotificationResponse;
-import com.mocktalkback.domain.notification.dto.NotificationUpdateRequest;
 import com.mocktalkback.domain.notification.service.NotificationService;
 import com.mocktalkback.domain.notification.type.NotificationType;
 import com.mocktalkback.domain.notification.type.ReferenceType;
+import com.mocktalkback.global.common.dto.PageResponse;
 
 @WebMvcTest(controllers = NotificationController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -44,49 +39,8 @@ class NotificationControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @MockitoBean
     private NotificationService notificationService;
-
-    // 알림 생성 API는 성공 응답을 반환해야 한다.
-    @Test
-    void create_returns_ok() throws Exception {
-        // Given: 알림 생성 요청
-        NotificationCreateRequest request = new NotificationCreateRequest(
-            1L,
-            2L,
-            NotificationType.ARTICLE_COMMENT,
-            "/boards/1/articles/1",
-            ReferenceType.ARTICLE,
-            10L,
-            false
-        );
-        NotificationResponse response = new NotificationResponse(
-            100L,
-            1L,
-            2L,
-            NotificationType.ARTICLE_COMMENT,
-            "/boards/1/articles/1",
-            ReferenceType.ARTICLE,
-            10L,
-            false,
-            FIXED_TIME,
-            FIXED_TIME
-        );
-        when(notificationService.create(any(NotificationCreateRequest.class))).thenReturn(response);
-
-        // When: 알림 생성 API 호출
-        ResultActions result = mockMvc.perform(post("/api/notifications")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request)));
-
-        // Then: 응답 데이터 확인
-        result.andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.id").value(100L));
-    }
 
     // 알림 단건 조회 API는 응답 데이터를 반환해야 한다.
     @Test
@@ -96,10 +50,13 @@ class NotificationControllerTest {
             100L,
             1L,
             2L,
+            "MockTalker",
+            "mocktalker",
             NotificationType.ARTICLE_COMMENT,
             "/boards/1/articles/1",
             ReferenceType.ARTICLE,
             10L,
+            "Hello world",
             false,
             FIXED_TIME,
             FIXED_TIME
@@ -115,19 +72,22 @@ class NotificationControllerTest {
             .andExpect(jsonPath("$.data.notiType").value("ARTICLE_COMMENT"));
     }
 
-    // 알림 목록 조회 API는 리스트 응답을 반환해야 한다.
+    // 알림 목록 조회 API는 페이지 응답을 반환해야 한다.
     @Test
-    void findAll_returns_list() throws Exception {
+    void findAll_returns_page() throws Exception {
         // Given: 알림 목록 응답
         List<NotificationResponse> responses = List.of(
             new NotificationResponse(
                 100L,
                 1L,
                 2L,
+                "MockTalker",
+                "mocktalker",
                 NotificationType.ARTICLE_COMMENT,
                 "/boards/1/articles/1",
                 ReferenceType.ARTICLE,
                 10L,
+                "Hello world",
                 false,
                 FIXED_TIME,
                 FIXED_TIME
@@ -136,16 +96,28 @@ class NotificationControllerTest {
                 101L,
                 1L,
                 null,
+                null,
+                null,
                 NotificationType.SYSTEM,
                 "/",
                 ReferenceType.USER,
                 1L,
+                null,
                 false,
                 FIXED_TIME,
                 FIXED_TIME
             )
         );
-        when(notificationService.findAll()).thenReturn(responses);
+        PageResponse<NotificationResponse> pageResponse = new PageResponse<>(
+            responses,
+            0,
+            10,
+            2,
+            1,
+            false,
+            false
+        );
+        when(notificationService.findAll(0, 10, null)).thenReturn(pageResponse);
 
         // When: 알림 목록 API 호출
         ResultActions result = mockMvc.perform(get("/api/notifications"));
@@ -153,38 +125,93 @@ class NotificationControllerTest {
         // Then: 응답 리스트 확인
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data[0].id").value(100L))
-            .andExpect(jsonPath("$.data[1].id").value(101L));
+            .andExpect(jsonPath("$.data.items[0].id").value(100L))
+            .andExpect(jsonPath("$.data.items[1].id").value(101L));
+    }
+
+    // 알림 읽음 필터가 적용된 목록 API는 페이지 응답을 반환해야 한다.
+    @Test
+    void findAll_with_read_filter_returns_page() throws Exception {
+        // Given: 읽음 알림 목록
+        List<NotificationResponse> responses = List.of(
+            new NotificationResponse(
+                102L,
+                1L,
+                2L,
+                "MockTalker",
+                "mocktalker",
+                NotificationType.COMMENT_REPLY,
+                "/boards/1/articles/1",
+                ReferenceType.COMMENT,
+                21L,
+                "Hello world",
+                true,
+                FIXED_TIME,
+                FIXED_TIME
+            )
+        );
+        PageResponse<NotificationResponse> pageResponse = new PageResponse<>(
+            responses,
+            0,
+            10,
+            1,
+            1,
+            false,
+            false
+        );
+        when(notificationService.findAll(0, 10, true)).thenReturn(pageResponse);
+
+        // When: 알림 목록 API 호출
+        ResultActions result = mockMvc.perform(get("/api/notifications?read=true"));
+
+        // Then: 응답 리스트 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.items[0].read").value(true));
     }
 
     // 알림 읽음 처리 API는 변경된 응답을 반환해야 한다.
     @Test
-    void update_returns_updated_notification() throws Exception {
-        // Given: 알림 읽음 처리 요청
-        NotificationUpdateRequest request = new NotificationUpdateRequest(true);
+    void markRead_returns_updated_notification() throws Exception {
+        // Given: 알림 읽음 처리 응답
         NotificationResponse response = new NotificationResponse(
             100L,
             1L,
             2L,
+            "MockTalker",
+            "mocktalker",
             NotificationType.ARTICLE_COMMENT,
             "/boards/1/articles/1",
             ReferenceType.ARTICLE,
             10L,
+            "Hello world",
             true,
             FIXED_TIME,
             FIXED_TIME
         );
-        when(notificationService.update(100L, request)).thenReturn(response);
+        when(notificationService.markRead(100L)).thenReturn(response);
 
-        // When: 알림 수정 API 호출
-        ResultActions result = mockMvc.perform(put("/api/notifications/100")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(request)));
+        // When: 알림 읽음 처리 API 호출
+        ResultActions result = mockMvc.perform(patch("/api/notifications/100/read"));
 
         // Then: 응답 데이터 확인
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.read").value(true));
+    }
+
+    // 알림 전체 읽음 처리 API는 성공 응답을 반환해야 한다.
+    @Test
+    void markAllRead_returns_ok() throws Exception {
+        // Given: 알림 전체 읽음 처리 준비
+        doNothing().when(notificationService).markAllRead();
+
+        // When: 알림 전체 읽음 처리 API 호출
+        ResultActions result = mockMvc.perform(patch("/api/notifications/read-all"));
+
+        // Then: 성공 응답 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
     }
 
     // 알림 삭제 API는 성공 응답을 반환해야 한다.

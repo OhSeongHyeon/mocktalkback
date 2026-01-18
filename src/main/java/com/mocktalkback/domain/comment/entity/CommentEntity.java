@@ -86,4 +86,8 @@ public class CommentEntity extends SoftDeleteEntity {
     public void updateContent(String content) {
         this.content = content;
     }
+
+    public void assignRootComment(CommentEntity rootComment) {
+        this.rootComment = rootComment;
+    }
 }

@@ -3,8 +3,6 @@ package com.mocktalkback.domain.comment.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentFileCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentFileResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionCreateRequest;
@@ -33,23 +31,6 @@ public interface CommentMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "commentId", source = "comment.id")
     CommentReactionResponse toResponse(CommentReactionEntity entity);
-
-    default CommentEntity toEntity(
-        CommentCreateRequest request,
-        UserEntity user,
-        ArticleEntity article,
-        CommentEntity parentComment,
-        CommentEntity rootComment
-    ) {
-        return CommentEntity.builder()
-            .user(user)
-            .article(article)
-            .parentComment(parentComment)
-            .rootComment(rootComment)
-            .depth(request.depth())
-            .content(request.content())
-            .build();
-    }
 
     default CommentFileEntity toEntity(
         CommentFileCreateRequest request,
