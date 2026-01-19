@@ -21,19 +21,19 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Notification", description = "알림 API")
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/notifications")
+@RequestMapping("/api")
 public class NotificationController {
 
     private final NotificationService notificationService;
 
     @Operation(summary = "알림 단건 조회", description = "로그인 사용자 기준으로 알림 상세를 조회합니다.")
-    @GetMapping("/{id:\\d+}")
+    @GetMapping("/notifications/{id:\\d+}")
     public ApiEnvelope<NotificationResponse> findById(@PathVariable("id") Long id) {
         return ApiEnvelope.ok(notificationService.findById(id));
     }
 
     @Operation(summary = "알림 목록 조회", description = "로그인 사용자 기준으로 알림 목록을 페이징 조회합니다.")
-    @GetMapping
+    @GetMapping("/notifications")
     public ApiEnvelope<PageResponse<NotificationResponse>> findAll(
         @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
         @RequestParam(name = "page", defaultValue = "0") int page,
@@ -46,27 +46,27 @@ public class NotificationController {
     }
 
     @Operation(summary = "알림 읽음 처리", description = "단일 알림을 읽음 처리합니다.")
-    @PatchMapping("/{id:\\d+}/read")
+    @PatchMapping("/notifications/{id:\\d+}/read")
     public ApiEnvelope<NotificationResponse> markRead(@PathVariable("id") Long id) {
         return ApiEnvelope.ok(notificationService.markRead(id));
     }
 
     @Operation(summary = "알림 전체 읽음 처리", description = "로그인 사용자의 모든 알림을 읽음 처리합니다.")
-    @PatchMapping("/read-all")
+    @PatchMapping("/notifications/read-all")
     public ApiEnvelope<Void> markAllRead() {
         notificationService.markAllRead();
         return ApiEnvelope.ok();
     }
 
     @Operation(summary = "알림 삭제", description = "로그인 사용자의 알림을 삭제합니다.")
-    @DeleteMapping("/{id:\\d+}")
+    @DeleteMapping("/notifications/{id:\\d+}")
     public ApiEnvelope<Void> delete(@PathVariable("id") Long id) {
         notificationService.delete(id);
         return ApiEnvelope.ok();
     }
 
     @Operation(summary = "알림 전체 삭제", description = "로그인 사용자의 모든 알림을 삭제합니다.")
-    @DeleteMapping
+    @DeleteMapping("/notifications")
     public ApiEnvelope<Void> deleteAll() {
         notificationService.deleteAll();
         return ApiEnvelope.ok();

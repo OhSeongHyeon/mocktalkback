@@ -26,6 +26,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
+import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
+import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.service.CommentService;
@@ -80,6 +82,40 @@ class CommentControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.id").value(100L));
+    }
+
+    // 답글 생성 API는 성공 응답을 반환해야 한다.
+    @Test
+    void createReply_returns_ok() throws Exception {
+        // Given: 답글 생성 요청
+        CommentCreateRequest request = new CommentCreateRequest("reply content");
+        CommentTreeResponse response = new CommentTreeResponse(
+            101L,
+            1L,
+            "작성자",
+            "reply content",
+            1,
+            100L,
+            100L,
+            FIXED_TIME,
+            FIXED_TIME,
+            null,
+            0L,
+            0L,
+            (short) 0,
+            List.of()
+        );
+        when(commentService.createReply(10L, 100L, request)).thenReturn(response);
+
+        // When: 답글 생성 API 호출
+        ResultActions result = mockMvc.perform(post("/api/articles/10/comments/100")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.id").value(101L));
     }
 
     // 댓글 목록 조회 API는 리스트 응답을 반환해야 한다.
@@ -139,6 +175,30 @@ class CommentControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.items[0].id").value(100L))
             .andExpect(jsonPath("$.data.items[0].children[0].id").value(101L));
+    }
+
+    // 댓글 반응 토글 API는 성공 응답을 반환해야 한다.
+    @Test
+    void toggleReaction_returns_ok() throws Exception {
+        // Given: 댓글 반응 요청
+        CommentReactionToggleRequest request = new CommentReactionToggleRequest((short) 1);
+        CommentReactionSummaryResponse response = new CommentReactionSummaryResponse(
+            100L,
+            1L,
+            0L,
+            (short) 1
+        );
+        when(commentService.toggleReaction(100L, request)).thenReturn(response);
+
+        // When: 댓글 반응 API 호출
+        ResultActions result = mockMvc.perform(post("/api/comments/100/reactions")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.commentId").value(100L));
     }
 
     // 댓글 수정 API는 변경된 응답을 반환해야 한다.

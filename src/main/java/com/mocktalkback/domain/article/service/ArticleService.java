@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
+import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
@@ -31,10 +32,12 @@ import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.entity.ArticleFileEntity;
+import com.mocktalkback.domain.article.entity.ArticleBookmarkEntity;
 import com.mocktalkback.domain.article.entity.ArticleReactionEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
 import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
+import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository.ArticleReactionCountView;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
@@ -81,6 +84,7 @@ public class ArticleService {
     private final CommentRepository commentRepository;
     private final ArticleCategoryRepository articleCategoryRepository;
     private final ArticleFileRepository articleFileRepository;
+    private final ArticleBookmarkRepository articleBookmarkRepository;
     private final ArticleReactionRepository articleReactionRepository;
     private final ArticleMapper articleMapper;
     private final FileMapper fileMapper;
@@ -135,6 +139,7 @@ public class ArticleService {
         long commentCount = getCommentCount(article.getId());
         ReactionCounts reactionCounts = getReactionCounts(article.getId());
         short myReaction = resolveMyReaction(article.getId(), user);
+        boolean bookmarked = resolveBookmarked(article.getId(), user);
         List<FileResponse> attachments = resolveAttachments(article.getId());
         FileResponse boardImage = resolveBoardImage(board.getId());
         ArticleBoardResponse boardResponse = new ArticleBoardResponse(
@@ -159,11 +164,39 @@ public class ArticleService {
             reactionCounts.likeCount(),
             reactionCounts.dislikeCount(),
             myReaction,
+            bookmarked,
             article.isNotice(),
             article.getCreatedAt(),
             article.getUpdatedAt(),
             attachments
         );
+    }
+
+    @Transactional
+    public ArticleBookmarkStatusResponse bookmark(Long articleId) {
+        UserEntity user = getCurrentUser();
+        ArticleEntity article = getArticleForReaction(articleId, user);
+
+        if (articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), article.getId())) {
+            return new ArticleBookmarkStatusResponse(article.getId(), true);
+        }
+
+        ArticleBookmarkEntity entity = ArticleBookmarkEntity.builder()
+            .user(user)
+            .article(article)
+            .build();
+        articleBookmarkRepository.save(entity);
+        return new ArticleBookmarkStatusResponse(article.getId(), true);
+    }
+
+    @Transactional
+    public ArticleBookmarkStatusResponse unbookmark(Long articleId) {
+        UserEntity user = getCurrentUser();
+        if (!articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), articleId)) {
+            return new ArticleBookmarkStatusResponse(articleId, false);
+        }
+        articleBookmarkRepository.deleteByUserIdAndArticleId(user.getId(), articleId);
+        return new ArticleBookmarkStatusResponse(articleId, false);
     }
 
     @Transactional
@@ -460,6 +493,13 @@ public class ArticleService {
         return articleReactionRepository.findByUserIdAndArticleId(user.getId(), articleId)
             .map(ArticleReactionEntity::getReactionType)
             .orElse((short) 0);
+    }
+
+    private boolean resolveBookmarked(Long articleId, UserEntity user) {
+        if (user == null) {
+            return false;
+        }
+        return articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), articleId);
     }
 
     private ArticleEntity getArticleForReaction(Long articleId, UserEntity user) {

@@ -20,6 +20,7 @@ import com.mocktalkback.domain.board.dto.BoardCreateRequest;
 import com.mocktalkback.domain.board.dto.BoardDetailResponse;
 import com.mocktalkback.domain.board.dto.BoardMemberStatusResponse;
 import com.mocktalkback.domain.board.dto.BoardResponse;
+import com.mocktalkback.domain.board.dto.BoardSubscribeItemResponse;
 import com.mocktalkback.domain.board.dto.BoardSubscribeStatusResponse;
 import com.mocktalkback.domain.board.dto.BoardUpdateRequest;
 import com.mocktalkback.domain.board.entity.BoardEntity;
@@ -60,6 +61,10 @@ public class BoardService {
     private static final Sort BOARD_SORT = Sort.by(
         Sort.Order.desc("createdAt"),
         Sort.Order.desc("updatedAt"),
+        Sort.Order.desc("id")
+    );
+    private static final Sort BOARD_SUBSCRIBE_SORT = Sort.by(
+        Sort.Order.desc("createdAt"),
         Sort.Order.desc("id")
     );
 
@@ -167,6 +172,36 @@ public class BoardService {
             .toList();
 
         return toPageResponse(accessibleBoards, resolvedPage, resolvedSize);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<BoardSubscribeItemResponse> findSubscribes(int page, int size) {
+        int resolvedPage = normalizePage(page);
+        int resolvedSize = normalizeSize(size);
+        Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, BOARD_SUBSCRIBE_SORT);
+
+        Long userId = currentUserService.getUserId();
+        Page<BoardSubscribeEntity> pageResult = boardSubscribeRepository
+            .findAllByUserIdAndBoardDeletedAtIsNull(userId, pageable);
+        List<BoardSubscribeEntity> subscribes = pageResult.getContent();
+        List<BoardEntity> boards = subscribes.stream()
+            .map(BoardSubscribeEntity::getBoard)
+            .toList();
+
+        Map<Long, FileResponse> boardImages = resolveBoardImages(boards);
+        List<BoardSubscribeItemResponse> items = subscribes.stream()
+            .map(subscribe -> toSubscribeItemResponse(subscribe, boardImages.get(subscribe.getBoard().getId())))
+            .toList();
+
+        return new PageResponse<>(
+            items,
+            pageResult.getNumber(),
+            pageResult.getSize(),
+            pageResult.getTotalElements(),
+            pageResult.getTotalPages(),
+            pageResult.hasNext(),
+            pageResult.hasPrevious()
+        );
     }
 
     @Transactional
@@ -429,6 +464,23 @@ public class BoardService {
             page.getTotalPages(),
             page.hasNext(),
             page.hasPrevious()
+        );
+    }
+
+    private BoardSubscribeItemResponse toSubscribeItemResponse(
+        BoardSubscribeEntity subscribe,
+        FileResponse boardImage
+    ) {
+        BoardEntity board = subscribe.getBoard();
+        return new BoardSubscribeItemResponse(
+            subscribe.getId(),
+            board.getId(),
+            board.getBoardName(),
+            board.getSlug(),
+            board.getDescription(),
+            board.getVisibility(),
+            boardImage,
+            subscribe.getCreatedAt()
         );
     }
 

@@ -34,13 +34,13 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/users")
+@RequestMapping("/api")
 @Tag(name = "MyPage", description = "마이페이지 API")
 public class UserController {
 
     private final UserService userService;
 
-    @GetMapping("/me")
+    @GetMapping("/users/me")
     @Operation(summary = "내 프로필 조회", description = "로그인된 사용자 프로필을 조회합니다.")
     @ApiResponses({
         @ApiResponse(
@@ -54,7 +54,7 @@ public class UserController {
         return ApiEnvelope.ok(userService.getMyProfile());
     }
 
-    @PutMapping(value = "/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(value = "/users/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "내 프로필 수정", description = "이름/이메일/닉네임/핸들, 비밀번호 및 프로필 이미지를 수정합니다.")
     @ApiResponses({
         @ApiResponse(
@@ -71,7 +71,7 @@ public class UserController {
         return ApiEnvelope.ok(userService.updateMyProfile(request));
     }
 
-    @DeleteMapping("/me")
+    @DeleteMapping("/users/me")
     @Operation(summary = "계정 삭제", description = "탈퇴 문구 확인 후 계정을 소프트 삭제합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "삭제 성공"),
@@ -85,7 +85,7 @@ public class UserController {
         return ApiEnvelope.ok();
     }
 
-    @GetMapping("/me/articles")
+    @GetMapping("/users/me/articles")
     @Operation(summary = "내 게시글 목록", description = "로그인된 사용자의 게시글 목록을 조회합니다.")
     @ApiResponses({
         @ApiResponse(
@@ -105,7 +105,7 @@ public class UserController {
         return ApiEnvelope.ok(userService.getMyArticles(page, size));
     }
 
-    @GetMapping("/me/comments")
+    @GetMapping("/users/me/comments")
     @Operation(summary = "내 댓글 목록", description = "로그인된 사용자의 댓글 목록을 조회합니다.")
     @ApiResponses({
         @ApiResponse(
@@ -125,7 +125,7 @@ public class UserController {
         return ApiEnvelope.ok(userService.getMyComments(page, size));
     }
 
-    @GetMapping("/mentions")
+    @GetMapping("/users/mentions")
     @Operation(summary = "멘션 추천", description = "핸들 기준으로 멘션 후보를 조회합니다.")
     @ApiResponses({
         @ApiResponse(

@@ -37,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/auth")
+@RequestMapping("/api")
 @Tag(name = "Auth", description = "로그인/회원가입/토큰 갱신 API")
 public class AuthController {
 
@@ -45,7 +45,7 @@ public class AuthController {
     private final CookieUtil cookieUtil;
     private final RefreshTokenService refreshTokenService;
 
-    @PostMapping("/join")
+    @PostMapping("/auth/join")
     @Operation(summary = "회원가입", description = "로컬 계정 회원가입")
     @ApiResponses({
             @ApiResponse(
@@ -60,7 +60,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiEnvelope.ok());
     }
 
-    @PostMapping("/login")
+    @PostMapping("/auth/login")
     @Operation(summary = "로그인", description = "아이디/비밀번호로 로그인하고 Access Token을 발급합니다.")
     @ApiResponses({
             @ApiResponse(
@@ -84,7 +84,7 @@ public class AuthController {
                 .body(new TokenResponse(tokens.accessToken(), "Bearer", tokens.accessExpiresInSec()));
     }
     
-    @PostMapping("/refresh")
+    @PostMapping("/auth/refresh")
     @Operation(summary = "토큰 갱신", description = "Refresh 쿠키로 Access Token을 재발급합니다.")
     @ApiResponses({
             @ApiResponse(
@@ -131,7 +131,7 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/logout")
+    @PostMapping("/auth/logout")
     @Operation(summary = "로그아웃", description = "Refresh 토큰을 폐기하고 쿠키를 삭제합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "로그아웃 성공")
@@ -156,7 +156,7 @@ public class AuthController {
                 .build();
     }
 
-    @PostMapping("/oauth2/callback")
+    @PostMapping("/auth/oauth2/callback")
     @Operation(summary = "OAuth2 코드 교환", description = "1회용 코드를 Access Token으로 교환합니다.")
     @ApiResponses({
             @ApiResponse(

@@ -1,19 +1,34 @@
 package com.mocktalkback.domain.article.service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.mocktalkback.domain.article.dto.ArticleBookmarkCreateRequest;
+import com.mocktalkback.domain.article.dto.ArticleBookmarkDeleteRequest;
+import com.mocktalkback.domain.article.dto.ArticleBookmarkItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkResponse;
 import com.mocktalkback.domain.article.entity.ArticleBookmarkEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
 import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
+import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
+import com.mocktalkback.domain.article.repository.ArticleReactionRepository.ArticleReactionCountView;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
+import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
+import com.mocktalkback.global.auth.CurrentUserService;
+import com.mocktalkback.global.common.dto.PageResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,9 +36,18 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ArticleBookmarkService {
 
+    private static final int MAX_PAGE_SIZE = 50;
+    private static final Sort BOOKMARK_SORT = Sort.by(
+        Sort.Order.desc("createdAt"),
+        Sort.Order.desc("id")
+    );
+
     private final ArticleBookmarkRepository articleBookmarkRepository;
-    private final UserRepository userRepository;
     private final ArticleRepository articleRepository;
+    private final ArticleReactionRepository articleReactionRepository;
+    private final CommentRepository commentRepository;
+    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
     private final ArticleMapper articleMapper;
 
     @Transactional
@@ -49,6 +73,62 @@ public class ArticleBookmarkService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<ArticleBookmarkItemResponse> findMyBookmarks(int page, int size) {
+        int resolvedPage = normalizePage(page);
+        int resolvedSize = normalizeSize(size);
+        Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, BOOKMARK_SORT);
+
+        Long userId = currentUserService.getUserId();
+        Page<ArticleBookmarkEntity> result = articleBookmarkRepository
+            .findAllByUserIdAndArticleDeletedAtIsNullAndArticleBoardDeletedAtIsNull(userId, pageable);
+
+        List<ArticleEntity> articles = result.getContent().stream()
+            .map(ArticleBookmarkEntity::getArticle)
+            .toList();
+        Map<Long, Long> commentCounts = loadCommentCounts(articles);
+        Map<Long, ReactionCounts> reactionCounts = loadReactionCounts(articles);
+
+        List<ArticleBookmarkItemResponse> items = articles.stream()
+            .map(article -> new ArticleBookmarkItemResponse(
+                article.getId(),
+                article.getBoard().getId(),
+                article.getBoard().getSlug(),
+                article.getUser().getId(),
+                resolveAuthorName(article.getUser()),
+                article.getTitle(),
+                article.getHit(),
+                commentCounts.getOrDefault(article.getId(), 0L),
+                reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty()).likeCount(),
+                reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty()).dislikeCount(),
+                article.isNotice(),
+                article.getCreatedAt()
+            ))
+            .toList();
+
+        return new PageResponse<>(
+            items,
+            result.getNumber(),
+            result.getSize(),
+            result.getTotalElements(),
+            result.getTotalPages(),
+            result.hasNext(),
+            result.hasPrevious()
+        );
+    }
+
+    @Transactional
+    public void deleteAllByUser() {
+        Long userId = currentUserService.getUserId();
+        articleBookmarkRepository.deleteByUserId(userId);
+    }
+
+    @Transactional
+    public void deleteByArticleIds(ArticleBookmarkDeleteRequest request) {
+        Long userId = currentUserService.getUserId();
+        articleBookmarkRepository.deleteByUserIdAndArticleIdIn(userId, request.articleIds());
+    }
+
     @Transactional
     public void delete(Long id) {
         articleBookmarkRepository.deleteById(id);
@@ -62,5 +142,67 @@ public class ArticleBookmarkService {
     private ArticleEntity getArticle(Long articleId) {
         return articleRepository.findById(articleId)
             .orElseThrow(() -> new IllegalArgumentException("article not found: " + articleId));
+    }
+
+    private Map<Long, Long> loadCommentCounts(List<ArticleEntity> articles) {
+        Set<Long> ids = articles.stream()
+            .map(ArticleEntity::getId)
+            .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return commentRepository.countByArticleIds(ids).stream()
+            .collect(Collectors.toMap(
+                CommentRepository.CommentCountView::getArticleId,
+                CommentRepository.CommentCountView::getCount
+            ));
+    }
+
+    private Map<Long, ReactionCounts> loadReactionCounts(List<ArticleEntity> articles) {
+        List<Long> articleIds = articles.stream()
+            .map(ArticleEntity::getId)
+            .toList();
+        if (articleIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, ReactionCounts> counts = new HashMap<>();
+        List<ArticleReactionCountView> result = articleReactionRepository.countByArticleIds(articleIds);
+        for (ArticleReactionCountView row : result) {
+            ReactionCounts current = counts.getOrDefault(row.getArticleId(), ReactionCounts.empty());
+            if (row.getReactionType() == 1) {
+                counts.put(row.getArticleId(), new ReactionCounts(current.likeCount() + row.getCount(), current.dislikeCount()));
+            } else if (row.getReactionType() == -1) {
+                counts.put(row.getArticleId(), new ReactionCounts(current.likeCount(), current.dislikeCount() + row.getCount()));
+            }
+        }
+        return counts;
+    }
+
+    private String resolveAuthorName(UserEntity user) {
+        String displayName = user.getDisplayName();
+        if (displayName != null && !displayName.isBlank()) {
+            return displayName;
+        }
+        return user.getUserName();
+    }
+
+    private int normalizePage(int page) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
+        }
+        return page;
+    }
+
+    private int normalizeSize(int size) {
+        if (size <= 0 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
+        }
+        return size;
+    }
+
+    private record ReactionCounts(long likeCount, long dislikeCount) {
+        private static ReactionCounts empty() {
+            return new ReactionCounts(0, 0);
+        }
     }
 }

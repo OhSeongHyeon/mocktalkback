@@ -18,13 +18,13 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/files")
+@RequestMapping("/api")
 @Tag(name = "EditorFile", description = "에디터 파일 업로드 API")
 public class EditorFileController {
 
     private final EditorFileService editorFileService;
 
-    @PostMapping(value = "/editor", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/files/editor", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "에디터 파일 업로드", description = "에디터에서 사용할 이미지/영상 파일을 업로드합니다.")
     @ApiResponse(responseCode = "200", description = "업로드 성공")
     public ApiEnvelope<FileResponse> uploadEditorFile(
