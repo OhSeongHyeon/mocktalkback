@@ -22,10 +22,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate        # create-drop / create / update / validate / none
-    show-sql: true              # 콘솔에 SQL 출력
+    show-sql: false             # P6Spy 로그 사용
     properties:
       hibernate:
-        "[format_sql]": true    # SQL 포맷
+        # "[format_sql]": true    # SQL 포맷
         # dialect: ${DEV_JPA_DIALECT}
         jdbc:
           time-zone: Asia/Seoul

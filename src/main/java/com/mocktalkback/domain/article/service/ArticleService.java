@@ -62,6 +62,7 @@ import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.global.common.sanitize.HtmlSanitizer;
 import com.mocktalkback.global.common.util.ActivityPointPolicy;
 import com.mocktalkback.global.common.util.ReactionTypeValidator;
+import com.mocktalkback.global.common.type.SortOrder;
 
 import lombok.RequiredArgsConstructor;
 
@@ -251,10 +252,11 @@ public class ArticleService {
     }
 
     @Transactional(readOnly = true)
-    public BoardArticleListResponse getBoardArticles(Long boardId, int page, int size) {
+    public BoardArticleListResponse getBoardArticles(Long boardId, int page, int size, SortOrder order) {
         int resolvedPage = normalizePage(page);
         int resolvedSize = normalizeSize(size);
-        Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ARTICLE_SORT);
+        Sort sort = resolveArticleSort(order);
+        Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, sort);
 
         BoardEntity board = getBoardForRead(boardId);
         Long userId = currentUserService.getOptionalUserId().orElse(null);
@@ -283,7 +285,7 @@ public class ArticleService {
             pinnedEntities = articleRepository.findByBoardIdAndNoticeTrueAndVisibilityInAndDeletedAtIsNull(
                 boardId,
                 visibilities,
-                PageRequest.of(0, PINNED_LIMIT, ARTICLE_SORT)
+                PageRequest.of(0, PINNED_LIMIT, sort)
             );
         }
 
@@ -590,6 +592,17 @@ public class ArticleService {
             throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         return size;
+    }
+
+    private Sort resolveArticleSort(SortOrder order) {
+        if (order == SortOrder.OLDEST) {
+            return Sort.by(
+                Sort.Order.asc("createdAt"),
+                Sort.Order.asc("updatedAt"),
+                Sort.Order.asc("id")
+            );
+        }
+        return ARTICLE_SORT;
     }
 
     private record ReactionCounts(long likeCount, long dislikeCount) {

@@ -42,6 +42,7 @@ import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.type.SortOrder;
 
 @WebMvcTest(controllers = BoardController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -291,12 +292,13 @@ class BoardControllerTest {
             false
         );
         BoardArticleListResponse response = new BoardArticleListResponse(pinned, pageResponse);
-        when(articleService.getBoardArticles(10L, 0, 10)).thenReturn(response);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST)).thenReturn(response);
 
         // When: 게시글 목록 API 호출
         ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
             .param("page", "0")
-            .param("size", "10"));
+            .param("size", "10")
+            .param("order", "LATEST"));
 
         // Then: 응답 데이터 확인
         result.andExpect(status().isOk())

@@ -748,8 +748,9 @@ CREATE INDEX IF NOT EXISTS ix_tb_comment_files_comment_id
 CREATE INDEX IF NOT EXISTS ix_tb_board_files_board_id
   ON tb_board_files (board_id);
 
-CREATE INDEX IF NOT EXISTS ix_tb_user_files_file_id
-  ON tb_user_files (file_id);
-
 CREATE INDEX IF NOT EXISTS ix_tb_users_role_id
   ON tb_users (role_id);
+
+CREATE INDEX IF NOT EXISTS ix_tb_boards_visibility_created_at
+  ON tb_boards (visibility, created_at DESC, updated_at DESC, board_id DESC)
+  WHERE deleted_at IS NULL;

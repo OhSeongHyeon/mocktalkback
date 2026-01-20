@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 @Profile("dev")
 public class ApiTimingAspect {
 
-  private static final long WARN_THRESHOLD_MS = 200;
+  private static final long WARN_THRESHOLD_MS = 600;
 
   @Around("within(@org.springframework.web.bind.annotation.RestController *)")
   public Object timeController(ProceedingJoinPoint pjp) throws Throwable {

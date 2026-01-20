@@ -25,6 +25,7 @@ import com.mocktalkback.domain.board.dto.BoardUpdateRequest;
 import com.mocktalkback.domain.board.service.BoardService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.type.SortOrder;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -117,9 +118,11 @@ public class BoardController {
         @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
         @RequestParam(name = "page", defaultValue = "0") int page,
         @Parameter(description = "페이지 크기(최대 50)", example = "10")
-        @RequestParam(name = "size", defaultValue = "10") int size
+        @RequestParam(name = "size", defaultValue = "10") int size,
+        @Parameter(description = "정렬(최신순/과거순)", example = "LATEST")
+        @RequestParam(name = "order", defaultValue = "LATEST") SortOrder order
     ) {
-        return ApiEnvelope.ok(articleService.getBoardArticles(id, page, size));
+        return ApiEnvelope.ok(articleService.getBoardArticles(id, page, size, order));
     }
 
     @PutMapping("/boards/{id:\\d+}")

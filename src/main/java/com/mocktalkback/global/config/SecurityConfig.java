@@ -95,9 +95,9 @@ public class SecurityConfig {
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
                         )
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/boards/**")
-                        .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/articles/**")
+                        .requestMatchers(HttpMethod.GET, 
+                            "/api/boards/**", "/api/articles/**", "/api/search/**"
+                        )
                         .permitAll()
                         .anyRequest().authenticated());
 

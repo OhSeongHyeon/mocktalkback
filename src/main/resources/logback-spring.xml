@@ -19,6 +19,9 @@
     <springProfile name="dev">
         <logger name="org.springframework.web.servlet.resource" level="WARN" />
         <logger name="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver" level="WARN" />
+        <!-- <logger name="org.hibernate.SQL" level="WARN" />
+        <logger name="org.hibernate.orm.jdbc.bind" level="WARN" /> -->
+        <logger name="p6spy" level="INFO" />
     </springProfile>
 
     <springProfile name="prod">
