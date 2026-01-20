@@ -49,6 +49,7 @@ import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.util.ActivityPointPolicy;
 
 import lombok.RequiredArgsConstructor;
 
@@ -56,7 +57,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BoardService {
 
-    private static final int BOARD_CREATE_POINT = 1000;
     private static final int MAX_PAGE_SIZE = 50;
     private static final Sort BOARD_SORT = Sort.by(
         Sort.Order.desc("createdAt"),
@@ -84,13 +84,14 @@ public class BoardService {
     public BoardResponse create(BoardCreateRequest request) {
         Long userId = currentUserService.getUserId();
         UserEntity user = getUser(userId);
-        if (user.getUserPoint() < BOARD_CREATE_POINT) {
+        int requiredPoint = Math.abs(ActivityPointPolicy.CREATE_BOARD.delta);
+        if (user.getUserPoint() < requiredPoint) {
             throw new IllegalArgumentException("포인트가 부족합니다.");
         }
 
         BoardEntity entity = boardMapper.toEntity(request);
         BoardEntity saved = boardRepository.save(entity);
-        user.changePoint(-BOARD_CREATE_POINT);
+        user.changePoint(ActivityPointPolicy.CREATE_BOARD.delta);
 
         BoardMemberEntity member = BoardMemberEntity.builder()
             .user(user)

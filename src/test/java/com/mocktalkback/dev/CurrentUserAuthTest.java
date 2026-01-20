@@ -19,10 +19,12 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = TestCurrentUserController.class)
 @Import(CurrentUserAuthTest.TestSecurityConfig.class)
+@TestPropertySource(properties = "DEV_SERVER_PORT=0")
 class CurrentUserAuthTest {
 
     @Autowired

@@ -60,6 +60,7 @@ import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.global.common.sanitize.HtmlSanitizer;
+import com.mocktalkback.global.common.util.ActivityPointPolicy;
 import com.mocktalkback.global.common.util.ReactionTypeValidator;
 
 import lombok.RequiredArgsConstructor;
@@ -108,6 +109,7 @@ public class ArticleService {
         );
         ArticleEntity entity = articleMapper.toEntity(sanitizedRequest, board, user, category);
         ArticleEntity saved = articleRepository.save(entity);
+        user.changePoint(ActivityPointPolicy.CREATE_ARTICLE.delta);
         return articleMapper.toResponse(saved);
     }
 
@@ -322,6 +324,9 @@ public class ArticleService {
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
+            if (entity.getUser().getId().equals(user.getId())) {
+                user.changePoint(ActivityPointPolicy.DELETE_ARTICLE.delta);
+            }
         }
     }
 

@@ -41,6 +41,7 @@ import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
+import com.mocktalkback.global.common.util.ActivityPointPolicy;
 import com.mocktalkback.global.common.util.ReactionTypeValidator;
 
 import lombok.RequiredArgsConstructor;
@@ -79,6 +80,7 @@ public class CommentService {
             .build();
         CommentEntity saved = commentRepository.save(entity);
         saved.assignRootComment(saved);
+        user.changePoint(ActivityPointPolicy.CREATE_REPLY.delta);
         notifyArticleComment(user, article);
         return toTreeResponse(saved);
     }
@@ -105,6 +107,7 @@ public class CommentService {
             .content(content)
             .build();
         CommentEntity saved = commentRepository.save(entity);
+        user.changePoint(ActivityPointPolicy.CREATE_REPLY.delta);
         notifyCommentReply(user, article, parent, saved);
         return toTreeResponse(saved);
     }
@@ -238,6 +241,9 @@ public class CommentService {
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
+            if (entity.getUser().getId().equals(user.getId())) {
+                user.changePoint(ActivityPointPolicy.DELETE_REPLY.delta);
+            }
         }
     }
 

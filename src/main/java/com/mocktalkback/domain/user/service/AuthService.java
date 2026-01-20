@@ -20,6 +20,7 @@ import com.mocktalkback.global.auth.jwt.RefreshTokenService;
 import com.mocktalkback.global.auth.jwt.RefreshTokenService.Rotated;
 import com.mocktalkback.global.auth.oauth2.OAuth2CodeService;
 import com.mocktalkback.global.common.util.HandleGenerator;
+import com.mocktalkback.global.common.util.ActivityPointPolicy;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -87,6 +88,7 @@ public class AuthService {
                 displayName,
                 handle
         );
+        user.changePoint(ActivityPointPolicy.JOIN.delta);
 
         userRepository.save(user);
     }

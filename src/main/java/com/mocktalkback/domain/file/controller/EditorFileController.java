@@ -12,7 +12,10 @@ import com.mocktalkback.domain.file.service.EditorFileService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +29,11 @@ public class EditorFileController {
 
     @PostMapping(value = "/files/editor", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "에디터 파일 업로드", description = "에디터에서 사용할 이미지/영상 파일을 업로드합니다.")
-    @ApiResponse(responseCode = "200", description = "업로드 성공")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "업로드 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "400", description = "요청 값 오류"),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
     public ApiEnvelope<FileResponse> uploadEditorFile(
         @RequestPart("file") MultipartFile file
     ) {
