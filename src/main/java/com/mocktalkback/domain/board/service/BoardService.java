@@ -3,7 +3,6 @@ package com.mocktalkback.domain.board.service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -106,37 +105,13 @@ public class BoardService {
     @Transactional(readOnly = true)
     public BoardDetailResponse findById(Long id) {
         BoardEntity entity = getBoard(id);
-        Long userId = currentUserService.getOptionalUserId().orElse(null);
-        if (userId == null) {
-            if (entity.getVisibility() != BoardVisibility.PUBLIC) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
-            }
-            return toDetailResponse(entity, null);
-        }
-
-        UserEntity user = getUser(userId);
-        if (!canReadBoard(entity, user, userId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
-        }
-        return toDetailResponse(entity, userId);
+        return loadDetail(entity);
     }
 
     @Transactional(readOnly = true)
     public BoardDetailResponse findBySlug(String slug) {
         BoardEntity entity = getBoardBySlug(slug);
-        Long userId = currentUserService.getOptionalUserId().orElse(null);
-        if (userId == null) {
-            if (entity.getVisibility() != BoardVisibility.PUBLIC) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
-            }
-            return toDetailResponse(entity, null);
-        }
-
-        UserEntity user = getUser(userId);
-        if (!canReadBoard(entity, user, userId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
-        }
-        return toDetailResponse(entity, userId);
+        return loadDetail(entity);
     }
 
     @Transactional(readOnly = true)
@@ -159,20 +134,16 @@ public class BoardService {
             Page<BoardEntity> result = boardRepository.findAllByDeletedAtIsNull(pageable);
             return toPageResponse(result);
         }
+        Page<BoardEntity> result = boardRepository.findAccessibleBoards(
+            userId,
+            List.of(BoardVisibility.PUBLIC, BoardVisibility.GROUP),
+            BoardVisibility.PRIVATE,
+            BoardRole.OWNER,
+            BoardRole.BANNED,
+            pageable
+        );
 
-        List<BoardEntity> boards = boardRepository.findAllByDeletedAtIsNull(BOARD_SORT);
-        Map<Long, BoardRole> membership = boardMemberRepository.findAllByUserId(userId).stream()
-            .collect(Collectors.toMap(
-                member -> member.getBoard().getId(),
-                BoardMemberEntity::getBoardRole,
-                (left, right) -> left
-            ));
-
-        List<BoardEntity> accessibleBoards = boards.stream()
-            .filter(board -> canReadBoard(board, membership))
-            .toList();
-
-        return toPageResponse(accessibleBoards, resolvedPage, resolvedSize);
+        return toPageResponse(result);
     }
 
     @Transactional(readOnly = true)
@@ -280,7 +251,6 @@ public class BoardService {
     @Transactional
     public BoardSubscribeStatusResponse unsubscribe(Long boardId) {
         Long userId = currentUserService.getUserId();
-        // BoardEntity board = getBoard(boardId);
         if (!boardSubscribeRepository.existsByUserIdAndBoardId(userId, boardId)) {
             return new BoardSubscribeStatusResponse(boardId, false);
         }
@@ -377,6 +347,22 @@ public class BoardService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found"));
     }
 
+    private BoardDetailResponse loadDetail(BoardEntity entity) {
+        Long userId = currentUserService.getOptionalUserId().orElse(null);
+        if (userId == null) {
+            if (entity.getVisibility() != BoardVisibility.PUBLIC) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+            }
+            return toDetailResponse(entity, null);
+        }
+
+        UserEntity user = getUser(userId);
+        if (!canReadBoard(entity, user, userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+        return toDetailResponse(entity, userId);
+    }
+
     private BoardDetailResponse toDetailResponse(BoardEntity board, Long userId) {
         FileResponse boardImage = resolveBoardImage(board.getId());
         BoardMemberEntity ownerMember = boardMemberRepository.findFirstByBoardIdAndBoardRole(board.getId(), BoardRole.OWNER)
@@ -437,24 +423,6 @@ public class BoardService {
         return false;
     }
 
-    private boolean canReadBoard(BoardEntity board, Map<Long, BoardRole> membership) {
-        BoardVisibility visibility = board.getVisibility();
-        if (visibility == BoardVisibility.PUBLIC) {
-            return true;
-        }
-        BoardRole role = membership.get(board.getId());
-        if (role == BoardRole.BANNED) {
-            return false;
-        }
-        if (visibility == BoardVisibility.GROUP) {
-            return true;
-        }
-        if (visibility == BoardVisibility.PRIVATE) {
-            return role == BoardRole.OWNER;
-        }
-        return false;
-    }
-
     private PageResponse<BoardResponse> toPageResponse(Page<BoardEntity> page) {
         List<BoardResponse> items = mapBoardResponses(page.getContent());
         return new PageResponse<>(
@@ -483,42 +451,6 @@ public class BoardService {
             boardImage,
             subscribe.getCreatedAt()
         );
-    }
-
-    private PageResponse<BoardResponse> toPageResponse(
-        List<BoardEntity> boards,
-        int page,
-        int size
-    ) {
-        int totalElements = boards.size();
-        if (totalElements == 0) {
-            return new PageResponse<>(List.of(), page, size, 0, 0, false, false);
-        }
-
-        int fromIndex = page * size;
-        if (fromIndex >= totalElements) {
-            return new PageResponse<>(List.of(), page, size, totalElements, calculateTotalPages(totalElements, size), false, page > 0);
-        }
-
-        int toIndex = Math.min(fromIndex + size, totalElements);
-        List<BoardEntity> pageItems = boards.subList(fromIndex, toIndex);
-        List<BoardResponse> items = mapBoardResponses(pageItems);
-        int totalPages = calculateTotalPages(totalElements, size);
-        boolean hasNext = page + 1 < totalPages;
-
-        return new PageResponse<>(
-            items,
-            page,
-            size,
-            totalElements,
-            totalPages,
-            hasNext,
-            page > 0
-        );
-    }
-
-    private int calculateTotalPages(int totalElements, int size) {
-        return (int) Math.ceil((double) totalElements / size);
     }
 
     private List<BoardResponse> mapBoardResponses(List<BoardEntity> boards) {
