@@ -53,7 +53,12 @@ import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileEntity;
+import com.mocktalkback.domain.file.entity.FileVariantEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
+import com.mocktalkback.domain.file.repository.FileRepository;
+import com.mocktalkback.domain.file.repository.FileVariantRepository;
+import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
+import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.moderation.repository.SanctionRepository;
 import com.mocktalkback.domain.moderation.type.SanctionScopeType;
 import com.mocktalkback.domain.role.type.ContentVisibility;
@@ -92,7 +97,10 @@ public class ArticleService {
     private final ArticleBookmarkRepository articleBookmarkRepository;
     private final ArticleReactionRepository articleReactionRepository;
     private final ArticleMapper articleMapper;
+    private final FileRepository fileRepository;
     private final FileMapper fileMapper;
+    private final FileVariantRepository fileVariantRepository;
+    private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final HtmlSanitizer htmlSanitizer;
     private final SanctionRepository sanctionRepository;
@@ -111,10 +119,12 @@ public class ArticleService {
             request.visibility(),
             request.title(),
             sanitizedContent,
-            request.notice()
+            request.notice(),
+            request.fileIds()
         );
         ArticleEntity entity = articleMapper.toEntity(sanitizedRequest, board, user, category);
         ArticleEntity saved = articleRepository.save(entity);
+        attachArticleFiles(saved, sanitizedRequest.fileIds());
         user.changePoint(ActivityPointPolicy.CREATE_ARTICLE.delta);
         return articleMapper.toResponse(saved);
     }
@@ -326,6 +336,7 @@ public class ArticleService {
         ArticleCategoryEntity category = getCategory(request.categoryId());
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         entity.update(category, request.visibility(), request.title(), sanitizedContent, request.notice());
+        syncArticleFiles(entity, request.fileIds());
         return articleMapper.toResponse(entity);
     }
 
@@ -338,10 +349,162 @@ public class ArticleService {
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
+            softDeleteAttachments(entity.getId());
             if (entity.getUser().getId().equals(user.getId())) {
                 user.changePoint(ActivityPointPolicy.DELETE_ARTICLE.delta);
             }
         }
+    }
+
+    private void attachArticleFiles(ArticleEntity article, List<Long> fileIds) {
+        if (article == null) {
+            return;
+        }
+        List<Long> normalized = normalizeFileIds(fileIds);
+        if (normalized.isEmpty()) {
+            return;
+        }
+        for (Long fileId : normalized) {
+            FileEntity file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new IllegalArgumentException("file not found: " + fileId));
+            if (file.isDeleted()) {
+                continue;
+            }
+            if (!isAttachableFile(file)) {
+                throw new IllegalArgumentException("첨부할 수 없는 파일입니다.");
+            }
+            ArticleFileEntity mapping = ArticleFileEntity.builder()
+                .article(article)
+                .file(file)
+                .build();
+            articleFileRepository.save(mapping);
+            file.clearTemporary();
+        }
+    }
+
+    private void syncArticleFiles(ArticleEntity article, List<Long> fileIds) {
+        if (article == null || article.getId() == null || fileIds == null) {
+            return;
+        }
+        List<Long> normalized = normalizeFileIds(fileIds);
+        List<ArticleFileEntity> existing = articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(article.getId());
+        Set<Long> desired = new LinkedHashSet<>(normalized);
+        Map<Long, ArticleFileEntity> existingMap = new HashMap<>();
+        for (ArticleFileEntity mapping : existing) {
+            FileEntity file = mapping.getFile();
+            if (file != null && file.getId() != null) {
+                existingMap.put(file.getId(), mapping);
+            }
+        }
+
+        for (Long fileId : desired) {
+            if (existingMap.containsKey(fileId)) {
+                FileEntity existingFile = existingMap.get(fileId).getFile();
+                if (existingFile != null) {
+                    existingFile.clearTemporary();
+                }
+                continue;
+            }
+            FileEntity file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new IllegalArgumentException("file not found: " + fileId));
+            if (file.isDeleted()) {
+                continue;
+            }
+            if (!isAttachableFile(file)) {
+                throw new IllegalArgumentException("첨부할 수 없는 파일입니다.");
+            }
+            ArticleFileEntity mapping = ArticleFileEntity.builder()
+                .article(article)
+                .file(file)
+                .build();
+            articleFileRepository.save(mapping);
+            file.clearTemporary();
+        }
+
+        for (ArticleFileEntity mapping : existing) {
+            FileEntity file = mapping.getFile();
+            if (file == null || file.getId() == null) {
+                continue;
+            }
+            Long fileId = file.getId();
+            if (desired.contains(fileId)) {
+                continue;
+            }
+            articleFileRepository.delete(mapping);
+            if (!articleFileRepository.existsByFileId(fileId) && isArticleFile(file)) {
+                file.markTemporary(temporaryFilePolicy.resolveExpiry());
+            }
+        }
+    }
+
+    private void softDeleteAttachments(Long articleId) {
+        if (articleId == null) {
+            return;
+        }
+        List<ArticleFileEntity> mappings = articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(articleId);
+        for (ArticleFileEntity mapping : mappings) {
+            FileEntity file = mapping.getFile();
+            if (file == null || file.isDeleted()) {
+                continue;
+            }
+            softDeleteVariants(file.getId());
+            file.softDelete();
+        }
+    }
+
+    private void softDeleteVariants(Long fileId) {
+        if (fileId == null) {
+            return;
+        }
+        List<FileVariantEntity> variants = fileVariantRepository.findAllByFileIdAndDeletedAtIsNull(fileId);
+        for (FileVariantEntity variant : variants) {
+            variant.softDelete();
+        }
+    }
+
+    private List<Long> normalizeFileIds(List<Long> fileIds) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> result = new ArrayList<>();
+        Set<Long> seen = new LinkedHashSet<>();
+        for (Long fileId : fileIds) {
+            if (fileId == null || seen.contains(fileId)) {
+                continue;
+            }
+            seen.add(fileId);
+            result.add(fileId);
+        }
+        return result;
+    }
+
+    private boolean isAttachableFile(FileEntity file) {
+        if (file == null || file.getFileClass() == null) {
+            return false;
+        }
+        String code = file.getFileClass().getCode();
+        return FileClassCode.ARTICLE_CONTENT_IMAGE.equals(code)
+            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(code)
+            || FileClassCode.ARTICLE_ATTACHMENT.equals(code)
+            || FileClassCode.ARTICLE_THUMBNAIL.equals(code);
+    }
+
+    private boolean isAttachmentFile(FileEntity file) {
+        if (file == null || file.getFileClass() == null) {
+            return false;
+        }
+        return FileClassCode.ARTICLE_ATTACHMENT.equals(file.getFileClass().getCode());
+    }
+
+    private boolean isArticleFile(FileEntity file) {
+        if (file == null || file.getFileClass() == null) {
+            return false;
+        }
+        String code = file.getFileClass().getCode();
+        return FileClassCode.ARTICLE_CONTENT_IMAGE.equals(code)
+            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(code)
+            || FileClassCode.ARTICLE_ATTACHMENT.equals(code)
+            || FileClassCode.ARTICLE_THUMBNAIL.equals(code);
     }
 
     private BoardEntity getBoard(Long boardId) {
@@ -559,7 +722,7 @@ public class ArticleService {
         List<ArticleFileEntity> mappings = articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(articleId);
         return mappings.stream()
             .map(ArticleFileEntity::getFile)
-            .filter(file -> !file.isDeleted())
+            .filter(file -> !file.isDeleted() && isAttachmentFile(file))
             .map(fileMapper::toResponse)
             .toList();
     }

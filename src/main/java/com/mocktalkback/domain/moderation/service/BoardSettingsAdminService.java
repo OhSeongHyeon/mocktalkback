@@ -21,11 +21,14 @@ import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
+import com.mocktalkback.domain.file.entity.FileVariantEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
+import com.mocktalkback.domain.file.repository.FileVariantRepository;
 import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
+import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
 import com.mocktalkback.domain.moderation.dto.BoardAdminSettingsUpdateRequest;
@@ -45,7 +48,9 @@ public class BoardSettingsAdminService {
     private final BoardFileRepository boardFileRepository;
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
+    private final FileVariantRepository fileVariantRepository;
     private final FileStorage fileStorage;
+    private final ImageOptimizationService imageOptimizationService;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final BoardMapper boardMapper;
@@ -75,12 +80,14 @@ public class BoardSettingsAdminService {
     }
 
     @Transactional
-    public BoardResponse uploadBoardImage(Long boardId, MultipartFile boardImage) {
+    public BoardResponse uploadBoardImage(Long boardId, MultipartFile boardImage, boolean preserveMetadata) {
         BoardEntity board = getBoard(boardId);
         UserEntity actor = getCurrentUser();
         requireBoardAdmin(actor, board);
 
         StoredFile storedFile = fileStorage.store(FileClassCode.BOARD_IMAGE, boardImage, actor.getId());
+        ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
+            .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getBoardImageClass();
 
         removeExistingBoardImages(boardId);
@@ -89,11 +96,13 @@ public class BoardSettingsAdminService {
             .fileClass(fileClass)
             .fileName(storedFile.fileName())
             .storageKey(storedFile.storageKey())
-            .fileSize(storedFile.fileSize())
-            .mimeType(storedFile.mimeType())
+            .fileSize(processed.fileSize())
+            .mimeType(processed.mimeType())
+            .metadataPreserved(processed.metadataPreserved())
             .build();
 
         FileEntity savedFile = fileRepository.save(fileEntity);
+        imageOptimizationService.enqueueVariantGeneration(savedFile);
         BoardFileEntity mapping = BoardFileEntity.builder()
             .file(savedFile)
             .board(board)
@@ -156,7 +165,18 @@ public class BoardSettingsAdminService {
         for (BoardFileEntity boardFile : files) {
             FileEntity file = boardFile.getFile();
             boardFileRepository.delete(boardFile);
+            softDeleteVariants(file.getId());
             file.softDelete();
+        }
+    }
+
+    private void softDeleteVariants(Long fileId) {
+        if (fileId == null) {
+            return;
+        }
+        List<FileVariantEntity> variants = fileVariantRepository.findAllByFileIdAndDeletedAtIsNull(fileId);
+        for (FileVariantEntity variant : variants) {
+            variant.softDelete();
         }
     }
 

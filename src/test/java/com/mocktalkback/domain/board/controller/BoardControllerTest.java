@@ -2,6 +2,7 @@ package com.mocktalkback.domain.board.controller;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
@@ -356,7 +357,7 @@ class BoardControllerTest {
             null,
             null
         );
-        when(boardService.uploadBoardImage(eq(1L), any())).thenReturn(response);
+        when(boardService.uploadBoardImage(eq(1L), any(), anyBoolean())).thenReturn(response);
 
         MockMultipartFile file = new MockMultipartFile(
             "boardImage",

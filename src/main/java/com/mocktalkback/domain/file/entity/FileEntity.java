@@ -2,6 +2,8 @@ package com.mocktalkback.domain.file.entity;
 
 import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -54,19 +56,29 @@ public class FileEntity extends SoftDeleteEntity {
     @Column(name = "mime_type", nullable = false, length = 128)
     private String mimeType;
 
+    @Column(name = "metadata_preserved", nullable = false)
+    private boolean metadataPreserved;
+
+    @Column(name = "temp_expires_at")
+    private Instant tempExpiresAt;
+
     @Builder
     private FileEntity(
         FileClassEntity fileClass,
         String fileName,
         String storageKey,
         Long fileSize,
-        String mimeType
+        String mimeType,
+        boolean metadataPreserved,
+        Instant tempExpiresAt
     ) {
         this.fileClass = fileClass;
         this.fileName = fileName;
         this.storageKey = storageKey;
         this.fileSize = fileSize;
         this.mimeType = mimeType;
+        this.metadataPreserved = metadataPreserved;
+        this.tempExpiresAt = tempExpiresAt;
     }
 
     public void update(
@@ -74,12 +86,28 @@ public class FileEntity extends SoftDeleteEntity {
         String fileName,
         String storageKey,
         Long fileSize,
-        String mimeType
+        String mimeType,
+        boolean metadataPreserved,
+        Instant tempExpiresAt
     ) {
         this.fileClass = fileClass;
         this.fileName = fileName;
         this.storageKey = storageKey;
         this.fileSize = fileSize;
         this.mimeType = mimeType;
+        this.metadataPreserved = metadataPreserved;
+        this.tempExpiresAt = tempExpiresAt;
+    }
+
+    public void markTemporary(Instant expiresAt) {
+        this.tempExpiresAt = expiresAt;
+    }
+
+    public void clearTemporary() {
+        this.tempExpiresAt = null;
+    }
+
+    public boolean isTemporary() {
+        return tempExpiresAt != null;
     }
 }

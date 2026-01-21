@@ -23,11 +23,14 @@ import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
+import com.mocktalkback.domain.file.entity.FileVariantEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
+import com.mocktalkback.domain.file.repository.FileVariantRepository;
 import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
+import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
 import com.mocktalkback.domain.user.dto.UserProfileResponse;
@@ -61,10 +64,12 @@ public class UserService {
     private final CommentRepository commentRepository;
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
+    private final FileVariantRepository fileVariantRepository;
     private final ArticleMapper articleMapper;
     private final CommentMapper commentMapper;
     private final FileMapper fileMapper;
     private final FileStorage fileStorage;
+    private final ImageOptimizationService imageOptimizationService;
     private final CurrentUserService currentUserService;
     private final PasswordEncoder passwordEncoder;
 
@@ -117,7 +122,7 @@ public class UserService {
 
         MultipartFile profileImage = request.getProfileImage();
         if (profileImage != null && !profileImage.isEmpty()) {
-            updateProfileImage(user, profileImage);
+            updateProfileImage(user, profileImage, request.isPreserveMetadata());
         }
 
         return getMyProfile();
@@ -174,12 +179,14 @@ public class UserService {
             .toList();
     }
 
-    private void updateProfileImage(UserEntity user, MultipartFile profileImage) {
+    private void updateProfileImage(UserEntity user, MultipartFile profileImage, boolean preserveMetadata) {
         StoredFile storedFile = fileStorage.store(
             FileClassCode.PROFILE_IMAGE,
             profileImage,
             user.getId()
         );
+        ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
+            .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getProfileImageClass();
 
         removeExistingProfileImages(user.getId());
@@ -188,11 +195,13 @@ public class UserService {
             .fileClass(fileClass)
             .fileName(storedFile.fileName())
             .storageKey(storedFile.storageKey())
-            .fileSize(storedFile.fileSize())
-            .mimeType(storedFile.mimeType())
+            .fileSize(processed.fileSize())
+            .mimeType(processed.mimeType())
+            .metadataPreserved(processed.metadataPreserved())
             .build();
 
         FileEntity savedFile = fileRepository.save(fileEntity);
+        imageOptimizationService.enqueueVariantGeneration(savedFile);
         UserFileEntity link = UserFileEntity.builder()
             .user(user)
             .file(savedFile)
@@ -221,7 +230,18 @@ public class UserService {
         for (UserFileEntity userFile : existing) {
             FileEntity file = userFile.getFile();
             userFileRepository.delete(userFile);
+            softDeleteVariants(file.getId());
             file.softDelete();
+        }
+    }
+
+    private void softDeleteVariants(Long fileId) {
+        if (fileId == null) {
+            return;
+        }
+        List<FileVariantEntity> variants = fileVariantRepository.findAllByFileIdAndDeletedAtIsNull(fileId);
+        for (FileVariantEntity variant : variants) {
+            variant.softDelete();
         }
     }
 

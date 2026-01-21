@@ -1,6 +1,7 @@
 package com.mocktalkback.domain.moderation.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
@@ -211,7 +212,7 @@ class AdminBoardControllerTest {
             "image/png",
             "file-content".getBytes()
         );
-        when(adminBoardService.uploadBoardImage(eq(1L), any(MultipartFile.class))).thenReturn(response);
+        when(adminBoardService.uploadBoardImage(eq(1L), any(MultipartFile.class), anyBoolean())).thenReturn(response);
 
         // When: 게시판 대표 이미지 업로드 API 호출
         ResultActions result = mockMvc.perform(multipart("/api/admin/boards/1/image")

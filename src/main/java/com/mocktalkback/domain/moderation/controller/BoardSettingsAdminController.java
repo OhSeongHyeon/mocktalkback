@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -49,9 +50,10 @@ public class BoardSettingsAdminController {
     @Operation(summary = "게시판 대표 이미지 업로드", description = "게시판 대표 이미지를 업로드합니다.")
     public ApiEnvelope<BoardResponse> uploadImage(
         @PathVariable("boardId") Long boardId,
-        @RequestPart("boardImage") MultipartFile boardImage
+        @RequestPart("boardImage") MultipartFile boardImage,
+        @RequestParam(name = "preserveMetadata", defaultValue = "false") boolean preserveMetadata
     ) {
-        return ApiEnvelope.ok(boardSettingsAdminService.uploadBoardImage(boardId, boardImage));
+        return ApiEnvelope.ok(boardSettingsAdminService.uploadBoardImage(boardId, boardImage, preserveMetadata));
     }
 
     @DeleteMapping("/boards/{boardId:\\d+}/admin/settings/image")

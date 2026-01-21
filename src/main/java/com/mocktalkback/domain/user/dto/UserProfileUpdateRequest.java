@@ -40,4 +40,7 @@ public class UserProfileUpdateRequest {
 
     @Schema(description = "프로필 이미지 파일", type = "string", format = "binary")
     private MultipartFile profileImage;
+
+    @Schema(description = "프로필 이미지 메타데이터 보존 여부", example = "false")
+    private boolean preserveMetadata;
 }

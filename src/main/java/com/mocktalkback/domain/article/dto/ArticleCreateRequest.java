@@ -1,5 +1,7 @@
 package com.mocktalkback.domain.article.dto;
 
+import java.util.List;
+
 import com.mocktalkback.domain.role.type.ContentVisibility;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -38,6 +40,9 @@ public record ArticleCreateRequest(
     String content,
 
     @Schema(description = "Notice flag", example = "false")
-    boolean notice
+    boolean notice,
+
+    @Schema(description = "본문에 포함된 파일 ID 목록")
+    List<Long> fileIds
 ) {
 }

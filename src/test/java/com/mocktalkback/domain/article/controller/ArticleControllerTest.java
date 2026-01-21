@@ -73,7 +73,8 @@ class ArticleControllerTest {
             ContentVisibility.PUBLIC,
             "title",
             "content",
-            false
+            false,
+            List.of()
         );
         ArticleResponse response = new ArticleResponse(
             10L,
@@ -330,7 +331,8 @@ class ArticleControllerTest {
             ContentVisibility.MEMBERS,
             "updated title",
             "updated content",
-            true
+            true,
+            List.of()
         );
         ArticleResponse response = new ArticleResponse(
             10L,

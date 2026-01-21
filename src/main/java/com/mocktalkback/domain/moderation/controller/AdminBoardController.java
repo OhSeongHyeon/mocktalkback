@@ -80,9 +80,10 @@ public class AdminBoardController {
     @Operation(summary = "대표 이미지 업로드", description = "게시판 대표 이미지를 업로드합니다.")
     public ApiEnvelope<BoardResponse> uploadImage(
         @PathVariable("boardId") Long boardId,
-        @RequestPart("boardImage") MultipartFile boardImage
+        @RequestPart("boardImage") MultipartFile boardImage,
+        @RequestParam(name = "preserveMetadata", defaultValue = "false") boolean preserveMetadata
     ) {
-        return ApiEnvelope.ok(adminBoardService.uploadBoardImage(boardId, boardImage));
+        return ApiEnvelope.ok(adminBoardService.uploadBoardImage(boardId, boardImage, preserveMetadata));
     }
 
     @DeleteMapping("/admin/boards/{boardId:\\d+}/image")

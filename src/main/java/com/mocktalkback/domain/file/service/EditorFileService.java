@@ -29,25 +29,32 @@ public class EditorFileService {
     private final FileClassRepository fileClassRepository;
     private final FileMapper fileMapper;
     private final CurrentUserService currentUserService;
+    private final ImageOptimizationService imageOptimizationService;
+    private final TemporaryFilePolicy temporaryFilePolicy;
 
     @Transactional
-    public FileResponse uploadEditorFile(MultipartFile file) {
+    public FileResponse uploadEditorFile(MultipartFile file, boolean preserveMetadata) {
         validateFile(file);
         String fileClassCode = resolveFileClassCode(file);
         Long userId = currentUserService.getUserId();
 
         StoredFile storedFile = fileStorage.store(fileClassCode, file, userId);
+        ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
+            .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getOrCreateFileClass(fileClassCode);
 
         FileEntity fileEntity = FileEntity.builder()
             .fileClass(fileClass)
             .fileName(storedFile.fileName())
             .storageKey(storedFile.storageKey())
-            .fileSize(storedFile.fileSize())
-            .mimeType(storedFile.mimeType())
+            .fileSize(processed.fileSize())
+            .mimeType(processed.mimeType())
+            .metadataPreserved(processed.metadataPreserved())
+            .tempExpiresAt(temporaryFilePolicy.resolveExpiry())
             .build();
 
         FileEntity saved = fileRepository.save(fileEntity);
+        imageOptimizationService.enqueueVariantGeneration(saved);
         return fileMapper.toResponse(saved);
     }
 

@@ -3,6 +3,7 @@ package com.mocktalkback.domain.file.controller;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,8 +36,9 @@ public class EditorFileController {
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
     public ApiEnvelope<FileResponse> uploadEditorFile(
-        @RequestPart("file") MultipartFile file
+        @RequestPart("file") MultipartFile file,
+        @RequestParam(name = "preserveMetadata", defaultValue = "false") boolean preserveMetadata
     ) {
-        return ApiEnvelope.ok(editorFileService.uploadEditorFile(file));
+        return ApiEnvelope.ok(editorFileService.uploadEditorFile(file, preserveMetadata));
     }
 }

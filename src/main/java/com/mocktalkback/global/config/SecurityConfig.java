@@ -97,7 +97,8 @@ public class SecurityConfig {
                         )
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, 
-                            "/api/boards/**", "/api/articles/**", "/api/search/**"
+                            "/api/boards/**", "/api/articles/**", "/api/search/**",
+                            "/api/files/*/view"
                         )
                         .permitAll()
                         .anyRequest().authenticated());

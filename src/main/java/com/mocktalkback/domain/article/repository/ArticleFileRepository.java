@@ -10,4 +10,6 @@ import com.mocktalkback.domain.article.entity.ArticleFileEntity;
 public interface ArticleFileRepository extends JpaRepository<ArticleFileEntity, Long> {
     @EntityGraph(attributePaths = {"file"})
     List<ArticleFileEntity> findAllByArticleIdOrderByCreatedAtAsc(Long articleId);
+
+    boolean existsByFileId(Long fileId);
 }

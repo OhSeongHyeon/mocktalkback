@@ -162,9 +162,10 @@ public class BoardController {
     })
     public ApiEnvelope<BoardResponse> uploadImage(
         @PathVariable("id") Long id,
-        @RequestPart("boardImage") MultipartFile boardImage
+        @RequestPart("boardImage") MultipartFile boardImage,
+        @RequestParam(name = "preserveMetadata", defaultValue = "false") boolean preserveMetadata
     ) {
-        return ApiEnvelope.ok(boardService.uploadBoardImage(id, boardImage));
+        return ApiEnvelope.ok(boardService.uploadBoardImage(id, boardImage, preserveMetadata));
     }
 
     @PostMapping("/boards/{id:\\d+}/subscribe")
