@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindingResult;
@@ -90,6 +91,13 @@ public class GlobalExceptionHandler {
         return buildError(ErrorCode.COMMON_PAYLOAD_TOO_LARGE, request, "파일 사이즈 제한 50MB", null);
     }
 
+    // 데이터 무결성 위반(중복 등) 처리.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiEnvelope<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
+        String reason = resolveDataIntegrityReason(ex);
+        return buildError(ErrorCode.COMMON_CONFLICT, request, reason, null);
+    }
+
     // 처리되지 않은 모든 예외의 최종 처리.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiEnvelope<Void>> handleException(Exception ex, HttpServletRequest request) {
@@ -134,6 +142,29 @@ public class GlobalExceptionHandler {
         ApiError error = ApiError.of(errorCode, reason, path, details);
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .body(ApiEnvelope.fail(error));
+    }
+
+    private String resolveDataIntegrityReason(DataIntegrityViolationException ex) {
+        String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        if (message == null) {
+            return "중복된 값이 있습니다.";
+        }
+        if (message.contains("uq_tb_boards_slug")) {
+            return "이미 사용 중인 슬러그입니다.";
+        }
+        if (message.contains("uq_tb_boards_board_name")) {
+            return "이미 사용 중인 게시판명입니다.";
+        }
+        if (message.contains("uq_tb_users_login_id")) {
+            return "이미 사용 중인 로그인 ID입니다.";
+        }
+        if (message.contains("uq_tb_users_email")) {
+            return "이미 사용 중인 이메일입니다.";
+        }
+        if (message.contains("uq_tb_users_handle")) {
+            return "이미 사용 중인 핸들입니다.";
+        }
+        return "중복된 값이 있습니다.";
     }
 
     private ErrorCode resolveErrorCode(int statusCode) {

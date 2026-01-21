@@ -34,6 +34,30 @@ public interface BoardRepository extends JpaRepository<BoardEntity, Long> {
         Sort sort
     );
 
+    @Query("""
+        select b
+        from BoardEntity b
+        where (
+            :includeDeleted = true
+            or b.deletedAt is null
+        )
+          and (
+            :keyword is null
+            or lower(b.boardName) like concat('%', cast(:keyword as string), '%')
+            or lower(b.slug) like concat('%', cast(:keyword as string), '%')
+          )
+          and (
+            :visibility is null
+            or b.visibility = :visibility
+          )
+        """)
+    Page<BoardEntity> findAdminBoards(
+        @Param("keyword") String keyword,
+        @Param("visibility") BoardVisibility visibility,
+        @Param("includeDeleted") boolean includeDeleted,
+        Pageable pageable
+    );
+
     @Query(
         value = """
             select distinct b

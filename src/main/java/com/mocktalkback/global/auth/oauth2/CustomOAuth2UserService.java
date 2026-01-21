@@ -25,6 +25,7 @@ import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.entity.UserOAuthLinkEntity;
 import com.mocktalkback.domain.user.repository.UserOAuthLinkRepository;
+import com.mocktalkback.global.common.util.ActivityPointPolicy;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.common.util.HandleGenerator;
 
@@ -141,6 +142,7 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                     handle,
                     emailVerified
             );
+            user.changePoint(ActivityPointPolicy.JOIN.delta);
             userRepository.save(user);
         }
 

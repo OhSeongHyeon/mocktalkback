@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.comment.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -36,6 +37,8 @@ import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
+import com.mocktalkback.domain.moderation.repository.SanctionRepository;
+import com.mocktalkback.domain.moderation.type.SanctionScopeType;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -63,11 +66,13 @@ public class CommentService {
     private final BoardMemberRepository boardMemberRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final SanctionRepository sanctionRepository;
 
     @Transactional
     public CommentTreeResponse createRoot(Long articleId, CommentCreateRequest request) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getAccessibleArticle(articleId, user);
+        requireNotSanctioned(user, article.getBoard(), "제재 상태라 댓글을 작성할 수 없습니다.");
         String content = normalizeContent(request.content());
 
         CommentEntity entity = CommentEntity.builder()
@@ -89,6 +94,7 @@ public class CommentService {
     public CommentTreeResponse createReply(Long articleId, Long parentCommentId, CommentCreateRequest request) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getAccessibleArticle(articleId, user);
+        requireNotSanctioned(user, article.getBoard(), "제재 상태라 댓글을 작성할 수 없습니다.");
         CommentEntity parent = getComment(parentCommentId);
         if (!parent.getArticle().getId().equals(article.getId())) {
             throw new IllegalArgumentException("댓글이 다른 게시글에 속해 있습니다.");
@@ -193,6 +199,7 @@ public class CommentService {
             throw new IllegalArgumentException("삭제된 댓글에는 반응할 수 없습니다.");
         }
         getAccessibleArticle(comment.getArticle().getId(), user);
+        requireNotSanctioned(user, comment.getArticle().getBoard(), "제재 상태라 댓글에 반응할 수 없습니다.");
 
         CommentReactionEntity existing = commentReactionRepository
             .findByUserIdAndCommentId(user.getId(), comment.getId())
@@ -229,6 +236,7 @@ public class CommentService {
         if (entity.isDeleted()) {
             throw new IllegalArgumentException("삭제된 댓글은 수정할 수 없습니다.");
         }
+        requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 수정할 수 없습니다.");
         requireOwnership(user, entity);
         entity.updateContent(normalizeContent(request.content()));
         return toTreeResponse(entity);
@@ -238,6 +246,7 @@ public class CommentService {
     public void delete(Long id) {
         CommentEntity entity = getComment(id);
         UserEntity user = getCurrentUser();
+        requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 삭제할 수 없습니다.");
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
@@ -474,6 +483,20 @@ public class CommentService {
     private boolean isManagerOrAdmin(UserEntity user) {
         String roleName = user.getRole().getRoleName();
         return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
+    }
+
+    private void requireNotSanctioned(UserEntity user, BoardEntity board, String message) {
+        Instant now = Instant.now();
+        boolean sanctioned = sanctionRepository.existsActiveSanction(
+            user.getId(),
+            SanctionScopeType.GLOBAL,
+            SanctionScopeType.BOARD,
+            board.getId(),
+            now
+        );
+        if (sanctioned) {
+            throw new AccessDeniedException(message);
+        }
     }
 
     private String resolveAuthorName(UserEntity user) {

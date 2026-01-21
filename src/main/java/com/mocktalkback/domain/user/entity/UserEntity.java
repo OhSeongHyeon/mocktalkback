@@ -173,6 +173,18 @@ public class UserEntity extends SoftDeleteEntity {
         this.email = email;
     }
 
+    public void lock() {
+        this.locked = true;
+    }
+
+    public void unlock() {
+        this.locked = false;
+    }
+
+    public void changeRole(RoleEntity role) {
+        this.role = role;
+    }
+
     public void deactivate() {
         this.enabled = false;
         this.locked = true;

@@ -58,8 +58,8 @@ dependencies {
 	// implementation 'org.flywaydb:flyway-mysql'
 	// runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 
-	// P6Spy (SQL 로그 포맷)
-	implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.12.1'
+	// P6Spy (dev 전용 SQL 로그 포맷)
+	developmentOnly 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.12.1'
 
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'  // devtools

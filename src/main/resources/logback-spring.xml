@@ -27,6 +27,7 @@
     <springProfile name="prod">
         <logger name="org.springframework.web.servlet.resource" level="ERROR" />
         <logger name="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver" level="ERROR" />
+        <logger name="p6spy" level="OFF" />
     </springProfile>
 
     <!-- Daily rolling + size-based split; total size cap approximates "keep 10 files" -->

@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.article.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -53,6 +54,8 @@ import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
+import com.mocktalkback.domain.moderation.repository.SanctionRepository;
+import com.mocktalkback.domain.moderation.type.SanctionScopeType;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -92,11 +95,13 @@ public class ArticleService {
     private final FileMapper fileMapper;
     private final CurrentUserService currentUserService;
     private final HtmlSanitizer htmlSanitizer;
+    private final SanctionRepository sanctionRepository;
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
         BoardEntity board = getBoard(request.boardId());
         UserEntity user = getUser(request.userId());
+        requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
         ArticleCategoryEntity category = getCategory(request.categoryId());
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         ArticleCreateRequest sanitizedRequest = new ArticleCreateRequest(
@@ -179,6 +184,7 @@ public class ArticleService {
     public ArticleBookmarkStatusResponse bookmark(Long articleId) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getArticleForReaction(articleId, user);
+        requireNotSanctioned(user, article.getBoard(), "제재 상태라 북마크를 변경할 수 없습니다.");
 
         if (articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), article.getId())) {
             return new ArticleBookmarkStatusResponse(article.getId(), true);
@@ -195,6 +201,8 @@ public class ArticleService {
     @Transactional
     public ArticleBookmarkStatusResponse unbookmark(Long articleId) {
         UserEntity user = getCurrentUser();
+        ArticleEntity article = getArticleForReaction(articleId, user);
+        requireNotSanctioned(user, article.getBoard(), "제재 상태라 북마크를 변경할 수 없습니다.");
         if (!articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), articleId)) {
             return new ArticleBookmarkStatusResponse(articleId, false);
         }
@@ -215,6 +223,7 @@ public class ArticleService {
 
         UserEntity user = getCurrentUser();
         ArticleEntity article = getArticleForReaction(articleId, user);
+        requireNotSanctioned(user, article.getBoard(), "제재 상태라 게시글에 반응할 수 없습니다.");
 
         ArticleReactionEntity existing = articleReactionRepository
             .findByUserIdAndArticleId(user.getId(), article.getId())
@@ -312,6 +321,8 @@ public class ArticleService {
     public ArticleResponse update(Long id, ArticleUpdateRequest request) {
         ArticleEntity entity = articleRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("article not found: " + id));
+        UserEntity user = getCurrentUser();
+        requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
         ArticleCategoryEntity category = getCategory(request.categoryId());
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         entity.update(category, request.visibility(), request.title(), sanitizedContent, request.notice());
@@ -323,6 +334,7 @@ public class ArticleService {
         ArticleEntity entity = articleRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
         UserEntity user = getCurrentUser();
+        requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 삭제할 수 없습니다.");
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
@@ -425,6 +437,20 @@ public class ArticleService {
     private boolean isManagerOrAdmin(UserEntity user) {
         String roleName = user.getRole().getRoleName();
         return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
+    }
+
+    private void requireNotSanctioned(UserEntity user, BoardEntity board, String message) {
+        Instant now = Instant.now();
+        boolean sanctioned = sanctionRepository.existsActiveSanction(
+            user.getId(),
+            SanctionScopeType.GLOBAL,
+            SanctionScopeType.BOARD,
+            board.getId(),
+            now
+        );
+        if (sanctioned) {
+            throw new AccessDeniedException(message);
+        }
     }
 
     private void requireOwnership(UserEntity user, ArticleEntity entity) {

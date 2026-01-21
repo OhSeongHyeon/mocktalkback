@@ -110,4 +110,8 @@ public class ArticleEntity extends SoftDeleteEntity {
     public void increaseHit() {
         this.hit += 1;
     }
+
+    public void changeNotice(boolean notice) {
+        this.notice = notice;
+    }
 }

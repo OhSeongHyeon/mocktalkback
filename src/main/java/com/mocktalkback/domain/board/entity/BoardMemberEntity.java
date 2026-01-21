@@ -90,4 +90,9 @@ public class BoardMemberEntity extends BaseTimeEntity {
         this.boardRole = BoardRole.MEMBER;
         this.grantedByUser = approver;
     }
+
+    public void changeRole(BoardRole boardRole, UserEntity grantedByUser) {
+        this.boardRole = boardRole;
+        this.grantedByUser = grantedByUser;
+    }
 }
