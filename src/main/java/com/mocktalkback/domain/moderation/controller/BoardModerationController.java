@@ -30,13 +30,13 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/boards/{boardId:\\d+}/admin")
+@RequestMapping("/api")
 @Tag(name = "BoardModeration", description = "커뮤니티 관리자 신고/제재 API")
 public class BoardModerationController {
 
     private final ModerationService moderationService;
 
-    @GetMapping("/reports")
+    @GetMapping("/boards/{boardId:\\d+}/admin/reports")
     @Operation(summary = "게시판 신고 목록", description = "게시판 범위의 신고 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<ReportListItemResponse>> getReports(
         @PathVariable("boardId") Long boardId,
@@ -47,7 +47,7 @@ public class BoardModerationController {
         return ApiEnvelope.ok(moderationService.getBoardReports(boardId, status, page, size));
     }
 
-    @GetMapping("/reports/{id:\\d+}")
+    @GetMapping("/boards/{boardId:\\d+}/admin/reports/{id:\\d+}")
     @Operation(summary = "게시판 신고 상세", description = "게시판 신고 상세 정보를 조회합니다.")
     public ApiEnvelope<ReportDetailResponse> getReport(
         @PathVariable("boardId") Long boardId,
@@ -56,7 +56,7 @@ public class BoardModerationController {
         return ApiEnvelope.ok(moderationService.getBoardReport(boardId, id));
     }
 
-    @PutMapping("/reports/{id:\\d+}")
+    @PutMapping("/boards/{boardId:\\d+}/admin/reports/{id:\\d+}")
     @Operation(summary = "게시판 신고 처리", description = "게시판 신고 상태를 처리합니다.")
     public ApiEnvelope<ReportDetailResponse> processReport(
         @PathVariable("boardId") Long boardId,
@@ -69,7 +69,7 @@ public class BoardModerationController {
         return ApiEnvelope.ok(moderationService.processBoardReport(boardId, id, request, ipAddress, userAgent));
     }
 
-    @GetMapping("/sanctions")
+    @GetMapping("/boards/{boardId:\\d+}/admin/sanctions")
     @Operation(summary = "게시판 제재 목록", description = "게시판 범위 제재 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<SanctionResponse>> getSanctions(
         @PathVariable("boardId") Long boardId,
@@ -79,7 +79,7 @@ public class BoardModerationController {
         return ApiEnvelope.ok(moderationService.getBoardSanctions(boardId, page, size));
     }
 
-    @PostMapping("/sanctions")
+    @PostMapping("/boards/{boardId:\\d+}/admin/sanctions")
     @Operation(summary = "게시판 제재 등록", description = "게시판 범위 제재를 등록합니다.")
     public ApiEnvelope<SanctionResponse> createSanction(
         @PathVariable("boardId") Long boardId,
@@ -91,7 +91,7 @@ public class BoardModerationController {
         return ApiEnvelope.ok(moderationService.createBoardSanction(boardId, request, ipAddress, userAgent));
     }
 
-    @PostMapping("/sanctions/{id:\\d+}/revoke")
+    @PostMapping("/boards/{boardId:\\d+}/admin/sanctions/{id:\\d+}/revoke")
     @Operation(summary = "게시판 제재 해제", description = "게시판 제재를 해제합니다.")
     public ApiEnvelope<SanctionResponse> revokeSanction(
         @PathVariable("boardId") Long boardId,

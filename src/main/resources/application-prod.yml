@@ -1,5 +1,15 @@
 server:
   port: ${SERVER_PORT}
+
+management:
+  server:
+    port: 8083
+    address: 127.0.0.1
+  endpoints:
+    web:
+      exposure:
+        include: prometheus
+
 spring:
   application:
     name: mocktalkback

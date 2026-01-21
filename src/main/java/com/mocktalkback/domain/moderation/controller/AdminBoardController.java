@@ -30,14 +30,14 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin/boards")
+@RequestMapping("/api")
 @Tag(name = "AdminBoards", description = "사이트 관리자 게시판 관리 API")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminBoardController {
 
     private final AdminBoardService adminBoardService;
 
-    @GetMapping
+    @GetMapping("/admin/boards")
     @Operation(summary = "게시판 목록", description = "사이트 관리자용 게시판 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<BoardResponse>> getBoards(
         @RequestParam(name = "keyword", required = false) String keyword,
@@ -52,7 +52,7 @@ public class AdminBoardController {
         return ApiEnvelope.ok(adminBoardService.findBoards(keyword, visibility, includeDeleted, sortBy, sortAsc, page, size));
     }
 
-    @PostMapping
+    @PostMapping("/admin/boards")
     @Operation(summary = "게시판 생성", description = "게시판을 생성합니다.")
     public ApiEnvelope<BoardResponse> create(
         @RequestBody @Valid AdminBoardCreateRequest request
@@ -60,7 +60,7 @@ public class AdminBoardController {
         return ApiEnvelope.ok(adminBoardService.create(request));
     }
 
-    @PutMapping("/{boardId:\\d+}")
+    @PutMapping("/admin/boards/{boardId:\\d+}")
     @Operation(summary = "게시판 수정", description = "게시판 정보를 수정합니다.")
     public ApiEnvelope<BoardResponse> update(
         @PathVariable("boardId") Long boardId,
@@ -69,14 +69,14 @@ public class AdminBoardController {
         return ApiEnvelope.ok(adminBoardService.update(boardId, request));
     }
 
-    @DeleteMapping("/{boardId:\\d+}")
+    @DeleteMapping("/admin/boards/{boardId:\\d+}")
     @Operation(summary = "게시판 삭제", description = "게시판을 소프트 삭제합니다.")
     public ApiEnvelope<Void> delete(@PathVariable("boardId") Long boardId) {
         adminBoardService.delete(boardId);
         return ApiEnvelope.ok();
     }
 
-    @PostMapping(value = "/{boardId:\\d+}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/admin/boards/{boardId:\\d+}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "대표 이미지 업로드", description = "게시판 대표 이미지를 업로드합니다.")
     public ApiEnvelope<BoardResponse> uploadImage(
         @PathVariable("boardId") Long boardId,
@@ -85,7 +85,7 @@ public class AdminBoardController {
         return ApiEnvelope.ok(adminBoardService.uploadBoardImage(boardId, boardImage));
     }
 
-    @DeleteMapping("/{boardId:\\d+}/image")
+    @DeleteMapping("/admin/boards/{boardId:\\d+}/image")
     @Operation(summary = "대표 이미지 삭제", description = "게시판 대표 이미지를 삭제합니다.")
     public ApiEnvelope<BoardResponse> deleteImage(
         @PathVariable("boardId") Long boardId

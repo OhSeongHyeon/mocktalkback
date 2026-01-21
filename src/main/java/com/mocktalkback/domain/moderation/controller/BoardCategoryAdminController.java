@@ -24,19 +24,19 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/boards/{boardId:\\d+}/admin/categories")
+@RequestMapping("/api")
 @Tag(name = "BoardAdminCategories", description = "커뮤니티 관리자 카테고리 관리 API")
 public class BoardCategoryAdminController {
 
     private final BoardCategoryAdminService boardCategoryAdminService;
 
-    @GetMapping
+    @GetMapping("/boards/{boardId:\\d+}/admin/categories")
     @Operation(summary = "카테고리 목록", description = "게시판 카테고리 목록을 조회합니다.")
     public ApiEnvelope<List<ArticleCategoryResponse>> getCategories(@PathVariable("boardId") Long boardId) {
         return ApiEnvelope.ok(boardCategoryAdminService.findAll(boardId));
     }
 
-    @PostMapping
+    @PostMapping("/boards/{boardId:\\d+}/admin/categories")
     @Operation(summary = "카테고리 생성", description = "게시판 카테고리를 생성합니다.")
     public ApiEnvelope<ArticleCategoryResponse> createCategory(
         @PathVariable("boardId") Long boardId,
@@ -45,7 +45,7 @@ public class BoardCategoryAdminController {
         return ApiEnvelope.ok(boardCategoryAdminService.create(boardId, request));
     }
 
-    @PutMapping("/{categoryId:\\d+}")
+    @PutMapping("/boards/{boardId:\\d+}/admin/categories/{categoryId:\\d+}")
     @Operation(summary = "카테고리 수정", description = "게시판 카테고리를 수정합니다.")
     public ApiEnvelope<ArticleCategoryResponse> updateCategory(
         @PathVariable("boardId") Long boardId,
@@ -55,7 +55,7 @@ public class BoardCategoryAdminController {
         return ApiEnvelope.ok(boardCategoryAdminService.update(boardId, categoryId, request));
     }
 
-    @DeleteMapping("/{categoryId:\\d+}")
+    @DeleteMapping("/boards/{boardId:\\d+}/admin/categories/{categoryId:\\d+}")
     @Operation(summary = "카테고리 삭제", description = "게시판 카테고리를 삭제합니다.")
     public ApiEnvelope<Void> deleteCategory(
         @PathVariable("boardId") Long boardId,

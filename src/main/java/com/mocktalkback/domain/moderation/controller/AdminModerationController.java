@@ -37,14 +37,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/admin")
+@RequestMapping("/api")
 @Tag(name = "AdminModeration", description = "사이트 관리자 신고/제재/감사 API")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminModerationController {
 
     private final ModerationService moderationService;
 
-    @GetMapping("/reports")
+    @GetMapping("/admin/reports")
     @Operation(summary = "신고 목록", description = "사이트 관리자용 신고 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<ReportListItemResponse>> getReports(
         @RequestParam(name = "status", required = false) ReportStatus status,
@@ -54,13 +54,13 @@ public class AdminModerationController {
         return ApiEnvelope.ok(moderationService.getAdminReports(status, page, size));
     }
 
-    @GetMapping("/reports/{id:\\d+}")
+    @GetMapping("/admin/reports/{id:\\d+}")
     @Operation(summary = "신고 상세", description = "신고 상세 정보를 조회합니다.")
     public ApiEnvelope<ReportDetailResponse> getReport(@PathVariable("id") Long id) {
         return ApiEnvelope.ok(moderationService.getAdminReport(id));
     }
 
-    @PutMapping("/reports/{id:\\d+}")
+    @PutMapping("/admin/reports/{id:\\d+}")
     @Operation(summary = "신고 처리", description = "신고 상태를 처리합니다.")
     public ApiEnvelope<ReportDetailResponse> processReport(
         @PathVariable("id") Long id,
@@ -72,7 +72,7 @@ public class AdminModerationController {
         return ApiEnvelope.ok(moderationService.processAdminReport(id, request, ipAddress, userAgent));
     }
 
-    @GetMapping("/sanctions")
+    @GetMapping("/admin/sanctions")
     @Operation(summary = "제재 목록", description = "제재 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<SanctionResponse>> getSanctions(
         @RequestParam(name = "scopeType", required = false) SanctionScopeType scopeType,
@@ -83,7 +83,7 @@ public class AdminModerationController {
         return ApiEnvelope.ok(moderationService.getAdminSanctions(scopeType, boardId, page, size));
     }
 
-    @PostMapping("/sanctions")
+    @PostMapping("/admin/sanctions")
     @Operation(summary = "제재 등록", description = "제재를 등록합니다.")
     public ApiEnvelope<SanctionResponse> createSanction(
         @RequestBody @Valid SanctionCreateRequest request,
@@ -94,7 +94,7 @@ public class AdminModerationController {
         return ApiEnvelope.ok(moderationService.createAdminSanction(request, ipAddress, userAgent));
     }
 
-    @PostMapping("/sanctions/{id:\\d+}/revoke")
+    @PostMapping("/admin/sanctions/{id:\\d+}/revoke")
     @Operation(summary = "제재 해제", description = "제재를 해제합니다.")
     public ApiEnvelope<SanctionResponse> revokeSanction(
         @PathVariable("id") Long id,
@@ -106,7 +106,7 @@ public class AdminModerationController {
         return ApiEnvelope.ok(moderationService.revokeAdminSanction(id, request, ipAddress, userAgent));
     }
 
-    @GetMapping("/audit-logs")
+    @GetMapping("/admin/audit-logs")
     @Operation(summary = "운영 로그 목록", description = "운영 로그를 조회합니다.")
     public ApiEnvelope<PageResponse<AdminAuditLogResponse>> getAuditLogs(
         @RequestParam(name = "actionType", required = false) AdminActionType actionType,

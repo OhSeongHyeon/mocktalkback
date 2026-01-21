@@ -23,13 +23,13 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/boards/{boardId:\\d+}/admin/contents")
+@RequestMapping("/api")
 @Tag(name = "BoardAdminContents", description = "커뮤니티 관리자 콘텐츠 관리 API")
 public class BoardContentAdminController {
 
     private final BoardContentAdminService boardContentAdminService;
 
-    @GetMapping("/articles")
+    @GetMapping("/boards/{boardId:\\d+}/admin/contents/articles")
     @Operation(summary = "게시글 목록", description = "게시판 게시글 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<BoardAdminArticleItemResponse>> getArticles(
         @PathVariable("boardId") Long boardId,
@@ -42,7 +42,7 @@ public class BoardContentAdminController {
         return ApiEnvelope.ok(boardContentAdminService.findArticles(boardId, reported, notice, authorId, page, size));
     }
 
-    @PutMapping("/articles/{articleId:\\d+}/notice")
+    @PutMapping("/boards/{boardId:\\d+}/admin/contents/articles/{articleId:\\d+}/notice")
     @Operation(summary = "공지 설정", description = "게시글 공지 상태를 변경합니다.")
     public ApiEnvelope<BoardAdminArticleItemResponse> updateNotice(
         @PathVariable("boardId") Long boardId,
@@ -52,7 +52,7 @@ public class BoardContentAdminController {
         return ApiEnvelope.ok(boardContentAdminService.updateNotice(boardId, articleId, request.notice()));
     }
 
-    @DeleteMapping("/articles/{articleId:\\d+}")
+    @DeleteMapping("/boards/{boardId:\\d+}/admin/contents/articles/{articleId:\\d+}")
     @Operation(summary = "게시글 삭제", description = "게시글을 소프트 삭제합니다.")
     public ApiEnvelope<Void> deleteArticle(
         @PathVariable("boardId") Long boardId,
@@ -62,7 +62,7 @@ public class BoardContentAdminController {
         return ApiEnvelope.ok();
     }
 
-    @GetMapping("/comments")
+    @GetMapping("/boards/{boardId:\\d+}/admin/contents/comments")
     @Operation(summary = "댓글 목록", description = "게시판 댓글 목록을 조회합니다.")
     public ApiEnvelope<PageResponse<BoardAdminCommentItemResponse>> getComments(
         @PathVariable("boardId") Long boardId,
@@ -74,7 +74,7 @@ public class BoardContentAdminController {
         return ApiEnvelope.ok(boardContentAdminService.findComments(boardId, reported, authorId, page, size));
     }
 
-    @DeleteMapping("/comments/{commentId:\\d+}")
+    @DeleteMapping("/boards/{boardId:\\d+}/admin/contents/comments/{commentId:\\d+}")
     @Operation(summary = "댓글 삭제", description = "댓글을 소프트 삭제합니다.")
     public ApiEnvelope<Void> deleteComment(
         @PathVariable("boardId") Long boardId,

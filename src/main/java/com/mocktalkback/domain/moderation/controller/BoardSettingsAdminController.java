@@ -24,19 +24,19 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/boards/{boardId:\\d+}/admin/settings")
+@RequestMapping("/api")
 @Tag(name = "BoardAdminSettings", description = "커뮤니티 관리자 게시판 설정 API")
 public class BoardSettingsAdminController {
 
     private final BoardSettingsAdminService boardSettingsAdminService;
 
-    @GetMapping
+    @GetMapping("/boards/{boardId:\\d+}/admin/settings")
     @Operation(summary = "게시판 설정 조회", description = "게시판 설정 정보를 조회합니다.")
     public ApiEnvelope<BoardResponse> getSettings(@PathVariable("boardId") Long boardId) {
         return ApiEnvelope.ok(boardSettingsAdminService.getSettings(boardId));
     }
 
-    @PutMapping
+    @PutMapping("/boards/{boardId:\\d+}/admin/settings")
     @Operation(summary = "게시판 설정 수정", description = "게시판 이름/설명/공개 범위를 수정합니다.")
     public ApiEnvelope<BoardResponse> updateSettings(
         @PathVariable("boardId") Long boardId,
@@ -45,7 +45,7 @@ public class BoardSettingsAdminController {
         return ApiEnvelope.ok(boardSettingsAdminService.updateSettings(boardId, request));
     }
 
-    @PostMapping(value = "/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/boards/{boardId:\\d+}/admin/settings/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "게시판 대표 이미지 업로드", description = "게시판 대표 이미지를 업로드합니다.")
     public ApiEnvelope<BoardResponse> uploadImage(
         @PathVariable("boardId") Long boardId,
@@ -54,7 +54,7 @@ public class BoardSettingsAdminController {
         return ApiEnvelope.ok(boardSettingsAdminService.uploadBoardImage(boardId, boardImage));
     }
 
-    @DeleteMapping("/image")
+    @DeleteMapping("/boards/{boardId:\\d+}/admin/settings/image")
     @Operation(summary = "게시판 대표 이미지 삭제", description = "게시판 대표 이미지를 삭제합니다.")
     public ApiEnvelope<BoardResponse> deleteImage(@PathVariable("boardId") Long boardId) {
         return ApiEnvelope.ok(boardSettingsAdminService.deleteBoardImage(boardId));

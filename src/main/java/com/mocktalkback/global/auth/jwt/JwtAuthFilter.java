@@ -30,7 +30,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         final String path = request.getServletPath();
-        final List<String> skip = List.of("/", "/api/health",
+        final List<String> skip = List.of("/", 
             "/api/auth/join", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
             "/api/auth/oauth2/callback"
         );
@@ -68,8 +68,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 throw new JwtException("missing role");
             }
 
-            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
-            var authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+            List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
             filterChain.doFilter(request, response);
