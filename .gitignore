@@ -180,7 +180,8 @@ out/
 
 ### other ###
 .env
-.env.*
+.env.dev
+.env.prod
 AGENTS.md
 GEMINI.md
 uploads/

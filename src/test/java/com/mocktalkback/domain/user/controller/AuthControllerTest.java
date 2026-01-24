@@ -48,7 +48,7 @@ import org.springframework.web.server.ResponseStatusException;
         OriginAllowlistFilter.class
 })
 @TestPropertySource(properties = {
-        "DEV_SERVER_PORT=0",
+        "SERVER_PORT=0",
         "JWT_SECRET=abcdefghijklmnopqrstuvwxyz012345",
         "SECURITY_COOKIE_SECURE=false",
         "SECURITY_ORIGIN_ALLOWLIST=http://localhost:5173"

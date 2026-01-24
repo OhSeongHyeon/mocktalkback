@@ -3,43 +3,90 @@ server:
 
 management:
   server:
-    port: 8083
-    address: 127.0.0.1
+    port: ${MANAGEMENT_PORT}
+    address: ${MANAGEMENT_ADDRESS}
   endpoints:
     web:
       exposure:
-        include: prometheus
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: never  # 또는 when_authorized
+  metrics:
+    tags:
+      application: mocktalk
 
 spring:
   application:
     name: mocktalkback
   datasource:
-    driver-class-name: ${DB_DRIVER_CLASS_NAME}
+    driver-class-name: org.postgresql.Driver
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  jackson:
+    time-zone: Asia/Seoul
+
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 60MB
-# 운영에서는 SQL 로깅 비활성
-decorator:
-  datasource:
-    enabled: false
-    p6spy:
-      enable-logging: false
+
+  jpa:
+    hibernate:
+      ddl-auto: none        # create-drop / create / update / validate / none
+    show-sql: false
+    properties:
+      hibernate:
+        # "[format_sql]": true    # SQL 포맷
+        # dialect: ${JPA_DIALECT}
+        jdbc:
+          time-zone: Asia/Seoul
+    open-in-view: false  # 웬만하면 false 권장 (N+1 잡기 쉬움)
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-name: google
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            redirect-uri: "${DOMAIN}/api/login/oauth2/code/google"
+            authorization-grant-type: authorization_code
+            scope:
+              - profile
+              - email
+          github:
+            client-name: github
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
+            redirect-uri: "${DOMAIN}/api/login/oauth2/code/github"
+            authorization-grant-type: authorization_code
+            scope:
+              - read:user
+              - user:email
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    # baseline-version: 1
 
 app:
   oauth2:
-    code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS:60}
-    redirect-path: ${OAUTH2_REDIRECT_PATH:/oauth/callback}
+    code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
+    redirect-path: ${OAUTH2_REDIRECT_PATH}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
+  file:
+    storage-dir: ${FILE_STORAGE_DIR}
   sanitize:
-    allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS:}
-    allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES:https://www.youtube.com/embed,https://www.youtube-nocookie.com/embed}
+    allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS}
+    allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES}
 
-springdoc:
-  api-docs:
-    enabled: false
-  swagger-ui:
-    enabled: false

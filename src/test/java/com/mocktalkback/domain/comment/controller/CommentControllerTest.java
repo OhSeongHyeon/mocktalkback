@@ -35,7 +35,7 @@ import com.mocktalkback.domain.comment.service.CommentService;
 @WebMvcTest(controllers = CommentController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 class CommentControllerTest {
 

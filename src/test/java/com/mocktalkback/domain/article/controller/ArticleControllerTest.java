@@ -44,7 +44,7 @@ import com.mocktalkback.domain.role.type.ContentVisibility;
 @WebMvcTest(controllers = ArticleController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 class ArticleControllerTest {
 

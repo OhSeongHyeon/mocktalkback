@@ -48,7 +48,7 @@ import com.mocktalkback.global.common.type.SortOrder;
 @WebMvcTest(controllers = BoardController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 class BoardControllerTest {
 

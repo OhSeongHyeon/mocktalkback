@@ -33,7 +33,7 @@ import com.mocktalkback.global.common.type.SortOrder;
 @WebMvcTest(controllers = SearchController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 class SearchControllerTest {
 

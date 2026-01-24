@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 @WebMvcTest(controllers = TestExceptionController.class)
 @Import(GlobalExceptionHandler.class)
 @AutoConfigureMockMvc(addFilters = false)
-@TestPropertySource(properties = "DEV_SERVER_PORT=0")
+@TestPropertySource(properties = "SERVER_PORT=0")
 class GlobalExceptionHandlerTest {
 
     @Autowired

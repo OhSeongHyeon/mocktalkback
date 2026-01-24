@@ -27,7 +27,7 @@ import com.mocktalkback.domain.role.type.RoleNames;
 @WebMvcTest(controllers = TestUserRootRoleController.class)
 @Import(UserRootRoleTest.TestSecurityConfig.class)
 @TestPropertySource(properties = {
-        "DEV_SERVER_PORT=0",
+        "SERVER_PORT=0",
 })
 class UserRootRoleTest {
 

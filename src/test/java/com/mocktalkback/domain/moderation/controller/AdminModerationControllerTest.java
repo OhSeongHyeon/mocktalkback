@@ -45,7 +45,7 @@ import com.mocktalkback.global.common.dto.PageResponse;
 @WebMvcTest(controllers = AdminModerationController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 @WithMockUser(roles = "ADMIN")
 class AdminModerationControllerTest {

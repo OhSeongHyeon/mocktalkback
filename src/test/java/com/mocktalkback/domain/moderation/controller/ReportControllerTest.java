@@ -29,7 +29,7 @@ import com.mocktalkback.domain.moderation.type.ReportTargetType;
 @WebMvcTest(controllers = ReportController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 class ReportControllerTest {
 

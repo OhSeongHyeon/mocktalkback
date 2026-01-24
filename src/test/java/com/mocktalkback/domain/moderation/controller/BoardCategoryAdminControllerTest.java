@@ -34,7 +34,7 @@ import com.mocktalkback.domain.moderation.service.BoardCategoryAdminService;
 @WebMvcTest(controllers = BoardCategoryAdminController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
-    "DEV_SERVER_PORT=0"
+    "SERVER_PORT=0"
 })
 class BoardCategoryAdminControllerTest {
 

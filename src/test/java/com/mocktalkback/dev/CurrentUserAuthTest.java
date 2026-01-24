@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = TestCurrentUserController.class)
 @Import(CurrentUserAuthTest.TestSecurityConfig.class)
-@TestPropertySource(properties = "DEV_SERVER_PORT=0")
+@TestPropertySource(properties = "SERVER_PORT=0")
 class CurrentUserAuthTest {
 
     @Autowired

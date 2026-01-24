@@ -1,5 +1,5 @@
 server:
-  port: ${DEV_SERVER_PORT}
+  port: ${SERVER_PORT}
 
 management:
   server:
@@ -50,6 +50,7 @@ spring:
     redis:
       host: ${DEV_REDIS_HOST}
       port: ${DEV_REDIS_PORT}
+      password: ${DEV_REDIS_PASSWORD}
 
   security:
     # user:              # oauth2-client 의존성 추가하면 시큐리티 비밀번호 안나옴
@@ -62,7 +63,7 @@ spring:
             client-name: google
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
-            redirect-uri: "http://localhost:8082/api/login/oauth2/code/google"
+            redirect-uri: "${DOMAIN}/api/login/oauth2/code/google"
             authorization-grant-type: authorization_code
             scope:
               - profile
@@ -71,7 +72,7 @@ spring:
             client-name: github
             client-id: ${GITHUB_CLIENT_ID}
             client-secret: ${GITHUB_CLIENT_SECRET}
-            redirect-uri: "http://localhost:8082/api/login/oauth2/code/github"
+            redirect-uri: "${DOMAIN}/api/login/oauth2/code/github"
             authorization-grant-type: authorization_code
             scope:
               - read:user

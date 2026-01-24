@@ -12,7 +12,7 @@
     <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
 
     <!-- Base file output -->
-    <property name="LOG_PATH" value="mocktalk-logs" />
+    <property name="LOG_PATH" value="logs" />
     <property name="LOG_FILE" value="${LOG_PATH}/mocktalkback.log" />
 
     <!-- Profile-specific noise control -->
