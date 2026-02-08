@@ -112,6 +112,33 @@ docker compose -f docker-compose_minio.yml up -d
 | `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
 | `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
 
+## 파일 스토리지 환경 변수 상세
+
+오브젝트 스토리지는 기본적으로 `private 버킷 + presigned URL` 구성을 권장합니다.
+
+| 이름 | 필수 여부 | 설명 | 권장/예시 |
+| --- | --- | --- | --- |
+| `OBJECT_STORAGE_ENDPOINT` | 필수 | 오브젝트 스토리지 API 엔드포인트(업로드/조회/삭제 호출 기준) | dev(MinIO): `http://host.docker.internal:9000` / prod(OCI): `https://<namespace>.compat.objectstorage.<region>.oraclecloud.com` |
+| `OBJECT_STORAGE_REGION` | 필수 | 스토리지 리전 | OCI 리전과 일치 (예: `ap-seoul-1`) |
+| `OBJECT_STORAGE_BUCKET` | 필수 | 업로드 대상 버킷명 | 예: `mocktalk` |
+| `OBJECT_STORAGE_ACCESS_KEY` | 필수 | 스토리지 접근 키 | OCI 사용 시 **Customer Secret Key의 Access Key** |
+| `OBJECT_STORAGE_SECRET_KEY` | 필수 | 스토리지 비밀 키 | OCI 사용 시 **Customer Secret Key의 Secret Key** |
+| `OBJECT_STORAGE_PATH_STYLE_ACCESS` | 선택 | S3 path-style 관련 설정 키 | 현재 구현에서는 직접 사용하지 않음 (`false` 권장) |
+| `OBJECT_STORAGE_KEY_PREFIX` | 선택 | 오브젝트 키 prefix | 기본 `uploads` |
+| `OBJECT_STORAGE_PUBLIC_BASE_URL` | 선택 | 공개 버킷 직접 조회 URL 베이스 | private 버킷이면 **빈 값 유지** |
+| `OBJECT_STORAGE_PRESIGN_ENDPOINT` | 선택 | presigned URL 생성 시 사용할 host | dev에서 브라우저 접근 host 분리 시 사용 (예: `http://localhost:9000`) |
+| `OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS` | 선택 | presigned URL 만료(초) | 기본 `300` |
+
+### 설정 가이드
+
+- `private 버킷` 운영 시:
+  - `OBJECT_STORAGE_PUBLIC_BASE_URL=` (비움)
+  - `/api/files/{id}/view`에서 presigned URL로 리다이렉트
+- `public 버킷` 운영 시:
+  - `OBJECT_STORAGE_PUBLIC_BASE_URL`를 공개 URL 베이스로 설정 가능
+- OCI 키 주의:
+  - PEM 형태 API Key 쌍이 아니라 **Customer Secret Key** 값을 사용해야 합니다.
+
 ## API 문서(개발)
 
 - `http://localhost:8082/swagger-ui/index.html`
