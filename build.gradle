@@ -40,6 +40,9 @@ dependencies {
 	implementation 'net.coobird:thumbnailator:0.4.21'
 	implementation 'com.github.gotson:webp-imageio:0.2.2'
 
+	// 오브젝트 스토리지
+	implementation 'io.minio:minio:8.5.17'
+
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15'  // swagger
 
 	// QueryDSL (OpenFeign fork)

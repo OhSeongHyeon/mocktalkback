@@ -21,6 +21,7 @@ public class FileViewService {
 
     private final FileRepository fileRepository;
     private final FileVariantRepository fileVariantRepository;
+    private final FileStorage fileStorage;
 
     public String resolveViewLocation(Long fileId, String variantParam) {
         FileEntity file = fileRepository.findById(fileId)
@@ -29,15 +30,15 @@ public class FileViewService {
 
         FileVariantCode variantCode = resolveVariantCode(variantParam);
         if (variantCode == null || !isImage(file.getMimeType())) {
-            return toPublicPath(file.getStorageKey());
+            return fileStorage.resolveViewUrl(file.getStorageKey());
         }
 
         Optional<FileVariantEntity> variant = fileVariantRepository
             .findByFileIdAndVariantCodeAndDeletedAtIsNull(fileId, variantCode);
         if (variant.isPresent()) {
-            return toPublicPath(variant.get().getStorageKey());
+            return fileStorage.resolveViewUrl(variant.get().getStorageKey());
         }
-        return toPublicPath(file.getStorageKey());
+        return fileStorage.resolveViewUrl(file.getStorageKey());
     }
 
     private FileVariantCode resolveVariantCode(String variantParam) {
@@ -59,14 +60,4 @@ public class FileViewService {
         return mimeType != null && mimeType.startsWith("image/");
     }
 
-    private String toPublicPath(String storageKey) {
-        if (storageKey == null || storageKey.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일 경로가 비어있습니다.");
-        }
-        String normalized = storageKey.replace('\\', '/');
-        if (normalized.startsWith("/")) {
-            return normalized;
-        }
-        return "/" + normalized;
-    }
 }
