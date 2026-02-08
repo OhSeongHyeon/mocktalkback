@@ -89,10 +89,19 @@ app:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS:60}
     redirect-path: ${OAUTH2_REDIRECT_PATH:http://localhost:5173/oauth/callback}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
-  file:
-    storage-dir: ${FILE_STORAGE_DIR:uploads}
+  object-storage:
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:http://localhost:9000}
+    region: ${OBJECT_STORAGE_REGION:ap-seoul-1}
+    bucket: ${OBJECT_STORAGE_BUCKET:mocktalk}
+    access-key: ${OBJECT_STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${OBJECT_STORAGE_SECRET_KEY:minioadmin}
+    path-style-access: ${OBJECT_STORAGE_PATH_STYLE_ACCESS:true}
+    key-prefix: ${OBJECT_STORAGE_KEY_PREFIX:uploads}
+    public-base-url: ${OBJECT_STORAGE_PUBLIC_BASE_URL:}
+    presign-endpoint: ${OBJECT_STORAGE_PRESIGN_ENDPOINT:http://localhost:9000}
+    presign-expire-seconds: ${OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS:300}
   sanitize:
-    allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS:http://localhost:8082}
+    allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS:http://localhost:9000,http://localhost:8082}
     allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES:https://www.youtube.com/embed,https://www.youtube-nocookie.com/embed}
 
 # swagger uri

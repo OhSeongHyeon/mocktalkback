@@ -25,6 +25,7 @@ public class TemporaryFileCleanupService {
     private final FileRepository fileRepository;
     private final FileVariantRepository fileVariantRepository;
     private final ArticleFileRepository articleFileRepository;
+    private final FileStorage fileStorage;
 
     @Scheduled(fixedDelayString = "${app.file.temp-cleanup-interval-ms:3600000}")
     @Transactional
@@ -44,9 +45,22 @@ public class TemporaryFileCleanupService {
                 file.clearTemporary();
                 continue;
             }
+            deleteVariantObjects(fileId);
+            deleteOriginalObject(file);
             softDeleteVariants(fileId);
             file.softDelete();
             log.info("임시 파일 정리 완료: {}", fileId);
+        }
+    }
+
+    private void deleteOriginalObject(FileEntity file) {
+        if (file == null || file.getStorageKey() == null) {
+            return;
+        }
+        try {
+            fileStorage.delete(file.getStorageKey());
+        } catch (Exception ex) {
+            log.warn("원본 파일 삭제 실패: {}", file.getStorageKey(), ex);
         }
     }
 
@@ -54,6 +68,17 @@ public class TemporaryFileCleanupService {
         List<FileVariantEntity> variants = fileVariantRepository.findAllByFileIdAndDeletedAtIsNull(fileId);
         for (FileVariantEntity variant : variants) {
             variant.softDelete();
+        }
+    }
+
+    private void deleteVariantObjects(Long fileId) {
+        List<FileVariantEntity> variants = fileVariantRepository.findAllByFileIdAndDeletedAtIsNull(fileId);
+        for (FileVariantEntity variant : variants) {
+            try {
+                fileStorage.delete(variant.getStorageKey());
+            } catch (Exception ex) {
+                log.warn("변환본 파일 삭제 실패: {}", variant.getStorageKey(), ex);
+            }
         }
     }
 

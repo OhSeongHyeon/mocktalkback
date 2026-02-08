@@ -85,9 +85,17 @@ app:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
     redirect-path: ${OAUTH2_REDIRECT_PATH}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
-  file:
-    storage-dir: ${FILE_STORAGE_DIR}
+  object-storage:
+    endpoint: ${OBJECT_STORAGE_ENDPOINT}
+    region: ${OBJECT_STORAGE_REGION}
+    bucket: ${OBJECT_STORAGE_BUCKET}
+    access-key: ${OBJECT_STORAGE_ACCESS_KEY}
+    secret-key: ${OBJECT_STORAGE_SECRET_KEY}
+    path-style-access: ${OBJECT_STORAGE_PATH_STYLE_ACCESS:false}
+    key-prefix: ${OBJECT_STORAGE_KEY_PREFIX:uploads}
+    public-base-url: ${OBJECT_STORAGE_PUBLIC_BASE_URL:}
+    presign-endpoint: ${OBJECT_STORAGE_PRESIGN_ENDPOINT:}
+    presign-expire-seconds: ${OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS:300}
   sanitize:
     allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS}
     allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES}
-
