@@ -20,6 +20,8 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
     @EntityGraph(attributePaths = {"sender"})
     Page<NotificationEntity> findByUserIdAndRead(Long userId, boolean read, Pageable pageable);
 
+    long countByUserIdAndReadFalse(Long userId);
+
     Optional<NotificationEntity> findByIdAndUserId(Long id, Long userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -29,6 +31,16 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
         where n.user.id = :userId and n.read = false
         """)
     int markAllRead(@Param("userId") Long userId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update NotificationEntity n
+        set n.read = true
+        where n.user.id = :userId
+          and n.redirectUrl = :redirectUrl
+          and n.read = false
+        """)
+    int markReadByUserIdAndRedirectUrl(@Param("userId") Long userId, @Param("redirectUrl") String redirectUrl);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

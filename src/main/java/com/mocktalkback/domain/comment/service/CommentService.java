@@ -32,6 +32,7 @@ import com.mocktalkback.domain.comment.entity.CommentReactionEntity;
 import com.mocktalkback.domain.comment.repository.CommentReactionRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.notification.service.NotificationService;
+import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
@@ -67,6 +68,7 @@ public class CommentService {
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
     private final SanctionRepository sanctionRepository;
+    private final BoardRealtimeSseService boardRealtimeSseService;
 
     @Transactional
     public CommentTreeResponse createRoot(Long articleId, CommentCreateRequest request) {
@@ -87,6 +89,7 @@ public class CommentService {
         saved.assignRootComment(saved);
         user.changePoint(ActivityPointPolicy.CREATE_REPLY.delta);
         notifyArticleComment(user, article);
+        publishCommentChanged(saved, "CREATED");
         return toTreeResponse(saved);
     }
 
@@ -115,6 +118,7 @@ public class CommentService {
         CommentEntity saved = commentRepository.save(entity);
         user.changePoint(ActivityPointPolicy.CREATE_REPLY.delta);
         notifyCommentReply(user, article, parent, saved);
+        publishCommentChanged(saved, "CREATED");
         return toTreeResponse(saved);
     }
 
@@ -221,6 +225,7 @@ public class CommentService {
         }
 
         ReactionCounts counts = getReactionCounts(comment.getId());
+        publishReactionChanged(comment, counts, myReaction);
         return new CommentReactionSummaryResponse(
             comment.getId(),
             counts.likeCount(),
@@ -239,6 +244,7 @@ public class CommentService {
         requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 수정할 수 없습니다.");
         requireOwnership(user, entity);
         entity.updateContent(normalizeContent(request.content()));
+        publishCommentChanged(entity, "UPDATED");
         return toTreeResponse(entity);
     }
 
@@ -250,6 +256,7 @@ public class CommentService {
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
+            publishCommentChanged(entity, "DELETED");
             if (entity.getUser().getId().equals(user.getId())) {
                 user.changePoint(ActivityPointPolicy.DELETE_REPLY.delta);
             }
@@ -365,6 +372,31 @@ public class CommentService {
             return;
         }
         notificationService.createCommentReply(receiver, sender, article, reply);
+    }
+
+    private void publishCommentChanged(CommentEntity comment, String action) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("targetType", "COMMENT");
+        payload.put("action", action);
+        payload.put("boardId", comment.getArticle().getBoard().getId());
+        payload.put("articleId", comment.getArticle().getId());
+        payload.put("commentId", comment.getId());
+        payload.put("parentCommentId", comment.getParentComment() == null ? null : comment.getParentComment().getId());
+        payload.put("depth", comment.getDepth());
+        boardRealtimeSseService.publishCommentChanged(comment.getArticle().getBoard().getId(), payload);
+    }
+
+    private void publishReactionChanged(CommentEntity comment, ReactionCounts counts, short myReaction) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("targetType", "COMMENT");
+        payload.put("action", "TOGGLED");
+        payload.put("boardId", comment.getArticle().getBoard().getId());
+        payload.put("articleId", comment.getArticle().getId());
+        payload.put("commentId", comment.getId());
+        payload.put("likeCount", counts.likeCount());
+        payload.put("dislikeCount", counts.dislikeCount());
+        payload.put("myReaction", myReaction);
+        boardRealtimeSseService.publishReactionChanged(comment.getArticle().getBoard().getId(), payload);
     }
 
     private int normalizePage(int page) {
