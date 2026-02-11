@@ -15,6 +15,37 @@ public interface CommentReactionRepository extends JpaRepository<CommentReaction
 
     long countByCommentIdAndReactionType(Long commentId, short reactionType);
 
+    @Query(value = """
+        with upsert as (
+            insert into tb_comment_reactions (user_id, comment_id, reaction_type)
+            values (:userId, :commentId, :reactionType)
+            on conflict (user_id, comment_id)
+            do update
+            set reaction_type = case
+                when tb_comment_reactions.reaction_type = excluded.reaction_type then 0
+                else excluded.reaction_type
+            end,
+            updated_at = now()
+            returning reaction_type
+        ),
+        cleanup as (
+            delete from tb_comment_reactions
+            where user_id = :userId
+              and comment_id = :commentId
+              and reaction_type = 0
+            returning comment_reaction_id
+        )
+        select case
+            when exists (select 1 from cleanup) then cast(0 as smallint)
+            else (select reaction_type from upsert)
+        end
+        """, nativeQuery = true)
+    short upsertToggleReaction(
+        @Param("userId") Long userId,
+        @Param("commentId") Long commentId,
+        @Param("reactionType") short reactionType
+    );
+
     @Query("""
         select cr.comment.id as commentId, cr.reactionType as reactionType
         from CommentReactionEntity cr

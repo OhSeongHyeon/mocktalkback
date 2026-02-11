@@ -30,7 +30,6 @@ import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
-import com.mocktalkback.domain.comment.entity.CommentReactionEntity;
 import com.mocktalkback.domain.comment.repository.CommentReactionRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.notification.service.NotificationService;
@@ -224,24 +223,11 @@ public class CommentService {
         getAccessibleArticle(comment.getArticle().getId(), user);
         requireNotSanctioned(user, comment.getArticle().getBoard(), "제재 상태라 댓글에 반응할 수 없습니다.");
 
-        CommentReactionEntity existing = commentReactionRepository
-            .findByUserIdAndCommentId(user.getId(), comment.getId())
-            .orElse(null);
-
-        short myReaction = reactionType;
-        if (existing == null) {
-            CommentReactionEntity created = CommentReactionEntity.builder()
-                .user(user)
-                .comment(comment)
-                .reactionType(reactionType)
-                .build();
-            commentReactionRepository.save(created);
-        } else if (existing.getReactionType() == reactionType) {
-            commentReactionRepository.delete(existing);
-            myReaction = 0;
-        } else {
-            existing.updateReactionType(reactionType);
-        }
+        short myReaction = commentReactionRepository.upsertToggleReaction(
+            user.getId(),
+            comment.getId(),
+            reactionType
+        );
 
         ReactionCounts counts = getReactionCounts(comment.getId());
         publishReactionChanged(comment, counts, myReaction);

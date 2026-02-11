@@ -20,6 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
+import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
+import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
@@ -45,6 +47,7 @@ import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
 import com.mocktalkback.domain.moderation.repository.SanctionRepository;
+import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.role.entity.RoleEntity;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -108,6 +111,9 @@ class ArticleServiceTest {
 
     @Mock
     private SanctionRepository sanctionRepository;
+
+    @Mock
+    private BoardRealtimeSseService boardRealtimeSseService;
 
     @InjectMocks
     private ArticleService articleService;
@@ -207,6 +213,38 @@ class ArticleServiceTest {
         verify(articleFileRepository).delete(existingMapping);
         assertThat(existingFile.getTempExpiresAt()).isEqualTo(expiry);
         assertThat(newFile.getTempExpiresAt()).isNull();
+    }
+
+    // 반응 토글은 원자 upsert를 사용해 경합 상황에서도 일관된 결과를 반환해야 한다.
+    @Test
+    void toggleReaction_uses_atomic_upsert_and_returns_summary() {
+        // Given: 공개 게시글에 대한 반응 토글 요청
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user, null);
+
+        when(currentUserService.getUserId()).thenReturn(2L);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
+        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
+            .thenReturn(false);
+        when(articleReactionRepository.upsertToggleReaction(2L, 10L, (short) 1)).thenReturn((short) 1);
+        when(articleReactionRepository.countByArticleIdAndReactionType(10L, (short) 1)).thenReturn(5L);
+        when(articleReactionRepository.countByArticleIdAndReactionType(10L, (short) -1)).thenReturn(2L);
+
+        // When: 반응 토글 실행
+        ArticleReactionSummaryResponse response = articleService.toggleReaction(
+            10L,
+            new ArticleReactionToggleRequest((short) 1)
+        );
+
+        // Then: 원자 토글 결과와 집계가 반환되어야 한다.
+        assertThat(response.articleId()).isEqualTo(10L);
+        assertThat(response.myReaction()).isEqualTo((short) 1);
+        assertThat(response.likeCount()).isEqualTo(5L);
+        assertThat(response.dislikeCount()).isEqualTo(2L);
+        verify(articleReactionRepository).upsertToggleReaction(2L, 10L, (short) 1);
     }
 
     private BoardEntity createBoard(Long id) {

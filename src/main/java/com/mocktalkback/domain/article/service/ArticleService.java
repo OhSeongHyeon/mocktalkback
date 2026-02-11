@@ -237,24 +237,11 @@ public class ArticleService {
         ArticleEntity article = getArticleForReaction(articleId, user);
         requireNotSanctioned(user, article.getBoard(), "제재 상태라 게시글에 반응할 수 없습니다.");
 
-        ArticleReactionEntity existing = articleReactionRepository
-            .findByUserIdAndArticleId(user.getId(), article.getId())
-            .orElse(null);
-
-        short myReaction = reactionType;
-        if (existing == null) {
-            ArticleReactionEntity created = ArticleReactionEntity.builder()
-                .user(user)
-                .article(article)
-                .reactionType(reactionType)
-                .build();
-            articleReactionRepository.save(created);
-        } else if (existing.getReactionType() == reactionType) {
-            articleReactionRepository.delete(existing);
-            myReaction = 0;
-        } else {
-            existing.updateReactionType(reactionType);
-        }
+        short myReaction = articleReactionRepository.upsertToggleReaction(
+            user.getId(),
+            article.getId(),
+            reactionType
+        );
 
         ReactionCounts counts = getReactionCounts(article.getId());
         publishArticleReactionChanged(article, counts, myReaction);
