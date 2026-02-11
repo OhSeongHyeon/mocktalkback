@@ -12,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
@@ -20,6 +22,8 @@ import com.mocktalkback.domain.notification.entity.NotificationEntity;
 import com.mocktalkback.domain.notification.repository.NotificationRepository;
 import com.mocktalkback.domain.notification.type.NotificationType;
 import com.mocktalkback.domain.notification.type.ReferenceType;
+import com.mocktalkback.domain.realtime.service.NotificationPresenceService;
+import com.mocktalkback.domain.realtime.service.NotificationRealtimeSseService;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
@@ -46,6 +50,8 @@ public class NotificationService {
     private final ArticleRepository articleRepository;
     private final CommentRepository commentRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationPresenceService notificationPresenceService;
+    private final NotificationRealtimeSseService notificationRealtimeSseService;
 
     @Transactional
     public void createArticleComment(
@@ -66,6 +72,7 @@ public class NotificationService {
             .read(false)
             .build();
         notificationRepository.save(entity);
+        publishUnreadCountChangedAfterCommit(receiver.getId(), article.getId());
     }
 
     @Transactional
@@ -88,6 +95,7 @@ public class NotificationService {
             .read(false)
             .build();
         notificationRepository.save(entity);
+        publishUnreadCountChangedAfterCommit(receiver.getId(), article.getId());
     }
 
     @Transactional(readOnly = true)
@@ -125,6 +133,7 @@ public class NotificationService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "notification not found"));
         if (!entity.isRead()) {
             entity.updateRead(true);
+            publishUnreadCountChangedAfterCommit(userId, null);
         }
         ArticleTitleBundle titles = resolveArticleTitles(List.of(entity));
         String articleTitle = resolveArticleTitle(entity, titles);
@@ -135,6 +144,17 @@ public class NotificationService {
     public void markAllRead() {
         Long userId = currentUserService.getUserId();
         notificationRepository.markAllRead(userId);
+        publishUnreadCountChangedAfterCommit(userId, null);
+    }
+
+    @Transactional
+    public void markReadByRedirectUrl(String redirectUrl) {
+        Long userId = currentUserService.getUserId();
+        String normalizedRedirectUrl = normalizeRedirectUrl(redirectUrl);
+        int updatedCount = notificationRepository.markReadByUserIdAndRedirectUrl(userId, normalizedRedirectUrl);
+        if (updatedCount > 0) {
+            publishUnreadCountChangedAfterCommit(userId, null);
+        }
     }
 
     @Transactional
@@ -142,13 +162,18 @@ public class NotificationService {
         Long userId = currentUserService.getUserId();
         NotificationEntity entity = notificationRepository.findByIdAndUserId(id, userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "notification not found"));
+        boolean unread = !entity.isRead();
         notificationRepository.delete(entity);
+        if (unread) {
+            publishUnreadCountChangedAfterCommit(userId, null);
+        }
     }
 
     @Transactional
     public void deleteAll() {
         Long userId = currentUserService.getUserId();
         notificationRepository.deleteAllByUserId(userId);
+        publishUnreadCountChangedAfterCommit(userId, null);
     }
 
     private NotificationResponse toResponse(NotificationEntity entity, String articleTitle) {
@@ -246,6 +271,34 @@ public class NotificationService {
             throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
         }
         return size;
+    }
+
+    private String normalizeRedirectUrl(String redirectUrl) {
+        if (redirectUrl == null || redirectUrl.trim().isEmpty()) {
+            throw new IllegalArgumentException("redirectUrl을 입력해주세요.");
+        }
+        return redirectUrl.trim();
+    }
+
+    private void publishUnreadCountChangedAfterCommit(Long userId, Long articleId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishUnreadCountChanged(userId, articleId);
+                }
+            });
+            return;
+        }
+        publishUnreadCountChanged(userId, articleId);
+    }
+
+    private void publishUnreadCountChanged(Long userId, Long articleId) {
+        if (notificationPresenceService.shouldSuppressUnreadCountPush(userId, articleId)) {
+            return;
+        }
+        long unreadCount = notificationRepository.countByUserIdAndReadFalse(userId);
+        notificationRealtimeSseService.publishUnreadCountChanged(userId, unreadCount);
     }
 
     private record ArticleTitleBundle(

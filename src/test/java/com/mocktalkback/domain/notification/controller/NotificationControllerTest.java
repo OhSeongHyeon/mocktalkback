@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -212,6 +213,28 @@ class NotificationControllerTest {
         // Then: 성공 응답 확인
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true));
+    }
+
+    // 동일 redirectUrl 알림 읽음 처리 API는 성공 응답을 반환해야 한다.
+    @Test
+    void markReadByRedirectUrl_returns_ok() throws Exception {
+        // Given: redirectUrl 기준 읽음 처리 준비
+        String redirectUrl = "/b/general/articles/100";
+        doNothing().when(notificationService).markReadByRedirectUrl(redirectUrl);
+
+        // When: redirectUrl 기준 읽음 처리 API 호출
+        ResultActions result = mockMvc.perform(patch("/api/notifications/read-by-redirect-url")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "redirectUrl": "/b/general/articles/100"
+                }
+                """));
+
+        // Then: 성공 응답 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data").value(nullValue()));
     }
 
     // 알림 삭제 API는 성공 응답을 반환해야 한다.

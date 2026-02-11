@@ -4,10 +4,12 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.mocktalkback.domain.notification.dto.NotificationMarkByRedirectRequest;
 import com.mocktalkback.domain.notification.dto.NotificationResponse;
 import com.mocktalkback.domain.notification.service.NotificationService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
@@ -20,6 +22,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @Tag(name = "Notification", description = "알림 API")
@@ -77,6 +80,20 @@ public class NotificationController {
     @PatchMapping("/notifications/read-all")
     public ApiEnvelope<Void> markAllRead() {
         notificationService.markAllRead();
+        return ApiEnvelope.ok();
+    }
+
+    @Operation(summary = "동일 URL 알림 읽음 처리", description = "redirectUrl이 같은 미읽음 알림을 한 번에 읽음 처리합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "처리 성공"),
+        @ApiResponse(responseCode = "400", description = "요청값 오류"),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    @PatchMapping("/notifications/read-by-redirect-url")
+    public ApiEnvelope<Void> markReadByRedirectUrl(
+        @Valid @RequestBody NotificationMarkByRedirectRequest request
+    ) {
+        notificationService.markReadByRedirectUrl(request.redirectUrl());
         return ApiEnvelope.ok();
     }
 

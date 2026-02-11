@@ -61,6 +61,7 @@ import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.moderation.repository.SanctionRepository;
 import com.mocktalkback.domain.moderation.type.SanctionScopeType;
+import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -104,6 +105,7 @@ public class ArticleService {
     private final CurrentUserService currentUserService;
     private final HtmlSanitizer htmlSanitizer;
     private final SanctionRepository sanctionRepository;
+    private final BoardRealtimeSseService boardRealtimeSseService;
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
@@ -255,6 +257,7 @@ public class ArticleService {
         }
 
         ReactionCounts counts = getReactionCounts(article.getId());
+        publishArticleReactionChanged(article, counts, myReaction);
         return new ArticleReactionSummaryResponse(
             article.getId(),
             counts.likeCount(),
@@ -696,6 +699,18 @@ public class ArticleService {
             return false;
         }
         return articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), articleId);
+    }
+
+    private void publishArticleReactionChanged(ArticleEntity article, ReactionCounts counts, short myReaction) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("targetType", "ARTICLE");
+        payload.put("action", "TOGGLED");
+        payload.put("boardId", article.getBoard().getId());
+        payload.put("articleId", article.getId());
+        payload.put("likeCount", counts.likeCount());
+        payload.put("dislikeCount", counts.dislikeCount());
+        payload.put("myReaction", myReaction);
+        boardRealtimeSseService.publishReactionChanged(article.getBoard().getId(), payload);
     }
 
     private ArticleEntity getArticleForReaction(Long articleId, UserEntity user) {
