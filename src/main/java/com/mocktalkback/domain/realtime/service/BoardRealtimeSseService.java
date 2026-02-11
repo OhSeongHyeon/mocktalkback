@@ -40,7 +40,7 @@ public class BoardRealtimeSseService {
         connectPayload.put("emitterId", emitterId);
         connectPayload.put("lastEventId", lastEventId);
 
-        publishToEmitter(emitter, boardId, RealtimeEventType.CONNECTED, connectPayload, true);
+        publishToEmitter(emitterId, emitter, boardId, RealtimeEventType.CONNECTED, connectPayload, true);
         return emitter;
     }
 
@@ -59,7 +59,7 @@ public class BoardRealtimeSseService {
         }
 
         for (Map.Entry<String, SseEmitter> entry : emitters.entrySet()) {
-            publishToEmitter(entry.getValue(), boardId, type, data, false);
+            publishToEmitter(entry.getKey(), entry.getValue(), boardId, type, data, false);
         }
     }
 
@@ -72,6 +72,7 @@ public class BoardRealtimeSseService {
     }
 
     private void publishToEmitter(
+            String emitterId,
             SseEmitter emitter,
             Long boardId,
             RealtimeEventType type,
@@ -92,11 +93,20 @@ public class BoardRealtimeSseService {
                     .name(type.name().toLowerCase())
                     .data(event));
         } catch (Exception ex) {
+            safeComplete(emitter, removeOnFailure, ex);
+            removeEmitter(boardId, emitterId);
+        }
+    }
+
+    private void safeComplete(SseEmitter emitter, boolean removeOnFailure, Exception ex) {
+        try {
             if (removeOnFailure) {
                 emitter.completeWithError(ex);
             } else {
                 emitter.complete();
             }
+        } catch (Exception ignore) {
+            // 이미 닫힌 비동기 응답에서 complete()가 예외를 낼 수 있으므로 무시한다.
         }
     }
 
@@ -112,4 +122,3 @@ public class BoardRealtimeSseService {
         }
     }
 }
-

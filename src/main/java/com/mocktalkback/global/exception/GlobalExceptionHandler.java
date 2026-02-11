@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -103,6 +104,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiEnvelope<Void>> handleException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception", ex);
         return buildError(ErrorCode.COMMON_INTERNAL_ERROR, request, null, null);
+    }
+
+    // SSE 연결이 끊긴 뒤 flush/complete 과정에서 발생하는 비동기 응답 예외는 무해하게 종료한다.
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException ex, HttpServletRequest request) {
+        log.debug("Async request already closed: path={}, message={}", request.getRequestURI(), ex.getMessage());
     }
 
     // ResponseStatusException을 상태 코드 그대로 응답.

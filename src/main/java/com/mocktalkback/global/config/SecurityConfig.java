@@ -21,6 +21,8 @@ import com.mocktalkback.global.auth.oauth2.CustomOAuth2UserService;
 import com.mocktalkback.global.auth.oauth2.OAuth2LoginFailureHandler;
 import com.mocktalkback.global.auth.oauth2.OAuth2LoginSuccessHandler;
 
+import jakarta.servlet.DispatcherType;
+
 @EnableMethodSecurity
 @EnableWebSecurity
 @Configuration
@@ -88,6 +90,7 @@ public class SecurityConfig {
 
         http
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/", 
                                 "/api/health",
                                 "/actuator/prometheus", "/actuator/info", "/actuator/health",

@@ -43,7 +43,7 @@ public class NotificationRealtimeSseService {
         connectPayload.put("emitterId", emitterId);
         connectPayload.put("lastEventId", lastEventId);
 
-        publishToEmitter(emitter, userId, NotificationRealtimeEventType.CONNECTED, connectPayload, true);
+        publishToEmitter(emitterId, emitter, userId, NotificationRealtimeEventType.CONNECTED, connectPayload, true);
         return emitter;
     }
 
@@ -60,7 +60,7 @@ public class NotificationRealtimeSseService {
         }
 
         for (Map.Entry<String, SseEmitter> entry : emitters.entrySet()) {
-            publishToEmitter(entry.getValue(), userId, type, data, false);
+            publishToEmitter(entry.getKey(), entry.getValue(), userId, type, data, false);
         }
     }
 
@@ -89,6 +89,7 @@ public class NotificationRealtimeSseService {
     }
 
     private void publishToEmitter(
+            String emitterId,
             SseEmitter emitter,
             Long userId,
             NotificationRealtimeEventType type,
@@ -109,11 +110,20 @@ public class NotificationRealtimeSseService {
                     .name(type.name().toLowerCase())
                     .data(event));
         } catch (Exception ex) {
+            safeComplete(emitter, removeOnFailure, ex);
+            removeEmitter(userId, emitterId);
+        }
+    }
+
+    private void safeComplete(SseEmitter emitter, boolean removeOnFailure, Exception ex) {
+        try {
             if (removeOnFailure) {
                 emitter.completeWithError(ex);
             } else {
                 emitter.complete();
             }
+        } catch (Exception ignore) {
+            // 이미 닫힌 비동기 응답에서 complete()가 예외를 낼 수 있으므로 무시한다.
         }
     }
 
