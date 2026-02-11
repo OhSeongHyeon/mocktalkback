@@ -14,6 +14,7 @@ import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
+import com.mocktalkback.domain.comment.dto.CommentSnapshotResponse;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.service.CommentService;
@@ -51,6 +52,22 @@ public class CommentController {
         @RequestParam(name = "size", defaultValue = "10") int size
     ) {
         return ApiEnvelope.ok(commentService.getArticleComments(articleId, page, size));
+    }
+
+    @GetMapping("/articles/{articleId}/comments/snapshot")
+    @Operation(summary = "댓글 스냅샷 조회", description = "게시글 댓글 페이지와 동기화 버전을 함께 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "404", description = "게시글 없음")
+    })
+    public ApiEnvelope<CommentSnapshotResponse> getArticleCommentSnapshot(
+        @PathVariable("articleId") Long articleId,
+        @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @Parameter(description = "페이지 크기(최대 50)", example = "10")
+        @RequestParam(name = "size", defaultValue = "10") int size
+    ) {
+        return ApiEnvelope.ok(commentService.getArticleCommentsSnapshot(articleId, page, size));
     }
 
     @PostMapping("/articles/{articleId}/comments")

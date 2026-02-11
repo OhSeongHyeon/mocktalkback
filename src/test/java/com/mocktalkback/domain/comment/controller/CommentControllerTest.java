@@ -28,6 +28,7 @@ import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
+import com.mocktalkback.domain.comment.dto.CommentSnapshotResponse;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.service.CommentService;
@@ -175,6 +176,49 @@ class CommentControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.items[0].id").value(100L))
             .andExpect(jsonPath("$.data.items[0].children[0].id").value(101L));
+    }
+
+    // 댓글 스냅샷 조회 API는 페이지 데이터와 syncVersion을 함께 반환해야 한다.
+    @Test
+    void findSnapshot_returns_page_with_sync_version() throws Exception {
+        // Given: 댓글 스냅샷 응답
+        CommentTreeResponse response = new CommentTreeResponse(
+            100L,
+            1L,
+            "작성자",
+            "comment 1",
+            0,
+            null,
+            100L,
+            FIXED_TIME,
+            FIXED_TIME,
+            null,
+            0L,
+            0L,
+            (short) 0,
+            List.of()
+        );
+        CommentPageResponse<CommentTreeResponse> pageResponse = new CommentPageResponse<>(
+            List.of(response),
+            0,
+            10,
+            1,
+            1,
+            false,
+            false
+        );
+        CommentSnapshotResponse snapshotResponse = new CommentSnapshotResponse(10L, 7L, pageResponse);
+        when(commentService.getArticleCommentsSnapshot(10L, 0, 10)).thenReturn(snapshotResponse);
+
+        // When: 댓글 스냅샷 API 호출
+        ResultActions result = mockMvc.perform(get("/api/articles/10/comments/snapshot?page=0&size=10"));
+
+        // Then: syncVersion과 페이지 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.articleId").value(10L))
+            .andExpect(jsonPath("$.data.syncVersion").value(7L))
+            .andExpect(jsonPath("$.data.page.items[0].id").value(100L));
     }
 
     // 댓글 반응 토글 API는 성공 응답을 반환해야 한다.

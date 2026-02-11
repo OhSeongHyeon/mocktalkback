@@ -21,9 +21,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
+import com.mocktalkback.domain.article.service.ArticleSyncVersionService;
 import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
+import com.mocktalkback.domain.comment.dto.CommentSnapshotResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.dto.CommentTreeResponse;
 import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
@@ -69,6 +71,7 @@ public class CommentService {
     private final NotificationService notificationService;
     private final SanctionRepository sanctionRepository;
     private final BoardRealtimeSseService boardRealtimeSseService;
+    private final ArticleSyncVersionService articleSyncVersionService;
 
     @Transactional
     public CommentTreeResponse createRoot(Long articleId, CommentCreateRequest request) {
@@ -89,7 +92,9 @@ public class CommentService {
         saved.assignRootComment(saved);
         user.changePoint(ActivityPointPolicy.CREATE_REPLY.delta);
         notifyArticleComment(user, article);
-        publishCommentChanged(saved, "CREATED");
+        long syncVersion = articleSyncVersionService.increaseAndGet(article.getId());
+        article.applySyncVersion(syncVersion);
+        publishCommentChanged(saved, "CREATED", syncVersion);
         return toTreeResponse(saved);
     }
 
@@ -118,14 +123,28 @@ public class CommentService {
         CommentEntity saved = commentRepository.save(entity);
         user.changePoint(ActivityPointPolicy.CREATE_REPLY.delta);
         notifyCommentReply(user, article, parent, saved);
-        publishCommentChanged(saved, "CREATED");
+        long syncVersion = articleSyncVersionService.increaseAndGet(article.getId());
+        article.applySyncVersion(syncVersion);
+        publishCommentChanged(saved, "CREATED", syncVersion);
         return toTreeResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public CommentPageResponse<CommentTreeResponse> getArticleComments(Long articleId, int page, int size) {
-        UserEntity currentUser = currentUserService.getOptionalUserId().map(this::getUser).orElse(null);
+        UserEntity currentUser = getOptionalCurrentUser();
         ArticleEntity article = getAccessibleArticle(articleId, currentUser);
+        return getArticleComments(article, currentUser, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public CommentSnapshotResponse getArticleCommentsSnapshot(Long articleId, int page, int size) {
+        UserEntity currentUser = getOptionalCurrentUser();
+        ArticleEntity article = getAccessibleArticle(articleId, currentUser);
+        CommentPageResponse<CommentTreeResponse> pageResponse = getArticleComments(article, currentUser, page, size);
+        return new CommentSnapshotResponse(article.getId(), article.getSyncVersion(), pageResponse);
+    }
+
+    private CommentPageResponse<CommentTreeResponse> getArticleComments(ArticleEntity article, UserEntity currentUser, int page, int size) {
         int resolvedPage = normalizePage(page);
         int resolvedSize = normalizeSize(size);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ROOT_COMMENT_SORT);
@@ -244,7 +263,9 @@ public class CommentService {
         requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 수정할 수 없습니다.");
         requireOwnership(user, entity);
         entity.updateContent(normalizeContent(request.content()));
-        publishCommentChanged(entity, "UPDATED");
+        long syncVersion = articleSyncVersionService.increaseAndGet(entity.getArticle().getId());
+        entity.getArticle().applySyncVersion(syncVersion);
+        publishCommentChanged(entity, "UPDATED", syncVersion);
         return toTreeResponse(entity);
     }
 
@@ -256,7 +277,9 @@ public class CommentService {
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
-            publishCommentChanged(entity, "DELETED");
+            long syncVersion = articleSyncVersionService.increaseAndGet(entity.getArticle().getId());
+            entity.getArticle().applySyncVersion(syncVersion);
+            publishCommentChanged(entity, "DELETED", syncVersion);
             if (entity.getUser().getId().equals(user.getId())) {
                 user.changePoint(ActivityPointPolicy.DELETE_REPLY.delta);
             }
@@ -271,6 +294,10 @@ public class CommentService {
     private UserEntity getCurrentUser() {
         Long userId = currentUserService.getUserId();
         return getUser(userId);
+    }
+
+    private UserEntity getOptionalCurrentUser() {
+        return currentUserService.getOptionalUserId().map(this::getUser).orElse(null);
     }
 
     private CommentEntity getComment(Long commentId) {
@@ -374,7 +401,8 @@ public class CommentService {
         notificationService.createCommentReply(receiver, sender, article, reply);
     }
 
-    private void publishCommentChanged(CommentEntity comment, String action) {
+    private void publishCommentChanged(CommentEntity comment, String action, long syncVersion) {
+        CommentTreeResponse commentSnapshot = toTreeResponse(comment);
         Map<String, Object> payload = new HashMap<>();
         payload.put("targetType", "COMMENT");
         payload.put("action", action);
@@ -383,6 +411,8 @@ public class CommentService {
         payload.put("commentId", comment.getId());
         payload.put("parentCommentId", comment.getParentComment() == null ? null : comment.getParentComment().getId());
         payload.put("depth", comment.getDepth());
+        payload.put("syncVersion", syncVersion);
+        payload.put("comment", commentSnapshot);
         boardRealtimeSseService.publishCommentChanged(comment.getArticle().getBoard().getId(), payload);
     }
 

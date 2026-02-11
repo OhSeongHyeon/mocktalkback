@@ -72,6 +72,9 @@ public class ArticleEntity extends SoftDeleteEntity {
     @Column(name = "is_notice", nullable = false)
     private boolean notice;
 
+    @Column(name = "sync_version", nullable = false)
+    private long syncVersion;
+
     @Builder
     private ArticleEntity(
         BoardEntity board,
@@ -113,5 +116,9 @@ public class ArticleEntity extends SoftDeleteEntity {
 
     public void changeNotice(boolean notice) {
         this.notice = notice;
+    }
+
+    public void applySyncVersion(long syncVersion) {
+        this.syncVersion = syncVersion;
     }
 }
