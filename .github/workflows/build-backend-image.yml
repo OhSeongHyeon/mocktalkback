@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
     paths:
       - src/**
       - gradle/**
@@ -44,7 +45,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/mocktalkback
+          images: ghcr.io/ohseonghyeon/mocktalkback
           tags: |
             type=raw,value=prod-latest
             type=sha,format=short,prefix=sha-
@@ -61,4 +62,4 @@ jobs:
 
       - name: 배포 태그 요약
         run: |
-          echo "배포 이미지: ghcr.io/${{ github.repository_owner }}/mocktalkback:prod-latest" >> "$GITHUB_STEP_SUMMARY"
+          echo "배포 이미지: ghcr.io/ohseonghyeon/mocktalkback:prod-latest" >> "$GITHUB_STEP_SUMMARY"

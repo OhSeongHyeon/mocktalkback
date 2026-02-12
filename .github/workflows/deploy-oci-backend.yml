@@ -8,6 +8,7 @@ on:
       - completed
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -45,6 +46,7 @@ jobs:
           OCI_DEPLOY_PATH: ${{ secrets.OCI_DEPLOY_PATH }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          BACKEND_IMAGE: ghcr.io/ohseonghyeon/mocktalkback:prod-latest
         run: |
           set -euo pipefail
           SSH_PORT="${OCI_SSH_PORT:-22}"
@@ -53,6 +55,7 @@ jobs:
           ssh -p "$SSH_PORT" "${OCI_USER}@${OCI_HOST}" bash -s <<EOF
           set -euo pipefail
           cd "$DEPLOY_PATH"
+          export BACKEND_IMAGE="$BACKEND_IMAGE"
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
           docker compose -f docker-compose.oci-deploy.yml pull backend
@@ -77,4 +80,4 @@ jobs:
 
       - name: 배포 완료 요약
         run: |
-          echo "OCI 백엔드 배포 완료: ghcr.io/${{ github.repository_owner }}/mocktalkback:prod-latest" >> "$GITHUB_STEP_SUMMARY"
+          echo "OCI 백엔드 배포 완료: ghcr.io/ohseonghyeon/mocktalkback:prod-latest" >> "$GITHUB_STEP_SUMMARY"
