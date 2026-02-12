@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["host.docker.internal:18083", "host.docker.internal:28083"],
+    "labels": { "service": "mocktalkback VMS SSH Tunnels", "env": "prod" }
+  }
+]
