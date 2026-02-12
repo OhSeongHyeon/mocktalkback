@@ -1,0 +1,29 @@
+services:
+  # Redis 캐시/세션/실시간 보조 저장소
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    container_name: mocktalk-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command: >
+      sh -c '
+      if [ -n "$${REDIS_PASSWORD}" ]; then
+        redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}";
+      else
+        redis-server --appendonly yes;
+      fi'
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG; else redis-cli ping | grep PONG; fi"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - mocktalk_redis_data:/data
+
+volumes:
+  # Redis 데이터 영속 볼륨(RDB/AOF 보존)
+  mocktalk_redis_data:

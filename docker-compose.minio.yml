@@ -1,7 +1,7 @@
 services:
   # MinIO 오브젝트 스토리지 서버(실제 파일 데이터 저장)
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     container_name: mocktalk-minio
     command: server /data --console-address ":9001"
@@ -18,7 +18,7 @@ services:
   # - minio 서비스가 준비될 때까지 대기
   # - 지정한 버킷이 없으면 생성, 이미 있으면 유지
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: mocktalk-minio-init
     depends_on:
       - minio

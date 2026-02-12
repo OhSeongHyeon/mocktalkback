@@ -1,0 +1,45 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.9.1
+    container_name: mocktalk-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      # compose 파일 기준 상대경로 bind mount.
+      # 즉 이 파일은 `mocktalkback/docker-compose.monitoring.yml`를 기준으로
+      # `mocktalkback/monitoring/prometheus/prometheus.yml`을 참조한다.
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # file_sd_configs 대상(JSON) 동적 타깃 파일을 Prometheus 컨테이너에 주입한다.
+      - ./monitoring/prometheus/targets:/etc/prometheus/targets:ro
+      # Prometheus 시계열 데이터는 named volume으로 유지된다.
+      # 컨테이너를 재생성해도 이 볼륨을 삭제하지 않으면 데이터가 남는다.
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:12.3.2-security-01
+    container_name: mocktalk-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      # Grafana 대시보드/설정 데이터 영속 저장용 named volume.
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  # 모니터링 스택 실행 권장 위치:
+  # `cd mocktalkback && docker compose -f docker-compose.monitoring.yml up -d`
+  prometheus-data:
+  grafana-data:
