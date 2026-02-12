@@ -8,6 +8,7 @@ on:
       - completed
     branches:
       - main
+      - oci-deploy
   workflow_dispatch:
 
 permissions:
