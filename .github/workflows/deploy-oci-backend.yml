@@ -61,8 +61,9 @@ jobs:
           docker compose -f docker-compose.oci-deploy.yml up -d --no-build backend
 
           CODE=""
-          for i in {1..30}; do
+          for i in {1..150}; do
             CODE=\$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8082/api/health || true)
+            echo "health check try=\$i code=\$CODE"
             if [ "\$CODE" = "200" ]; then
               break
             fi
@@ -71,6 +72,8 @@ jobs:
 
           if [ "\$CODE" != "200" ]; then
             echo "health check failed: status=\$CODE"
+            docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+            docker logs --tail 200 mocktalk-back || true
             exit 1
           fi
 
