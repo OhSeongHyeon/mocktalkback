@@ -55,8 +55,8 @@ jobs:
           cd "$DEPLOY_PATH"
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-          docker compose -f docker-compose.oci.yml pull backend
-          docker compose -f docker-compose.oci.yml up -d --no-build backend
+          docker compose -f docker-compose.oci-deploy.yml pull backend
+          docker compose -f docker-compose.oci-deploy.yml up -d --no-build backend
 
           CODE=""
           for i in {1..30}; do

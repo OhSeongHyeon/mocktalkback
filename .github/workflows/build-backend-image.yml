@@ -10,7 +10,7 @@ on:
       - build.gradle
       - settings.gradle
       - Dockerfile
-      - docker-compose.oci.yml
+      - docker-compose.oci-deploy.yml
       - .github/workflows/build-backend-image.yml
       - .github/workflows/deploy-oci-backend.yml
   workflow_dispatch:
