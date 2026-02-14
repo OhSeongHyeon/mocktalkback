@@ -1,6 +1,10 @@
 [
   {
-    "targets": ["host.docker.internal:18083", "host.docker.internal:28083"],
-    "labels": { "service": "mocktalkback VMS SSH Tunnels", "env": "prod" }
+    "targets": ["host.docker.internal:18083"],
+    "labels": { "service": "mocktalkback-termux", "env": "prod" }
+  },
+  {
+    "targets": ["host.docker.internal:28083"],
+    "labels": { "service": "mocktalkback-oci", "env": "prod" }
   }
 ]
