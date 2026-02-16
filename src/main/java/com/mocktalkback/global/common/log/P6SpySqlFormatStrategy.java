@@ -19,7 +19,14 @@ public class P6SpySqlFormatStrategy implements MessageFormattingStrategy {
         if (sql == null || sql.isBlank()) {
             return "";
         }
-        String formattedSql = FormatStyle.BASIC.getFormatter().format(sql);
+
+        String formattedSql;
+
+        try {
+            formattedSql = FormatStyle.BASIC.getFormatter().format(sql);
+        } catch (Exception e) {
+            formattedSql = sql;  // fallback
+        }
         // Hibernate 포맷터로 SQL 줄바꿈을 적용해 가독성을 높인다.
         return "[" + category + "] " + elapsed + "ms" + System.lineSeparator() + formattedSql;
     }

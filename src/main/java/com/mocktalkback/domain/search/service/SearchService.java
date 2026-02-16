@@ -331,9 +331,9 @@ public class SearchService {
             params.put("excludeIds", excludeIds);
         }
         sql.append("order by greatest(");
-        sql.append("coalesce(similarity(b.board_name, :keyword), 0), ");
-        sql.append("coalesce(similarity(b.slug, :keyword), 0), ");
-        sql.append("coalesce(similarity(b.description, :keyword), 0)) desc, ");
+        sql.append("coalesce(extensions.similarity(b.board_name, :keyword), 0), ");
+        sql.append("coalesce(extensions.similarity(b.slug, :keyword), 0), ");
+        sql.append("coalesce(extensions.similarity(b.description, :keyword), 0)) desc, ");
         sql.append(resolveBoardOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 
@@ -410,8 +410,8 @@ public class SearchService {
             params.put("excludeIds", excludeIds);
         }
         sql.append("order by greatest(");
-        sql.append("coalesce(similarity(a.title, :keyword), 0), ");
-        sql.append("coalesce(similarity(a.content, :keyword), 0)) desc, ");
+        sql.append("coalesce(extensions.similarity(a.title, :keyword), 0), ");
+        sql.append("coalesce(extensions.similarity(a.content, :keyword), 0)) desc, ");
         sql.append(resolveArticleOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 
@@ -491,7 +491,7 @@ public class SearchService {
             sql.append("and c.comment_id not in (:excludeIds) ");
             params.put("excludeIds", excludeIds);
         }
-        sql.append("order by coalesce(similarity(c.content, :keyword), 0) desc, ");
+        sql.append("order by coalesce(extensions.similarity(c.content, :keyword), 0) desc, ");
         sql.append(resolveCommentOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 
@@ -542,9 +542,9 @@ public class SearchService {
             params.put("excludeIds", excludeIds);
         }
         sql.append("order by greatest(");
-        sql.append("coalesce(similarity(u.handle, :keyword), 0), ");
-        sql.append("coalesce(similarity(u.display_name, :keyword), 0), ");
-        sql.append("coalesce(similarity(u.user_name, :keyword), 0)) desc, ");
+        sql.append("coalesce(extensions.similarity(u.handle, :keyword), 0), ");
+        sql.append("coalesce(extensions.similarity(u.display_name, :keyword), 0), ");
+        sql.append("coalesce(extensions.similarity(u.user_name, :keyword), 0)) desc, ");
         sql.append(resolveUserOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 
