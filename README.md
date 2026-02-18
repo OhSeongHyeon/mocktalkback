@@ -1,6 +1,8 @@
 # Mocktalk Backend
 
-Mocktalk 커뮤니티/갤러리 서비스의 백엔드 API 서버입니다.  
+OpenAPI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
+
+Mocktalk 커뮤니티 서비스의 백엔드 API 서버입니다.  
 Spring Boot 기반으로 인증, 게시판, 댓글/대댓글, 알림, 파일 업로드 기능을 제공합니다.
 
 ## 한눈에 보기
@@ -25,9 +27,9 @@ Spring Boot 기반으로 인증, 게시판, 댓글/대댓글, 알림, 파일 업
 ## 아키텍처
 
 ```text
-Nginx(8081)
+Nginx
   ├─ /      -> Vue 정적 파일
-  └─ /api   -> Spring Backend(8082)
+  └─ /api   -> Spring Backend
                ├─ PostgreSQL
                └─ Redis
                └─ Object Storage(MinIO/OCI)
@@ -75,11 +77,12 @@ macOS/Linux:
 
 DB/Redis/Object Storage는 사전에 실행되어 있어야 합니다.
 
-로컬 개발에서 PostgreSQL/MinIO를 분리 실행하려면:
+로컬 개발에서 PostgreSQL/Redis/MinIO를 분리 실행하려면:
 
 ```powershell
-docker compose -f docker-compose_postgres.yml up -d
-docker compose -f docker-compose_minio.yml up -d
+docker compose -f docker-compose.postgres.yml up -d
+docker compose -f docker-compose.redis.yml up -d
+docker compose -f docker-compose.minio.yml up -d
 ```
 
 ## 프로파일
