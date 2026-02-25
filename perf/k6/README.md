@@ -24,6 +24,12 @@
 - `perf/k6/integration.load.js`
   - 게시글 반응 + 댓글 반응 + 스냅샷 + 검색을 동시 실행
 
+### 동시성 재현(Refresh Race) 스크립트
+- `perf/k6/refresh.race.load.js`
+  - setup 단계에서 로그인 후 동일 `refresh_token` 쿠키를 확보
+  - `K6_REFRESH_BURST` 개수만큼 동시 `/api/auth/refresh` 요청 실행
+  - `200/401/403/기타` 상태코드를 개별 카운터로 집계
+
 ## 3) 실행 전 준비
 
 - 테스트 계정 준비
@@ -92,6 +98,20 @@ k6 run perf/k6/integration.load.js \
 k6 run perf/k6/integration.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_ID=seed_user -e K6_PASSWORD=123123123 -e K6_ARTICLE_ID=1 -e K6_COMMENT_ID=1 -e K6_SEARCH_QUERY=공지
 ```
 
+### 4.5 Refresh 동시성 재현 테스트
+```bash
+k6 run perf/k6/refresh.race.load.js \
+  -e BASE_URL=http://localhost:8082 \
+  -e K6_LOGIN_ID=seed_user \
+  -e K6_PASSWORD=123123123 \
+  -e K6_ORIGIN=http://localhost:5173 \
+  -e K6_REFRESH_BURST=30
+```
+
+```bash
+k6 run perf/k6/refresh.race.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_ID=seed_user -e K6_PASSWORD=123123123 -e K6_ORIGIN=http://localhost:5173 -e K6_REFRESH_BURST=30
+```
+
 ## 5) 기본 임계치
 
 - `http_req_failed < 1%`
@@ -123,10 +143,12 @@ k6 run perf/k6/integration.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN
   - `BASE_URL` (기본값: `http://localhost:8082`)
   - `K6_LOGIN_ID` (필수)
   - `K6_PASSWORD` (필수)
+  - `K6_ORIGIN` (기본값: `http://localhost:5173`, refresh/logout Origin 검증용)
 - 도메인 대상
   - `K6_ARTICLE_ID` (기본값: `1`)
   - `K6_COMMENT_ID` (기본값: `1`)
   - `K6_SEARCH_QUERY` (기본값: `공지`)
+  - `K6_REFRESH_BURST` (기본값: `30`, refresh 동시 요청 개수)
 
 ## 9) 결과 해석 포인트
 
@@ -137,6 +159,9 @@ k6 run perf/k6/integration.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN
   - DB CPU/IO, 커넥션 풀, 외부 네트워크 지연 확인
 - `*_failures > 0`:
   - 응답 구조/카운트 음수/엔벨로프 실패 케이스 우선 점검
+- `refresh.race.load.js` 해석:
+  - 재현 모드(`AUTH_REFRESH_ROTATE_MODE=non-atomic`)에서 `refresh_status_200`이 다건이면 경합 가능성
+  - 원자 모드(`AUTH_REFRESH_ROTATE_MODE=atomic`)에서 보통 `refresh_status_200=1`, 나머지 `refresh_status_401`
 
 ## 10) 운영 안전 모드 프리셋(리눅스)
 
