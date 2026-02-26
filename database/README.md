@@ -1,41 +1,33 @@
-# Mocktalk Backend
+# Mocktalk Backend DB ERD (V1~V8)
 
-OpenAPI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
+이 문서는 `mocktalkback` 데이터베이스 스키마를 `V1`부터 `V8`까지 기준으로 정리한 ERD입니다.
 
-Mocktalk 커뮤니티 서비스의 백엔드 API 서버입니다.  
-Spring Boot 기반으로 인증, 게시판, 댓글/대댓글, 알림, 파일 업로드 기능을 제공합니다.
+- 기준 마이그레이션
+  - `mocktalkback/src/main/resources/db/migration/V1__init.sql`
+  - `mocktalkback/src/main/resources/db/migration/V2__seed_insert.sql` (시드 데이터, 구조 변경 없음)
+  - `mocktalkback/src/main/resources/db/migration/V3__create_search_FTS.sql`
+  - `mocktalkback/src/main/resources/db/migration/V4__search_rank_functions.sql` (함수 추가, 테이블 구조 변경 없음)
+  - `mocktalkback/src/main/resources/db/migration/V5__moderation_admin.sql`
+  - `mocktalkback/src/main/resources/db/migration/V6__file_variants.sql`
+  - `mocktalkback/src/main/resources/db/migration/V7__article_sync_version.sql`
+  - `mocktalkback/src/main/resources/db/migration/V8__security_advisor_fix.sql` (보안 설정, 테이블 구조 변경 없음)
 
-## 한눈에 보기
+## 버전별 구조 변경 요약
 
-- Base Path: `/api`
-- 기본 포트: `8082` (`SERVER_PORT`)
-- 관리 포트: `8083` (`MANAGEMENT_PORT`)
-- 인증: JWT Access Token(Bearer) + Refresh Token(HttpOnly Cookie)
-- DB 마이그레이션: Flyway (`src/main/resources/db/migration`)
+- `V1`: 기본 테이블/PK/FK/UNIQUE/인덱스 생성
+- `V3`: 검색용 `search_vector` 컬럼 추가
+  - `tb_boards`, `tb_articles`, `tb_comments`, `tb_users`
+- `V5`: 운영/모더레이션 테이블 추가
+  - `tb_reports`, `tb_sanctions`, `tb_admin_audit_logs`
+- `V6`: 파일 파생본 테이블 및 파일 컬럼 추가
+  - 테이블: `tb_file_variants`
+  - 컬럼: `tb_files.metadata_preserved`, `tb_files.temp_expires_at`
+- `V7`: 게시글 동기화 버전 컬럼 추가
+  - `tb_articles.sync_version`
+- `V8`: `fts_*` 함수 `search_path` 고정, `pg_trgm` 스키마 조정 (`extensions`)
 
-## 기술 스택
+## ERD (Mermaid)
 
-- Java 21
-- Spring Boot
-- Spring Security 6
-- Spring Data JPA
-- QueryDSL
-- PostgreSQL
-- Redis
-- Flyway
-
-## 아키텍처
-
-```text
-Nginx
-  ├─ /      -> Vue 정적 파일
-  └─ /api   -> Spring Backend
-               ├─ PostgreSQL
-               └─ Redis
-               └─ Object Storage(MinIO/OCI)
-```
-
-## ERD
 ```mermaid
 erDiagram
     tb_role {
@@ -284,118 +276,18 @@ erDiagram
     tb_boards ||--o{ tb_admin_audit_logs : board
 ```
 
-## 도메인 구성
+## 핵심 UNIQUE 제약 요약
 
-`src/main/java/com/mocktalkback/domain`
+- 사용자: `login_id`, `email`, `handle`
+- 게시판: `board_name`, `slug`
+- 파일: `tb_files.storage_key`, `tb_file_variants.storage_key`
+- 멤버/구독: `(user_id, board_id)`
+- 북마크/반응: `(user_id, article_id)`, `(user_id, comment_id)`
+- 카테고리: `(board_id, category_name)`
+- OAuth: `(provider, provider_id)`, `(user_id, provider)`
+- 파일 매핑: `(article_id, file_id)`, `(comment_id, file_id)`, `(board_id, file_id)`, `(user_id, file_id)`
 
-- `article`: 게시글
-- `board`: 게시판/포럼
-- `comment`: 댓글/대댓글
-- `file`: 파일 업로드
-- `moderation`: 관리/제재
-- `notification`: 알림
-- `role`: 권한
-- `search`: 검색
-- `user`: 회원/인증 연계
+## 참고
 
-공통 모듈은 `global` 패키지(`auth`, `common`, `config`, `exception`)에 위치합니다.
-
-## 실행 방법
-
-### 1) 환경 변수 준비
-
-- 개발: `mocktalkback/.env.dev`
-- 운영: `mocktalkback/.env.prod`
-- 기본 키 목록: `mocktalkback/.env.example`
-
-개발 프로파일(`application-dev.yml`)은 `DEV_*` 키(`DEV_DB_URL`, `DEV_REDIS_HOST` 등)를 사용합니다.
-
-### 2) 애플리케이션 실행
-
-Windows:
-
-```powershell
-.\gradlew.bat bootRun --args="--spring.profiles.active=dev"
-```
-
-macOS/Linux:
-
-```bash
-./gradlew bootRun --args='--spring.profiles.active=dev'
-```
-
-DB/Redis/Object Storage는 사전에 실행되어 있어야 합니다.
-
-로컬 개발에서 PostgreSQL/Redis/MinIO를 분리 실행하려면:
-
-```powershell
-docker compose -f docker-compose.postgres.yml up -d
-docker compose -f docker-compose.redis.yml up -d
-docker compose -f docker-compose.minio.yml up -d
-```
-
-## 프로파일
-
-- `dev`: `application-dev.yml` 사용, 개발용 DB/Redis 키(`DEV_*`) 사용
-- `prod`: `application-prod.yml` 사용, 운영용 키(`DB_*`, `REDIS_*`) 사용
-
-## 핵심 환경 변수
-
-| 이름 | 설명 |
-| --- | --- |
-| `SPRING_PROFILES_ACTIVE` | 실행 프로파일 (`dev`, `prod`) |
-| `SERVER_PORT` | API 서버 포트 |
-| `MANAGEMENT_PORT` | Actuator 포트 |
-| `JWT_SECRET` | JWT 서명 키 |
-| `JWT_ISSUER` | JWT 발급자 |
-| `DOMAIN` | OAuth2 리다이렉트 및 쿠키 정책 기준 도메인 |
-| `SECURITY_ORIGIN_ALLOWLIST` | Refresh/Logout Origin 허용 목록 |
-| `SECURITY_COOKIE_SECURE` | 쿠키 Secure 속성 사용 여부 |
-| `OBJECT_STORAGE_ENDPOINT` | 오브젝트 스토리지 엔드포인트 |
-| `OBJECT_STORAGE_REGION` | 오브젝트 스토리지 리전 |
-| `OBJECT_STORAGE_BUCKET` | 버킷 이름 |
-| `OBJECT_STORAGE_ACCESS_KEY` | 액세스 키 |
-| `OBJECT_STORAGE_SECRET_KEY` | 시크릿 키 |
-| `OBJECT_STORAGE_PATH_STYLE_ACCESS` | S3 호환 Path-Style 사용 여부 |
-| `OBJECT_STORAGE_KEY_PREFIX` | 오브젝트 키 prefix |
-| `OBJECT_STORAGE_PUBLIC_BASE_URL` | 퍼블릭 조회 URL 베이스(선택) |
-| `OBJECT_STORAGE_PRESIGN_ENDPOINT` | Presigned URL 생성 기준 엔드포인트(선택) |
-| `OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS` | Presigned URL 만료(초) |
-| `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
-| `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
-
-## API 문서(개발)
-
-- `http://localhost:8082/swagger-ui/index.html`
-- `http://localhost:8082/v3/api-docs`
-
-## 패키지 구조
-
-```text
-com.mocktalkback/
-├── global/
-│   ├── auth/
-│   ├── common/
-│   ├── config/
-│   └── exception/
-├── domain/
-│   ├── user/
-│   ├── article/
-│   ├── board/
-│   ├── comment/
-│   ├── file/
-│   ├── moderation/
-│   ├── notification/
-│   ├── role/
-│   └── search/
-└── infra/
-    ├── redis/
-    └── storage/
-```
-
-## 보안 정책 요약
-
-- Access Token은 `Authorization: Bearer <token>`으로 전달합니다.
-- Refresh Token은 HttpOnly Cookie로만 전달합니다.
-- Refresh/Logout 같은 쿠키 기반 민감 엔드포인트는 Origin allowlist를 검사합니다.
-- API는 Stateless를 기본 원칙으로 사용합니다.
+- `V8`은 Supabase Security Advisor 경고 완화 목적의 보안 조치입니다.
+- ERD 관점에서 엔터티/관계 변경은 `V3`, `V5`, `V6`, `V7`에서 발생했습니다.
