@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.mocktalkback.domain.comment.entity.CommentEntity;
+import com.mocktalkback.domain.moderation.type.ReportTargetType;
 
 public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
     Page<CommentEntity> findByUserId(Long userId, Pageable pageable);
@@ -78,7 +79,7 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
         @Param("boardId") Long boardId,
         @Param("authorId") Long authorId,
         @Param("reported") Boolean reported,
-        @Param("targetType") com.mocktalkback.domain.moderation.type.ReportTargetType targetType,
+        @Param("targetType") ReportTargetType targetType,
         Pageable pageable
     );
 

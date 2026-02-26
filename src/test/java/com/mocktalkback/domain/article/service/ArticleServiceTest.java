@@ -1,9 +1,11 @@
 package com.mocktalkback.domain.article.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,12 +19,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
+import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
 import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.entity.ArticleFileEntity;
@@ -53,6 +60,7 @@ import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
+import com.mocktalkback.global.common.type.SortOrder;
 import com.mocktalkback.global.common.sanitize.HtmlSanitizer;
 
 @ExtendWith(MockitoExtension.class)
@@ -163,6 +171,37 @@ class ArticleServiceTest {
         assertThat(fileB.getTempExpiresAt()).isNull();
     }
 
+    // 게시글 생성 시 다른 게시판 카테고리를 지정하면 예외가 발생해야 한다.
+    @Test
+    void create_throws_when_category_not_belongs_to_board() {
+        // Given: 게시판과 다른 소속의 카테고리
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        BoardEntity otherBoard = createBoard(99L);
+        ArticleCategoryEntity otherBoardCategory = createCategory(3L, otherBoard);
+        ArticleCreateRequest request = new ArticleCreateRequest(
+            1L,
+            2L,
+            3L,
+            ContentVisibility.PUBLIC,
+            "title",
+            "content",
+            false,
+            List.of()
+        );
+
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(otherBoardCategory));
+        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
+            .thenReturn(false);
+
+        // When & Then: 소속 불일치 예외 확인
+        assertThatThrownBy(() -> articleService.create(request))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("게시판 카테고리가 아닙니다.");
+    }
+
     // 게시글 수정 시 신규 파일은 매핑하고 제거된 파일은 임시 처리해야 한다.
     @Test
     void update_syncs_files_and_marks_removed_as_temporary() {
@@ -213,6 +252,114 @@ class ArticleServiceTest {
         verify(articleFileRepository).delete(existingMapping);
         assertThat(existingFile.getTempExpiresAt()).isEqualTo(expiry);
         assertThat(newFile.getTempExpiresAt()).isNull();
+    }
+
+    // 게시판 카테고리 목록 조회는 접근 가능한 게시판에서 카테고리 응답을 반환해야 한다.
+    @Test
+    void getBoardCategories_returns_list_when_board_is_accessible() {
+        // Given: 공개 게시판과 카테고리 목록
+        BoardEntity board = createBoard(1L);
+        ArticleCategoryEntity category = createCategory(3L, board);
+        ArticleCategoryResponse categoryResponse = new ArticleCategoryResponse(
+            3L,
+            1L,
+            "공지",
+            Instant.parse("2024-01-01T00:00:00Z"),
+            Instant.parse("2024-01-01T00:00:00Z")
+        );
+
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleCategoryRepository.findAllByBoardIdOrderByCategoryNameAsc(1L)).thenReturn(List.of(category));
+        when(articleMapper.toResponse(category)).thenReturn(categoryResponse);
+
+        // When: 게시판 카테고리 목록 조회
+        List<ArticleCategoryResponse> result = articleService.getBoardCategories(1L);
+
+        // Then: 카테고리 응답 확인
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).categoryName()).isEqualTo("공지");
+    }
+
+    // 게시글 목록 조회는 카테고리 필터가 있으면 고정글을 제외하고 카테고리 기준으로 조회해야 한다.
+    @Test
+    void getBoardArticles_with_category_filter_uses_category_query_without_pinned() {
+        // Given: 공개 게시판과 카테고리 필터
+        BoardEntity board = createBoard(1L);
+        ArticleCategoryEntity category = createCategory(3L, board);
+        Page<ArticleEntity> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0L);
+
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
+        when(articleRepository.findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+            eq(1L),
+            eq(3L),
+            any(),
+            any()
+        )).thenReturn(emptyPage);
+
+        // When: 카테고리 필터로 게시글 목록 조회
+        BoardArticleListResponse result = articleService.getBoardArticles(1L, 0, 10, SortOrder.LATEST, 3L, false);
+
+        // Then: 카테고리 조회 메서드 사용 및 pinned 미조회 확인
+        assertThat(result.pinned()).isEmpty();
+        assertThat(result.page().items()).isEmpty();
+        verify(articleRepository).findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+            eq(1L),
+            eq(3L),
+            any(),
+            any()
+        );
+        verify(articleRepository, never()).findByBoardIdAndNoticeTrueAndVisibilityInAndDeletedAtIsNull(
+            anyLong(),
+            any(),
+            any()
+        );
+    }
+
+    // 게시글 목록 조회는 미분류 필터가 있으면 카테고리 null 기준으로 조회하고 고정글을 제외해야 한다.
+    @Test
+    void getBoardArticles_with_uncategorized_filter_uses_null_category_query_without_pinned() {
+        // Given: 공개 게시판과 미분류 필터
+        BoardEntity board = createBoard(1L);
+        Page<ArticleEntity> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 10), 0L);
+
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleRepository.findByBoardIdAndCategoryIsNullAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+            eq(1L),
+            any(),
+            any()
+        )).thenReturn(emptyPage);
+
+        // When: 미분류 필터로 게시글 목록 조회
+        BoardArticleListResponse result = articleService.getBoardArticles(1L, 0, 10, SortOrder.LATEST, null, true);
+
+        // Then: 미분류 조회 메서드 사용 및 pinned 미조회 확인
+        assertThat(result.pinned()).isEmpty();
+        assertThat(result.page().items()).isEmpty();
+        verify(articleRepository).findByBoardIdAndCategoryIsNullAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+            eq(1L),
+            any(),
+            any()
+        );
+        verify(articleRepository, never()).findByBoardIdAndNoticeTrueAndVisibilityInAndDeletedAtIsNull(
+            anyLong(),
+            any(),
+            any()
+        );
+    }
+
+    // 게시글 목록 조회는 categoryId와 uncategorized를 동시에 사용하면 예외가 발생해야 한다.
+    @Test
+    void getBoardArticles_throws_when_category_and_uncategorized_used_together() {
+        // Given: 동시 필터 입력
+
+        // When & Then: 동시 필터 사용 예외 확인
+        assertThatThrownBy(() -> articleService.getBoardArticles(1L, 0, 10, SortOrder.LATEST, 3L, true))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("categoryId와 uncategorized=true를 동시에 사용할 수 없습니다.");
     }
 
     // 반응 토글은 원자 upsert를 사용해 경합 상황에서도 일관된 결과를 반환해야 한다.

@@ -1,5 +1,7 @@
 package com.mocktalkback.domain.board.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
+import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.domain.board.dto.BoardCreateRequest;
 import com.mocktalkback.domain.board.dto.BoardDetailResponse;
@@ -35,6 +38,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -120,9 +124,23 @@ public class BoardController {
         @Parameter(description = "페이지 크기(최대 50)", example = "10")
         @RequestParam(name = "size", defaultValue = "10") int size,
         @Parameter(description = "정렬(최신순/과거순)", example = "LATEST")
-        @RequestParam(name = "order", defaultValue = "LATEST") SortOrder order
+        @RequestParam(name = "order", defaultValue = "LATEST") SortOrder order,
+        @Parameter(description = "카테고리 ID 필터", example = "10")
+        @RequestParam(name = "categoryId", required = false) @Positive Long categoryId,
+        @Parameter(description = "미분류 게시글만 조회", example = "true")
+        @RequestParam(name = "uncategorized", defaultValue = "false") boolean uncategorized
     ) {
-        return ApiEnvelope.ok(articleService.getBoardArticles(id, page, size, order));
+        return ApiEnvelope.ok(articleService.getBoardArticles(id, page, size, order, categoryId, uncategorized));
+    }
+
+    @GetMapping("/boards/{id:\\d+}/categories")
+    @Operation(summary = "게시판 카테고리 목록", description = "게시판 접근 권한이 있는 사용자가 카테고리 목록을 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "404", description = "게시판 없음")
+    })
+    public ApiEnvelope<List<ArticleCategoryResponse>> findCategories(@PathVariable("id") Long id) {
+        return ApiEnvelope.ok(articleService.getBoardCategories(id));
     }
 
     @PutMapping("/boards/{id:\\d+}")

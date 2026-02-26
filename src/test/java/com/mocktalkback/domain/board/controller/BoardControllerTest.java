@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
 import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
 import com.mocktalkback.domain.board.dto.BoardCreateRequest;
@@ -293,7 +294,7 @@ class BoardControllerTest {
             false
         );
         BoardArticleListResponse response = new BoardArticleListResponse(pinned, pageResponse);
-        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST)).thenReturn(response);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, null, false)).thenReturn(response);
 
         // When: 게시글 목록 API 호출
         ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
@@ -306,6 +307,139 @@ class BoardControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.pinned[0].id").value(1L))
             .andExpect(jsonPath("$.data.page.items[0].id").value(2L));
+    }
+
+    // 게시판 게시글 목록 API는 카테고리 필터 파라미터를 전달할 수 있어야 한다.
+    @Test
+    void findArticles_with_categoryId_returns_list() throws Exception {
+        // Given: 카테고리 필터 게시글 목록 응답
+        List<ArticleSummaryResponse> items = List.of(
+            new ArticleSummaryResponse(
+                11L,
+                10L,
+                2L,
+                "author",
+                "category title",
+                0L,
+                0L,
+                0L,
+                0L,
+                false,
+                FIXED_TIME
+            )
+        );
+        PageResponse<ArticleSummaryResponse> pageResponse = new PageResponse<>(
+            items,
+            0,
+            10,
+            1,
+            1,
+            false,
+            false
+        );
+        BoardArticleListResponse response = new BoardArticleListResponse(List.of(), pageResponse);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, 3L, false)).thenReturn(response);
+
+        // When: 게시글 목록 API 호출(categoryId 포함)
+        ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
+            .param("page", "0")
+            .param("size", "10")
+            .param("order", "LATEST")
+            .param("categoryId", "3"));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.page.items[0].id").value(11L));
+    }
+
+    // 게시판 게시글 목록 API는 미분류 필터 파라미터를 전달할 수 있어야 한다.
+    @Test
+    void findArticles_with_uncategorized_returns_list() throws Exception {
+        // Given: 미분류 필터 게시글 목록 응답
+        List<ArticleSummaryResponse> items = List.of(
+            new ArticleSummaryResponse(
+                12L,
+                10L,
+                2L,
+                "author",
+                "uncategorized title",
+                0L,
+                0L,
+                0L,
+                0L,
+                false,
+                FIXED_TIME
+            )
+        );
+        PageResponse<ArticleSummaryResponse> pageResponse = new PageResponse<>(
+            items,
+            0,
+            10,
+            1,
+            1,
+            false,
+            false
+        );
+        BoardArticleListResponse response = new BoardArticleListResponse(List.of(), pageResponse);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, null, true)).thenReturn(response);
+
+        // When: 게시글 목록 API 호출(uncategorized 포함)
+        ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
+            .param("page", "0")
+            .param("size", "10")
+            .param("order", "LATEST")
+            .param("uncategorized", "true"));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.page.items[0].id").value(12L));
+    }
+
+    // 게시판 게시글 목록 API는 categoryId와 uncategorized를 동시에 사용하면 실패해야 한다.
+    @Test
+    void findArticles_with_categoryId_and_uncategorized_returns_bad_request() throws Exception {
+        // Given: 동시 필터 사용 예외
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, 3L, true))
+            .thenThrow(new IllegalArgumentException("categoryId와 uncategorized=true를 동시에 사용할 수 없습니다."));
+
+        // When: 동시 필터로 API 호출
+        ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
+            .param("page", "0")
+            .param("size", "10")
+            .param("order", "LATEST")
+            .param("categoryId", "3")
+            .param("uncategorized", "true"));
+
+        // Then: 400 응답 확인
+        result.andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false));
+    }
+
+    // 게시판 카테고리 목록 API는 리스트 응답을 반환해야 한다.
+    @Test
+    void findCategories_returns_list() throws Exception {
+        // Given: 카테고리 목록 응답
+        List<ArticleCategoryResponse> response = List.of(
+            new ArticleCategoryResponse(
+                3L,
+                10L,
+                "공지",
+                FIXED_TIME,
+                FIXED_TIME
+            )
+        );
+        when(articleService.getBoardCategories(10L)).thenReturn(response);
+
+        // When: 게시판 카테고리 목록 API 호출
+        ResultActions result = mockMvc.perform(get("/api/boards/10/categories"));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data[0].id").value(3L))
+            .andExpect(jsonPath("$.data[0].categoryName").value("공지"));
     }
 
     // 게시판 수정 API는 변경된 응답을 반환해야 한다.

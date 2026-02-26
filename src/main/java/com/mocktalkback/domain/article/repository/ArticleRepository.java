@@ -4,14 +4,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.mocktalkback.domain.article.entity.ArticleEntity;
+import com.mocktalkback.domain.moderation.type.ReportTargetType;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 
 public interface ArticleRepository extends JpaRepository<ArticleEntity, Long> {
@@ -22,6 +23,21 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long> {
 
     @EntityGraph(attributePaths = {"user"})
     Page<ArticleEntity> findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+        Long boardId,
+        Collection<ContentVisibility> visibilities,
+        Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"user"})
+    Page<ArticleEntity> findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+        Long boardId,
+        Long categoryId,
+        Collection<ContentVisibility> visibilities,
+        Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"user"})
+    Page<ArticleEntity> findByBoardIdAndCategoryIsNullAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
         Long boardId,
         Collection<ContentVisibility> visibilities,
         Pageable pageable
@@ -75,7 +91,7 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long> {
         @Param("authorId") Long authorId,
         @Param("notice") Boolean notice,
         @Param("reported") Boolean reported,
-        @Param("targetType") com.mocktalkback.domain.moderation.type.ReportTargetType targetType,
+        @Param("targetType") ReportTargetType targetType,
         Pageable pageable
     );
 

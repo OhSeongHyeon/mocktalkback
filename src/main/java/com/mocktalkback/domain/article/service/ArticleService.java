@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
+import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
@@ -112,7 +113,7 @@ public class ArticleService {
         BoardEntity board = getBoard(request.boardId());
         UserEntity user = getUser(request.userId());
         requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
-        ArticleCategoryEntity category = getCategory(request.categoryId());
+        ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), board);
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         ArticleCreateRequest sanitizedRequest = new ArticleCreateRequest(
             request.boardId(),
@@ -261,11 +262,40 @@ public class ArticleService {
     }
 
     @Transactional(readOnly = true)
-    public BoardArticleListResponse getBoardArticles(Long boardId, int page, int size, SortOrder order) {
+    public List<ArticleCategoryResponse> getBoardCategories(Long boardId) {
+        BoardEntity board = getBoardForRead(boardId);
+        Long userId = currentUserService.getOptionalUserId().orElse(null);
+        UserEntity user = userId == null ? null : getUser(userId);
+        BoardMemberEntity member = userId == null
+            ? null
+            : boardMemberRepository.findByUserIdAndBoardId(userId, boardId).orElse(null);
+
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+
+        return articleCategoryRepository.findAllByBoardIdOrderByCategoryNameAsc(boardId).stream()
+            .map(articleMapper::toResponse)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BoardArticleListResponse getBoardArticles(
+        Long boardId,
+        int page,
+        int size,
+        SortOrder order,
+        Long categoryId,
+        boolean uncategorized
+    ) {
         int resolvedPage = normalizePage(page);
         int resolvedSize = normalizeSize(size);
         Sort sort = resolveArticleSort(order);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, sort);
+
+        if (categoryId != null && uncategorized) {
+            throw new IllegalArgumentException("categoryId와 uncategorized=true를 동시에 사용할 수 없습니다.");
+        }
 
         BoardEntity board = getBoardForRead(boardId);
         Long userId = currentUserService.getOptionalUserId().orElse(null);
@@ -283,14 +313,31 @@ public class ArticleService {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
 
-        Page<ArticleEntity> pageResult = articleRepository.findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
-            boardId,
-            visibilities,
-            pageable
-        );
+        ArticleCategoryEntity category = getCategoryForBoard(categoryId, board);
+        Page<ArticleEntity> pageResult;
+        if (uncategorized) {
+            pageResult = articleRepository.findByBoardIdAndCategoryIsNullAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+                boardId,
+                visibilities,
+                pageable
+            );
+        } else if (category == null) {
+            pageResult = articleRepository.findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+                boardId,
+                visibilities,
+                pageable
+            );
+        } else {
+            pageResult = articleRepository.findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+                boardId,
+                category.getId(),
+                visibilities,
+                pageable
+            );
+        }
 
         List<ArticleEntity> pinnedEntities = List.of();
-        if (resolvedPage == 0) {
+        if (resolvedPage == 0 && category == null && !uncategorized) {
             pinnedEntities = articleRepository.findByBoardIdAndNoticeTrueAndVisibilityInAndDeletedAtIsNull(
                 boardId,
                 visibilities,
@@ -323,7 +370,7 @@ public class ArticleService {
             .orElseThrow(() -> new IllegalArgumentException("article not found: " + id));
         UserEntity user = getCurrentUser();
         requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
-        ArticleCategoryEntity category = getCategory(request.categoryId());
+        ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), entity.getBoard());
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         entity.update(category, request.visibility(), request.title(), sanitizedContent, request.notice());
         syncArticleFiles(entity, request.fileIds());
@@ -517,12 +564,16 @@ public class ArticleService {
             .orElseThrow(() -> new IllegalArgumentException("user not found: " + userId));
     }
 
-    private ArticleCategoryEntity getCategory(Long categoryId) {
+    private ArticleCategoryEntity getCategoryForBoard(Long categoryId, BoardEntity board) {
         if (categoryId == null) {
             return null;
         }
-        return articleCategoryRepository.findById(categoryId)
+        ArticleCategoryEntity category = articleCategoryRepository.findById(categoryId)
             .orElseThrow(() -> new IllegalArgumentException("category not found: " + categoryId));
+        if (!category.getBoard().getId().equals(board.getId())) {
+            throw new IllegalArgumentException("게시판 카테고리가 아닙니다.");
+        }
+        return category;
     }
 
     private boolean canAccessBoard(BoardEntity board, UserEntity user, BoardMemberEntity member) {
