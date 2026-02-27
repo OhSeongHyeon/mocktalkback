@@ -22,7 +22,14 @@ public class ImageVariantPolicy {
                 new VariantSpec(FileVariantCode.MEDIUM, 960)
             );
         }
-        if (isArticleImage(fileClassCode)) {
+        if (isArticleContentImage(fileClassCode)) {
+            return List.of(
+                new VariantSpec(FileVariantCode.THUMB, 480),
+                // ORIGINAL_SIZE는 원본 해상도를 그대로 유지하는 정책 변환본이다.
+                new VariantSpec(FileVariantCode.ORIGINAL_SIZE, 0)
+            );
+        }
+        if (isArticleSupportImage(fileClassCode)) {
             return List.of(
                 new VariantSpec(FileVariantCode.THUMB, 480),
                 new VariantSpec(FileVariantCode.LARGE, 1600)
@@ -31,10 +38,12 @@ public class ImageVariantPolicy {
         return List.of();
     }
 
-    private boolean isArticleImage(String fileClassCode) {
-        return FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)
-            || FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)
-            || FileClassCode.ARTICLE_THUMBNAIL.equals(fileClassCode);
+    private boolean isArticleContentImage(String fileClassCode) {
+        return FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode);
+    }
+
+    private boolean isArticleSupportImage(String fileClassCode) {
+        return FileClassCode.ARTICLE_THUMBNAIL.equals(fileClassCode);
     }
 
     public record VariantSpec(
