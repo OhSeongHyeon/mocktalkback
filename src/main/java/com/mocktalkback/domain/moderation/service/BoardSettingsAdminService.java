@@ -75,7 +75,13 @@ public class BoardSettingsAdminService {
             description = null;
         }
 
-        board.update(request.boardName(), board.getSlug(), description, request.visibility());
+        board.update(
+            request.boardName(),
+            board.getSlug(),
+            description,
+            request.visibility(),
+            request.articleWritePolicy()
+        );
         return boardMapper.toResponse(board, resolveBoardImage(boardId));
     }
 

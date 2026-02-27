@@ -27,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mocktalkback.domain.board.dto.BoardResponse;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.moderation.dto.BoardAdminSettingsUpdateRequest;
 import com.mocktalkback.domain.moderation.service.BoardSettingsAdminService;
@@ -59,6 +60,7 @@ class BoardSettingsAdminControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -82,7 +84,8 @@ class BoardSettingsAdminControllerTest {
         BoardAdminSettingsUpdateRequest request = new BoardAdminSettingsUpdateRequest(
             "공지사항",
             "notice board",
-            BoardVisibility.PUBLIC
+            BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.MODERATOR
         );
         BoardResponse response = new BoardResponse(
             2L,
@@ -90,6 +93,7 @@ class BoardSettingsAdminControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.MODERATOR,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -118,6 +122,7 @@ class BoardSettingsAdminControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -151,6 +156,7 @@ class BoardSettingsAdminControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,

@@ -44,6 +44,7 @@ import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
@@ -149,7 +150,9 @@ class ArticleServiceTest {
             List.of(10L, 20L)
         );
 
+        when(currentUserService.getUserId()).thenReturn(2L);
         when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
         when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
@@ -195,7 +198,9 @@ class ArticleServiceTest {
             List.of()
         );
 
+        when(currentUserService.getUserId()).thenReturn(2L);
         when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(otherBoardCategory));
         when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
@@ -205,6 +210,34 @@ class ArticleServiceTest {
         assertThatThrownBy(() -> articleService.create(request))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("게시판 카테고리가 아닙니다.");
+    }
+
+    // 게시글 생성 시 게시판 작성 정책이 MEMBER면 비멤버는 차단되어야 한다.
+    @Test
+    void create_throws_when_write_policy_is_member_and_user_is_not_member() {
+        // Given: 멤버 이상 작성 정책 게시판과 비멤버 사용자
+        BoardEntity board = createBoard(1L, BoardArticleWritePolicy.MEMBER);
+        UserEntity user = createUser(2L);
+        ArticleCreateRequest request = new ArticleCreateRequest(
+            1L,
+            2L,
+            null,
+            ContentVisibility.PUBLIC,
+            "title",
+            "content",
+            false,
+            List.of()
+        );
+
+        when(currentUserService.getUserId()).thenReturn(2L);
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
+
+        // When & Then: 비멤버 작성 차단 예외 확인
+        assertThatThrownBy(() -> articleService.create(request))
+            .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+            .hasMessage("게시글 작성 권한이 없습니다.");
     }
 
     // 게시글 수정 시 신규 파일은 매핑하고 제거된 파일은 임시 처리해야 한다.
@@ -454,11 +487,16 @@ class ArticleServiceTest {
     }
 
     private BoardEntity createBoard(Long id) {
+        return createBoard(id, BoardArticleWritePolicy.ALL_AUTHENTICATED);
+    }
+
+    private BoardEntity createBoard(Long id, BoardArticleWritePolicy writePolicy) {
         BoardEntity board = BoardEntity.builder()
             .boardName("notice")
             .slug("notice")
             .description("테스트 게시판")
             .visibility(BoardVisibility.PUBLIC)
+            .articleWritePolicy(writePolicy)
             .build();
         ReflectionTestUtils.setField(board, "id", id);
         return board;

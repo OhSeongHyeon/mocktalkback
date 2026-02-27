@@ -17,6 +17,7 @@ import com.mocktalkback.domain.board.entity.BoardFileEntity;
 import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.entity.BoardSubscribeEntity;
 import com.mocktalkback.domain.board.type.BoardRole;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -47,6 +48,7 @@ public interface BoardMapper {
             .slug(request.slug())
             .description(request.description())
             .visibility(request.visibility())
+            .articleWritePolicy(BoardArticleWritePolicy.ALL_AUTHENTICATED)
             .build();
     }
 
@@ -57,6 +59,7 @@ public interface BoardMapper {
             entity.getSlug(),
             entity.getDescription(),
             entity.getVisibility(),
+            entity.getArticleWritePolicy(),
             entity.getCreatedAt(),
             entity.getUpdatedAt(),
             entity.getDeletedAt(),
@@ -77,6 +80,7 @@ public interface BoardMapper {
             entity.getSlug(),
             entity.getDescription(),
             entity.getVisibility(),
+            entity.getArticleWritePolicy(),
             entity.getCreatedAt(),
             entity.getUpdatedAt(),
             entity.getDeletedAt(),

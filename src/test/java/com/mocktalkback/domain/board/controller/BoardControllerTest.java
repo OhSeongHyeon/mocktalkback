@@ -40,6 +40,7 @@ import com.mocktalkback.domain.board.dto.BoardSubscribeItemResponse;
 import com.mocktalkback.domain.board.dto.BoardSubscribeStatusResponse;
 import com.mocktalkback.domain.board.dto.BoardUpdateRequest;
 import com.mocktalkback.domain.board.service.BoardService;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.article.service.ArticleService;
@@ -83,6 +84,7 @@ class BoardControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -111,6 +113,7 @@ class BoardControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -140,6 +143,7 @@ class BoardControllerTest {
             "free",
             "free board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -170,6 +174,7 @@ class BoardControllerTest {
                 "notice",
                 "notice board",
                 BoardVisibility.PUBLIC,
+                BoardArticleWritePolicy.ALL_AUTHENTICATED,
                 FIXED_TIME,
                 FIXED_TIME,
                 null,
@@ -181,6 +186,7 @@ class BoardControllerTest {
                 "free",
                 "free board",
                 BoardVisibility.PUBLIC,
+                BoardArticleWritePolicy.ALL_AUTHENTICATED,
                 FIXED_TIME,
                 FIXED_TIME,
                 null,
@@ -458,6 +464,7 @@ class BoardControllerTest {
             "notice",
             "notice updated",
             BoardVisibility.GROUP,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -486,6 +493,7 @@ class BoardControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,

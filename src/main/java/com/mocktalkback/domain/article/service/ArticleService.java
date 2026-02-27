@@ -49,6 +49,7 @@ import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
@@ -112,14 +113,25 @@ public class ArticleService {
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
+        Long actorUserId = currentUserService.getUserId();
+        if (actorUserId == null || !actorUserId.equals(request.userId())) {
+            throw new AccessDeniedException("요청 사용자 정보가 인증 사용자와 일치하지 않습니다.");
+        }
+
         BoardEntity board = getBoard(request.boardId());
-        UserEntity user = getUser(request.userId());
+        UserEntity user = getUser(actorUserId);
+        BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(actorUserId, board.getId())
+            .orElse(null);
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+        requireCanWrite(board, user, member);
         requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
         ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), board);
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         ArticleCreateRequest sanitizedRequest = new ArticleCreateRequest(
             request.boardId(),
-            request.userId(),
+            actorUserId,
             request.categoryId(),
             request.visibility(),
             request.title(),
@@ -632,6 +644,32 @@ public class ArticleService {
             return member != null && member.getBoardRole() == BoardRole.OWNER;
         }
         return false;
+    }
+
+    private void requireCanWrite(BoardEntity board, UserEntity user, BoardMemberEntity member) {
+        if (isManagerOrAdmin(user)) {
+            return;
+        }
+        if (member != null && member.getBoardRole() == BoardRole.PENDING) {
+            throw new AccessDeniedException("가입 승인 후 글쓰기가 가능합니다.");
+        }
+
+        BoardArticleWritePolicy policy = board.getArticleWritePolicy();
+        if (policy == null || policy == BoardArticleWritePolicy.ALL_AUTHENTICATED) {
+            return;
+        }
+
+        BoardRole role = member == null ? null : member.getBoardRole();
+        if (policy == BoardArticleWritePolicy.MEMBER && isActiveMember(member)) {
+            return;
+        }
+        if (policy == BoardArticleWritePolicy.MODERATOR && (role == BoardRole.OWNER || role == BoardRole.MODERATOR)) {
+            return;
+        }
+        if (policy == BoardArticleWritePolicy.OWNER && role == BoardRole.OWNER) {
+            return;
+        }
+        throw new AccessDeniedException("게시글 작성 권한이 없습니다.");
     }
 
     private EnumSet<ContentVisibility> resolveAllowedVisibilities(
