@@ -368,8 +368,8 @@ public class SearchService {
             params.put("boardSlug", boardSlug);
         }
         appendArticleAccessFilter(sql, context);
-        sql.append("and a.search_vector @@ plainto_tsquery('simple', :keyword) ");
-        sql.append("order by ts_rank(a.search_vector, plainto_tsquery('simple', :keyword)) desc, ");
+        sql.append("and a.search_vector_with_author @@ plainto_tsquery('simple', :keyword) ");
+        sql.append("order by ts_rank(a.search_vector_with_author, plainto_tsquery('simple', :keyword)) desc, ");
         sql.append(resolveArticleOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 
@@ -404,14 +404,15 @@ public class SearchService {
             params.put("boardSlug", boardSlug);
         }
         appendArticleAccessFilter(sql, context);
-        sql.append("and (a.title ilike :pattern or a.content ilike :pattern) ");
+        sql.append("and (a.title ilike :pattern or a.content ilike :pattern or a.author_search_text ilike :pattern) ");
         if (!excludeIds.isEmpty()) {
             sql.append("and a.article_id not in (:excludeIds) ");
             params.put("excludeIds", excludeIds);
         }
         sql.append("order by greatest(");
         sql.append("coalesce(extensions.similarity(a.title, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(a.content, :keyword), 0)) desc, ");
+        sql.append("coalesce(extensions.similarity(a.content, :keyword), 0), ");
+        sql.append("coalesce(extensions.similarity(a.author_search_text, :keyword), 0)) desc, ");
         sql.append(resolveArticleOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 
