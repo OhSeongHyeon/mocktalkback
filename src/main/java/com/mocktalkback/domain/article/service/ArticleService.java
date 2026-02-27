@@ -58,6 +58,7 @@ import com.mocktalkback.domain.file.entity.FileVariantEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
+import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.moderation.repository.SanctionRepository;
@@ -102,6 +103,7 @@ public class ArticleService {
     private final FileRepository fileRepository;
     private final FileMapper fileMapper;
     private final FileVariantRepository fileVariantRepository;
+    private final FileStorage fileStorage;
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final HtmlSanitizer htmlSanitizer;
@@ -391,6 +393,42 @@ public class ArticleService {
                 user.changePoint(ActivityPointPolicy.DELETE_ARTICLE.delta);
             }
         }
+    }
+
+    @Transactional(readOnly = true)
+    public String resolveAttachmentDownloadLocation(Long articleId, Long fileId) {
+        ArticleEntity article = articleRepository.findByIdAndDeletedAtIsNull(articleId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
+
+        BoardEntity board = article.getBoard();
+        Long userId = currentUserService.getOptionalUserId().orElse(null);
+        UserEntity user = userId == null ? null : getUser(userId);
+        BoardMemberEntity member = userId == null
+            ? null
+            : boardMemberRepository.findByUserIdAndBoardId(userId, board.getId()).orElse(null);
+
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+
+        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        if (!allowed.contains(article.getVisibility())) {
+            throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
+        }
+
+        ArticleFileEntity mapping = articleFileRepository.findByArticleIdAndFileId(articleId, fileId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment not found"));
+
+        FileEntity file = mapping.getFile();
+        if (file == null || file.isDeleted() || !isAttachmentFile(file)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment not found");
+        }
+
+        return fileStorage.resolveDownloadUrl(
+            file.getStorageKey(),
+            file.getFileName(),
+            file.getMimeType()
+        );
     }
 
     private void attachArticleFiles(ArticleEntity article, List<Long> fileIds) {
@@ -852,4 +890,5 @@ public class ArticleService {
             return new ReactionCounts(0, 0);
         }
     }
+
 }

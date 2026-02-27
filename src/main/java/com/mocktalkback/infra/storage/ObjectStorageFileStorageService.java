@@ -3,7 +3,10 @@ package com.mocktalkback.infra.storage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -52,8 +55,10 @@ public class ObjectStorageFileStorageService implements FileStorage {
         if (ownerId == null) {
             throw new IllegalArgumentException("파일 소유자 식별자가 비어있습니다.");
         }
-        String originalName = cleanFileName(file);
-        String savedName = UUID.randomUUID().toString().replace("-", "") + "_" + originalName;
+        String originalName = resolveOriginalFileName(file);
+        String sanitizedOriginalName = sanitizeFileNameForStorage(originalName);
+        String savedName = resolveStoredFileName(fileClassCode, sanitizedOriginalName);
+        String fileNameForDatabase = resolveFileNameForDatabase(fileClassCode, originalName, savedName);
         String category = pathResolver.resolveCategory(fileClassCode);
         String storageKey = buildStorageKey(category, ownerId, savedName);
         try (InputStream inputStream = file.getInputStream()) {
@@ -69,7 +74,7 @@ public class ObjectStorageFileStorageService implements FileStorage {
             throw new IllegalStateException("파일 저장에 실패했습니다.");
         }
         return new StoredFile(
-            savedName,
+            fileNameForDatabase,
             storageKey,
             file.getSize(),
             file.getContentType()
@@ -151,6 +156,30 @@ public class ObjectStorageFileStorageService implements FileStorage {
         }
     }
 
+    @Override
+    public String resolveDownloadUrl(String storageKey, String fileName, String mimeType) {
+        String normalizedKey = normalizeKey(storageKey);
+        int expireSeconds = normalizePresignExpireSeconds(properties.getPresignExpireSeconds());
+        String resolvedMimeType = StringUtils.hasText(mimeType) ? mimeType : "application/octet-stream";
+        String contentDisposition = buildDownloadContentDisposition(fileName);
+        try {
+            return presignClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .expiry(expireSeconds)
+                    .extraQueryParams(Map.of(
+                        "response-content-disposition", contentDisposition,
+                        "response-content-type", resolvedMimeType
+                    ))
+                    .build()
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("파일 다운로드 URL 생성에 실패했습니다.");
+        }
+    }
+
     private int normalizePresignExpireSeconds(long expireSeconds) {
         if (expireSeconds <= 0L) {
             return DEFAULT_PRESIGN_EXPIRE_SECONDS;
@@ -159,6 +188,18 @@ public class ObjectStorageFileStorageService implements FileStorage {
             return MAX_PRESIGN_EXPIRE_SECONDS;
         }
         return (int) expireSeconds;
+    }
+
+    private String buildDownloadContentDisposition(String fileName) {
+        String resolvedFileName = StringUtils.hasText(fileName) ? fileName.trim() : "attachment";
+        String asciiFallback = resolvedFileName
+            .replaceAll("[\\r\\n\"]", "_")
+            .replaceAll("[^\\x20-\\x7E]", "_");
+        if (!StringUtils.hasText(asciiFallback)) {
+            asciiFallback = "attachment";
+        }
+        String encodedFileName = URLEncoder.encode(resolvedFileName, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodedFileName;
     }
 
     private MinioClient createClient(String endpoint) {
@@ -226,13 +267,55 @@ public class ObjectStorageFileStorageService implements FileStorage {
         }
     }
 
-    private String cleanFileName(MultipartFile file) {
+    private String resolveOriginalFileName(MultipartFile file) {
         String original = Objects.requireNonNullElse(file.getOriginalFilename(), "file");
-        String cleaned = StringUtils.cleanPath(original).replaceAll("[^a-zA-Z0-9._-]", "_");
-        if (!StringUtils.hasText(cleaned)) {
+        String cleanedPath = StringUtils.cleanPath(original).replace('\\', '/');
+        int slashIndex = cleanedPath.lastIndexOf('/');
+        String fileName = slashIndex >= 0 ? cleanedPath.substring(slashIndex + 1) : cleanedPath;
+        if (!StringUtils.hasText(fileName)) {
             return "file";
         }
-        return cleaned;
+        return fileName;
+    }
+
+    private String sanitizeFileNameForStorage(String originalName) {
+        String sanitized = originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        if (!StringUtils.hasText(sanitized)) {
+            return "file";
+        }
+        return sanitized;
+    }
+
+    private String resolveStoredFileName(String fileClassCode, String sanitizedOriginalName) {
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        if (FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)
+            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(fileClassCode)
+            || FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)) {
+            String extension = resolveExtension(sanitizedOriginalName);
+            if (!StringUtils.hasText(extension)) {
+                return uuid;
+            }
+            return uuid + "." + extension;
+        }
+        return uuid + "_" + sanitizedOriginalName;
+    }
+
+    private String resolveFileNameForDatabase(String fileClassCode, String originalName, String storedName) {
+        if (FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)) {
+            return originalName;
+        }
+        return storedName;
+    }
+
+    private String resolveExtension(String fileName) {
+        if (!StringUtils.hasText(fileName)) {
+            return null;
+        }
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
+            return null;
+        }
+        return fileName.substring(dotIndex + 1);
     }
 
     private String buildStorageKey(String category, Long ownerId, String savedName) {

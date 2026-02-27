@@ -23,6 +23,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
@@ -50,6 +51,7 @@ import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
+import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
@@ -107,6 +109,9 @@ class ArticleServiceTest {
 
     @Mock
     private FileVariantRepository fileVariantRepository;
+
+    @Mock
+    private FileStorage fileStorage;
 
     @Mock
     private TemporaryFilePolicy temporaryFilePolicy;
@@ -392,6 +397,60 @@ class ArticleServiceTest {
         assertThat(response.likeCount()).isEqualTo(5L);
         assertThat(response.dislikeCount()).isEqualTo(2L);
         verify(articleReactionRepository).upsertToggleReaction(2L, 10L, (short) 1);
+    }
+
+    // 첨부파일 다운로드 URL 조회는 접근 가능한 게시글의 첨부파일 URL을 반환해야 한다.
+    @Test
+    void resolveAttachmentDownloadLocation_returns_storage_url_for_accessible_attachment() {
+        // Given: 공개 게시글과 첨부파일 매핑
+        BoardEntity board = createBoard(1L);
+        UserEntity author = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, author, null);
+        FileClassEntity fileClass = createFileClass(FileClassCode.ARTICLE_ATTACHMENT);
+        FileEntity attachment = createFile(20L, fileClass, null);
+        ReflectionTestUtils.setField(attachment, "fileName", "guide.txt");
+        ReflectionTestUtils.setField(attachment, "mimeType", "text/plain");
+        ReflectionTestUtils.setField(attachment, "storageKey", "/uploads/attachment-20.zip");
+        ArticleFileEntity mapping = ArticleFileEntity.builder()
+            .article(article)
+            .file(attachment)
+            .build();
+
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleFileRepository.findByArticleIdAndFileId(10L, 20L)).thenReturn(Optional.of(mapping));
+        when(fileStorage.resolveDownloadUrl("/uploads/attachment-20.zip", "guide.txt", "text/plain"))
+            .thenReturn("https://storage.mocktalk.local/attachment-20.zip");
+
+        // When: 첨부파일 다운로드 URL을 조회하면
+        String location = articleService.resolveAttachmentDownloadLocation(10L, 20L);
+
+        // Then: 저장소 조회 URL을 반환한다.
+        assertThat(location).isEqualTo("https://storage.mocktalk.local/attachment-20.zip");
+    }
+
+    // 첨부파일 다운로드 URL 조회는 첨부 타입이 아니면 404를 반환해야 한다.
+    @Test
+    void resolveAttachmentDownloadLocation_throws_when_file_is_not_attachment_type() {
+        // Given: 게시글에 매핑된 파일이 첨부 타입이 아닌 경우
+        BoardEntity board = createBoard(1L);
+        UserEntity author = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, author, null);
+        FileClassEntity fileClass = createFileClass(FileClassCode.ARTICLE_CONTENT_IMAGE);
+        FileEntity imageFile = createFile(20L, fileClass, null);
+        ArticleFileEntity mapping = ArticleFileEntity.builder()
+            .article(article)
+            .file(imageFile)
+            .build();
+
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleFileRepository.findByArticleIdAndFileId(10L, 20L)).thenReturn(Optional.of(mapping));
+
+        // When & Then: 첨부 타입이 아니면 404 예외가 발생한다.
+        assertThatThrownBy(() -> articleService.resolveAttachmentDownloadLocation(10L, 20L))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("404 NOT_FOUND");
     }
 
     private BoardEntity createBoard(Long id) {

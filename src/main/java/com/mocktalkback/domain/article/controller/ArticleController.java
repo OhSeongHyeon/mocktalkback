@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.article.controller;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 
@@ -7,7 +8,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -89,6 +92,23 @@ public class ArticleController {
             response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         }
         return ApiEnvelope.ok(detail);
+    }
+
+    @GetMapping("/articles/{id}/attachments/{fileId}/download")
+    @Operation(summary = "게시글 첨부파일 다운로드 URL 조회", description = "게시글 접근 권한을 확인한 뒤 첨부파일 원본 URL로 리다이렉트합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "302", description = "리다이렉트 성공"),
+        @ApiResponse(responseCode = "403", description = "권한 없음"),
+        @ApiResponse(responseCode = "404", description = "게시글 또는 첨부파일 없음")
+    })
+    public ResponseEntity<Void> downloadAttachment(
+        @PathVariable("id") Long id,
+        @PathVariable("fileId") Long fileId
+    ) {
+        String location = articleService.resolveAttachmentDownloadLocation(id, fileId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setLocation(URI.create(location));
+        return new ResponseEntity<>(headers, HttpStatus.FOUND);
     }
 
     @GetMapping("/articles")
@@ -210,4 +230,5 @@ public class ArticleController {
         }
         return true;
     }
+
 }

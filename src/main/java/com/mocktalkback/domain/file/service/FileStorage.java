@@ -29,6 +29,11 @@ public interface FileStorage {
      */
     String resolveViewUrl(String storageKey);
 
+    /**
+     * 파일 다운로드용 URL을 반환합니다.
+     */
+    String resolveDownloadUrl(String storageKey, String fileName, String mimeType);
+
     record StoredFile(
         String fileName,
         String storageKey,
