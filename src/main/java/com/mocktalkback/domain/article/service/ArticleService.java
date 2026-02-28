@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
+import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
@@ -48,6 +49,7 @@ import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
@@ -57,6 +59,7 @@ import com.mocktalkback.domain.file.entity.FileVariantEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
+import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.moderation.repository.SanctionRepository;
@@ -101,6 +104,7 @@ public class ArticleService {
     private final FileRepository fileRepository;
     private final FileMapper fileMapper;
     private final FileVariantRepository fileVariantRepository;
+    private final FileStorage fileStorage;
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final HtmlSanitizer htmlSanitizer;
@@ -109,14 +113,25 @@ public class ArticleService {
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
+        Long actorUserId = currentUserService.getUserId();
+        if (actorUserId == null || !actorUserId.equals(request.userId())) {
+            throw new AccessDeniedException("요청 사용자 정보가 인증 사용자와 일치하지 않습니다.");
+        }
+
         BoardEntity board = getBoard(request.boardId());
-        UserEntity user = getUser(request.userId());
+        UserEntity user = getUser(actorUserId);
+        BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(actorUserId, board.getId())
+            .orElse(null);
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+        requireCanWrite(board, user, member);
         requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
-        ArticleCategoryEntity category = getCategory(request.categoryId());
+        ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), board);
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         ArticleCreateRequest sanitizedRequest = new ArticleCreateRequest(
             request.boardId(),
-            request.userId(),
+            actorUserId,
             request.categoryId(),
             request.visibility(),
             request.title(),
@@ -261,11 +276,40 @@ public class ArticleService {
     }
 
     @Transactional(readOnly = true)
-    public BoardArticleListResponse getBoardArticles(Long boardId, int page, int size, SortOrder order) {
+    public List<ArticleCategoryResponse> getBoardCategories(Long boardId) {
+        BoardEntity board = getBoardForRead(boardId);
+        Long userId = currentUserService.getOptionalUserId().orElse(null);
+        UserEntity user = userId == null ? null : getUser(userId);
+        BoardMemberEntity member = userId == null
+            ? null
+            : boardMemberRepository.findByUserIdAndBoardId(userId, boardId).orElse(null);
+
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+
+        return articleCategoryRepository.findAllByBoardIdOrderByCategoryNameAsc(boardId).stream()
+            .map(articleMapper::toResponse)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BoardArticleListResponse getBoardArticles(
+        Long boardId,
+        int page,
+        int size,
+        SortOrder order,
+        Long categoryId,
+        boolean uncategorized
+    ) {
         int resolvedPage = normalizePage(page);
         int resolvedSize = normalizeSize(size);
         Sort sort = resolveArticleSort(order);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, sort);
+
+        if (categoryId != null && uncategorized) {
+            throw new IllegalArgumentException("categoryId와 uncategorized=true를 동시에 사용할 수 없습니다.");
+        }
 
         BoardEntity board = getBoardForRead(boardId);
         Long userId = currentUserService.getOptionalUserId().orElse(null);
@@ -283,14 +327,31 @@ public class ArticleService {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
 
-        Page<ArticleEntity> pageResult = articleRepository.findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
-            boardId,
-            visibilities,
-            pageable
-        );
+        ArticleCategoryEntity category = getCategoryForBoard(categoryId, board);
+        Page<ArticleEntity> pageResult;
+        if (uncategorized) {
+            pageResult = articleRepository.findByBoardIdAndCategoryIsNullAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+                boardId,
+                visibilities,
+                pageable
+            );
+        } else if (category == null) {
+            pageResult = articleRepository.findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+                boardId,
+                visibilities,
+                pageable
+            );
+        } else {
+            pageResult = articleRepository.findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+                boardId,
+                category.getId(),
+                visibilities,
+                pageable
+            );
+        }
 
         List<ArticleEntity> pinnedEntities = List.of();
-        if (resolvedPage == 0) {
+        if (resolvedPage == 0 && category == null && !uncategorized) {
             pinnedEntities = articleRepository.findByBoardIdAndNoticeTrueAndVisibilityInAndDeletedAtIsNull(
                 boardId,
                 visibilities,
@@ -323,7 +384,7 @@ public class ArticleService {
             .orElseThrow(() -> new IllegalArgumentException("article not found: " + id));
         UserEntity user = getCurrentUser();
         requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
-        ArticleCategoryEntity category = getCategory(request.categoryId());
+        ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), entity.getBoard());
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         entity.update(category, request.visibility(), request.title(), sanitizedContent, request.notice());
         syncArticleFiles(entity, request.fileIds());
@@ -344,6 +405,42 @@ public class ArticleService {
                 user.changePoint(ActivityPointPolicy.DELETE_ARTICLE.delta);
             }
         }
+    }
+
+    @Transactional(readOnly = true)
+    public String resolveAttachmentDownloadLocation(Long articleId, Long fileId) {
+        ArticleEntity article = articleRepository.findByIdAndDeletedAtIsNull(articleId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
+
+        BoardEntity board = article.getBoard();
+        Long userId = currentUserService.getOptionalUserId().orElse(null);
+        UserEntity user = userId == null ? null : getUser(userId);
+        BoardMemberEntity member = userId == null
+            ? null
+            : boardMemberRepository.findByUserIdAndBoardId(userId, board.getId()).orElse(null);
+
+        if (!canAccessBoard(board, user, member)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
+        }
+
+        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        if (!allowed.contains(article.getVisibility())) {
+            throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
+        }
+
+        ArticleFileEntity mapping = articleFileRepository.findByArticleIdAndFileId(articleId, fileId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment not found"));
+
+        FileEntity file = mapping.getFile();
+        if (file == null || file.isDeleted() || !isAttachmentFile(file)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "attachment not found");
+        }
+
+        return fileStorage.resolveDownloadUrl(
+            file.getStorageKey(),
+            file.getFileName(),
+            file.getMimeType()
+        );
     }
 
     private void attachArticleFiles(ArticleEntity article, List<Long> fileIds) {
@@ -517,12 +614,16 @@ public class ArticleService {
             .orElseThrow(() -> new IllegalArgumentException("user not found: " + userId));
     }
 
-    private ArticleCategoryEntity getCategory(Long categoryId) {
+    private ArticleCategoryEntity getCategoryForBoard(Long categoryId, BoardEntity board) {
         if (categoryId == null) {
             return null;
         }
-        return articleCategoryRepository.findById(categoryId)
+        ArticleCategoryEntity category = articleCategoryRepository.findById(categoryId)
             .orElseThrow(() -> new IllegalArgumentException("category not found: " + categoryId));
+        if (!category.getBoard().getId().equals(board.getId())) {
+            throw new IllegalArgumentException("게시판 카테고리가 아닙니다.");
+        }
+        return category;
     }
 
     private boolean canAccessBoard(BoardEntity board, UserEntity user, BoardMemberEntity member) {
@@ -543,6 +644,32 @@ public class ArticleService {
             return member != null && member.getBoardRole() == BoardRole.OWNER;
         }
         return false;
+    }
+
+    private void requireCanWrite(BoardEntity board, UserEntity user, BoardMemberEntity member) {
+        if (isManagerOrAdmin(user)) {
+            return;
+        }
+        if (member != null && member.getBoardRole() == BoardRole.PENDING) {
+            throw new AccessDeniedException("가입 승인 후 글쓰기가 가능합니다.");
+        }
+
+        BoardArticleWritePolicy policy = board.getArticleWritePolicy();
+        if (policy == null || policy == BoardArticleWritePolicy.ALL_AUTHENTICATED) {
+            return;
+        }
+
+        BoardRole role = member == null ? null : member.getBoardRole();
+        if (policy == BoardArticleWritePolicy.MEMBER && isActiveMember(member)) {
+            return;
+        }
+        if (policy == BoardArticleWritePolicy.MODERATOR && (role == BoardRole.OWNER || role == BoardRole.MODERATOR)) {
+            return;
+        }
+        if (policy == BoardArticleWritePolicy.OWNER && role == BoardRole.OWNER) {
+            return;
+        }
+        throw new AccessDeniedException("게시글 작성 권한이 없습니다.");
     }
 
     private EnumSet<ContentVisibility> resolveAllowedVisibilities(
@@ -801,4 +928,5 @@ public class ArticleService {
             return new ReactionCounts(0, 0);
         }
     }
+
 }

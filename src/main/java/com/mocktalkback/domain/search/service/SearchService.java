@@ -159,16 +159,48 @@ public class SearchService {
             idSet.add(ftsIds.get(index));
         }
         if (!hasNext && idSet.size() < size) {
+            // 폴백은 제목/작성자 우선 조회 후 부족할 때만 본문 스캔으로 보충한다.
             int remaining = size - idSet.size();
-            List<Long> fallbackIds = fetchArticleIdsByIlike(keyword, offset, remaining + 1, order, boardSlug, context, List.copyOf(idSet));
-            boolean fallbackHasNext = fallbackIds.size() > remaining;
-            for (Long id : fallbackIds) {
+            List<Long> primaryFallbackIds = fetchArticleIdsByIlikePrimary(
+                keyword,
+                offset,
+                remaining + 1,
+                order,
+                boardSlug,
+                context,
+                List.copyOf(idSet)
+            );
+            boolean primaryFallbackHasNext = primaryFallbackIds.size() > remaining;
+            for (Long id : primaryFallbackIds) {
                 if (idSet.size() >= size) {
                     break;
                 }
                 idSet.add(id);
             }
-            hasNext = fallbackHasNext;
+            if (primaryFallbackHasNext) {
+                hasNext = true;
+            } else if (idSet.size() < size) {
+                int contentRemaining = size - idSet.size();
+                List<Long> contentFallbackIds = fetchArticleIdsByIlikeContent(
+                    keyword,
+                    offset,
+                    contentRemaining + 1,
+                    order,
+                    boardSlug,
+                    context,
+                    List.copyOf(idSet)
+                );
+                boolean contentFallbackHasNext = contentFallbackIds.size() > contentRemaining;
+                for (Long id : contentFallbackIds) {
+                    if (idSet.size() >= size) {
+                        break;
+                    }
+                    idSet.add(id);
+                }
+                hasNext = contentFallbackHasNext;
+            } else {
+                hasNext = false;
+            }
         }
         List<Long> ids = new ArrayList<>(idSet);
         if (ids.isEmpty()) {
@@ -379,7 +411,7 @@ public class SearchService {
         return fetchIds(sql.toString(), params);
     }
 
-    private List<Long> fetchArticleIdsByIlike(
+    private List<Long> fetchArticleIdsByIlikePrimary(
         String keyword,
         long offset,
         int limit,
@@ -404,14 +436,58 @@ public class SearchService {
             params.put("boardSlug", boardSlug);
         }
         appendArticleAccessFilter(sql, context);
-        sql.append("and (a.title ilike :pattern or a.content ilike :pattern) ");
+        sql.append("and (");
+        sql.append("a.title ilike :pattern ");
+        sql.append("or coalesce(a.author_search_text, '') ilike :pattern");
+        sql.append(") ");
         if (!excludeIds.isEmpty()) {
             sql.append("and a.article_id not in (:excludeIds) ");
             params.put("excludeIds", excludeIds);
         }
         sql.append("order by greatest(");
         sql.append("coalesce(extensions.similarity(a.title, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(a.content, :keyword), 0)) desc, ");
+        sql.append("coalesce(extensions.similarity(coalesce(a.author_search_text, ''), :keyword), 0)) desc, ");
+        sql.append(resolveArticleOrderBy(order));
+        sql.append(" offset :offset rows fetch first :limit rows only");
+
+        params.put("keyword", keyword);
+        params.put("pattern", "%" + keyword + "%");
+        params.put("offset", offset);
+        params.put("limit", limit);
+        return fetchIds(sql.toString(), params);
+    }
+
+    private List<Long> fetchArticleIdsByIlikeContent(
+        String keyword,
+        long offset,
+        int limit,
+        SortOrder order,
+        String boardSlug,
+        SearchUserContext context,
+        List<Long> excludeIds
+    ) {
+        StringBuilder sql = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        sql.append("select a.article_id ");
+        sql.append("from tb_articles a ");
+        sql.append("join tb_boards b on b.board_id = a.board_id ");
+        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
+            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
+            params.put("userId", context.userId());
+        }
+        sql.append("where a.deleted_at is null ");
+        sql.append("and b.deleted_at is null ");
+        if (StringUtils.hasText(boardSlug)) {
+            sql.append("and b.slug = :boardSlug ");
+            params.put("boardSlug", boardSlug);
+        }
+        appendArticleAccessFilter(sql, context);
+        sql.append("and a.content ilike :pattern ");
+        if (!excludeIds.isEmpty()) {
+            sql.append("and a.article_id not in (:excludeIds) ");
+            params.put("excludeIds", excludeIds);
+        }
+        sql.append("order by coalesce(extensions.similarity(a.content, :keyword), 0) desc, ");
         sql.append(resolveArticleOrderBy(order));
         sql.append(" offset :offset rows fetch first :limit rows only");
 

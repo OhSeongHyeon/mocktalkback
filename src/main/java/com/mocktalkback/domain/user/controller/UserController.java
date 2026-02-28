@@ -12,12 +12,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mocktalkback.domain.article.dto.ArticleResponse;
-import com.mocktalkback.domain.comment.dto.CommentResponse;
 import com.mocktalkback.domain.user.dto.UserDeleteRequest;
 import com.mocktalkback.domain.user.dto.UserMentionResponse;
 import com.mocktalkback.domain.user.dto.UserProfileResponse;
 import com.mocktalkback.domain.user.dto.UserProfileUpdateRequest;
+import com.mocktalkback.domain.user.dto.MyArticleItemResponse;
+import com.mocktalkback.domain.user.dto.MyCommentItemResponse;
 import com.mocktalkback.domain.user.service.UserService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
@@ -96,7 +96,7 @@ public class UserController {
         @ApiResponse(responseCode = "400", description = "요청 값 오류"),
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
-    public ApiEnvelope<PageResponse<ArticleResponse>> getMyArticles(
+    public ApiEnvelope<PageResponse<MyArticleItemResponse>> getMyArticles(
         @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
         @RequestParam(name = "page", defaultValue = "0") int page,
         @Parameter(description = "페이지 크기(최대 50)", example = "10")
@@ -116,7 +116,7 @@ public class UserController {
         @ApiResponse(responseCode = "400", description = "요청 값 오류"),
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
-    public ApiEnvelope<PageResponse<CommentResponse>> getMyComments(
+    public ApiEnvelope<PageResponse<MyCommentItemResponse>> getMyComments(
         @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
         @RequestParam(name = "page", defaultValue = "0") int page,
         @Parameter(description = "페이지 크기(최대 50)", example = "10")

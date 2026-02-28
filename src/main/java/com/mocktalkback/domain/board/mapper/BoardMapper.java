@@ -47,6 +47,7 @@ public interface BoardMapper {
             .slug(request.slug())
             .description(request.description())
             .visibility(request.visibility())
+            .articleWritePolicy(request.articleWritePolicy())
             .build();
     }
 
@@ -57,6 +58,7 @@ public interface BoardMapper {
             entity.getSlug(),
             entity.getDescription(),
             entity.getVisibility(),
+            entity.getArticleWritePolicy(),
             entity.getCreatedAt(),
             entity.getUpdatedAt(),
             entity.getDeletedAt(),
@@ -77,6 +79,7 @@ public interface BoardMapper {
             entity.getSlug(),
             entity.getDescription(),
             entity.getVisibility(),
+            entity.getArticleWritePolicy(),
             entity.getCreatedAt(),
             entity.getUpdatedAt(),
             entity.getDeletedAt(),

@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.moderation.dto;
 
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -19,6 +20,10 @@ public record BoardAdminSettingsUpdateRequest(
 
     @Schema(description = "공개 범위", example = "PUBLIC")
     @NotNull
-    BoardVisibility visibility
+    BoardVisibility visibility,
+
+    @Schema(description = "게시글 작성 권한 정책", example = "ALL_AUTHENTICATED")
+    @NotNull
+    BoardArticleWritePolicy articleWritePolicy
 ) {
 }

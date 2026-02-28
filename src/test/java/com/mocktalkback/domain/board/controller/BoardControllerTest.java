@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
 import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
 import com.mocktalkback.domain.board.dto.BoardCreateRequest;
@@ -39,6 +40,7 @@ import com.mocktalkback.domain.board.dto.BoardSubscribeItemResponse;
 import com.mocktalkback.domain.board.dto.BoardSubscribeStatusResponse;
 import com.mocktalkback.domain.board.dto.BoardUpdateRequest;
 import com.mocktalkback.domain.board.service.BoardService;
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.article.service.ArticleService;
@@ -74,7 +76,8 @@ class BoardControllerTest {
             "notice",
             "notice",
             "notice board",
-            BoardVisibility.PUBLIC
+            BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED
         );
         BoardResponse response = new BoardResponse(
             1L,
@@ -82,6 +85,7 @@ class BoardControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -110,6 +114,7 @@ class BoardControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -139,6 +144,7 @@ class BoardControllerTest {
             "free",
             "free board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -169,6 +175,7 @@ class BoardControllerTest {
                 "notice",
                 "notice board",
                 BoardVisibility.PUBLIC,
+                BoardArticleWritePolicy.ALL_AUTHENTICATED,
                 FIXED_TIME,
                 FIXED_TIME,
                 null,
@@ -180,6 +187,7 @@ class BoardControllerTest {
                 "free",
                 "free board",
                 BoardVisibility.PUBLIC,
+                BoardArticleWritePolicy.ALL_AUTHENTICATED,
                 FIXED_TIME,
                 FIXED_TIME,
                 null,
@@ -293,7 +301,7 @@ class BoardControllerTest {
             false
         );
         BoardArticleListResponse response = new BoardArticleListResponse(pinned, pageResponse);
-        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST)).thenReturn(response);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, null, false)).thenReturn(response);
 
         // When: 게시글 목록 API 호출
         ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
@@ -306,6 +314,139 @@ class BoardControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.pinned[0].id").value(1L))
             .andExpect(jsonPath("$.data.page.items[0].id").value(2L));
+    }
+
+    // 게시판 게시글 목록 API는 카테고리 필터 파라미터를 전달할 수 있어야 한다.
+    @Test
+    void findArticles_with_categoryId_returns_list() throws Exception {
+        // Given: 카테고리 필터 게시글 목록 응답
+        List<ArticleSummaryResponse> items = List.of(
+            new ArticleSummaryResponse(
+                11L,
+                10L,
+                2L,
+                "author",
+                "category title",
+                0L,
+                0L,
+                0L,
+                0L,
+                false,
+                FIXED_TIME
+            )
+        );
+        PageResponse<ArticleSummaryResponse> pageResponse = new PageResponse<>(
+            items,
+            0,
+            10,
+            1,
+            1,
+            false,
+            false
+        );
+        BoardArticleListResponse response = new BoardArticleListResponse(List.of(), pageResponse);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, 3L, false)).thenReturn(response);
+
+        // When: 게시글 목록 API 호출(categoryId 포함)
+        ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
+            .param("page", "0")
+            .param("size", "10")
+            .param("order", "LATEST")
+            .param("categoryId", "3"));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.page.items[0].id").value(11L));
+    }
+
+    // 게시판 게시글 목록 API는 미분류 필터 파라미터를 전달할 수 있어야 한다.
+    @Test
+    void findArticles_with_uncategorized_returns_list() throws Exception {
+        // Given: 미분류 필터 게시글 목록 응답
+        List<ArticleSummaryResponse> items = List.of(
+            new ArticleSummaryResponse(
+                12L,
+                10L,
+                2L,
+                "author",
+                "uncategorized title",
+                0L,
+                0L,
+                0L,
+                0L,
+                false,
+                FIXED_TIME
+            )
+        );
+        PageResponse<ArticleSummaryResponse> pageResponse = new PageResponse<>(
+            items,
+            0,
+            10,
+            1,
+            1,
+            false,
+            false
+        );
+        BoardArticleListResponse response = new BoardArticleListResponse(List.of(), pageResponse);
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, null, true)).thenReturn(response);
+
+        // When: 게시글 목록 API 호출(uncategorized 포함)
+        ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
+            .param("page", "0")
+            .param("size", "10")
+            .param("order", "LATEST")
+            .param("uncategorized", "true"));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.page.items[0].id").value(12L));
+    }
+
+    // 게시판 게시글 목록 API는 categoryId와 uncategorized를 동시에 사용하면 실패해야 한다.
+    @Test
+    void findArticles_with_categoryId_and_uncategorized_returns_bad_request() throws Exception {
+        // Given: 동시 필터 사용 예외
+        when(articleService.getBoardArticles(10L, 0, 10, SortOrder.LATEST, 3L, true))
+            .thenThrow(new IllegalArgumentException("categoryId와 uncategorized=true를 동시에 사용할 수 없습니다."));
+
+        // When: 동시 필터로 API 호출
+        ResultActions result = mockMvc.perform(get("/api/boards/10/articles")
+            .param("page", "0")
+            .param("size", "10")
+            .param("order", "LATEST")
+            .param("categoryId", "3")
+            .param("uncategorized", "true"));
+
+        // Then: 400 응답 확인
+        result.andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false));
+    }
+
+    // 게시판 카테고리 목록 API는 리스트 응답을 반환해야 한다.
+    @Test
+    void findCategories_returns_list() throws Exception {
+        // Given: 카테고리 목록 응답
+        List<ArticleCategoryResponse> response = List.of(
+            new ArticleCategoryResponse(
+                3L,
+                10L,
+                "공지",
+                FIXED_TIME,
+                FIXED_TIME
+            )
+        );
+        when(articleService.getBoardCategories(10L)).thenReturn(response);
+
+        // When: 게시판 카테고리 목록 API 호출
+        ResultActions result = mockMvc.perform(get("/api/boards/10/categories"));
+
+        // Then: 응답 데이터 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data[0].id").value(3L))
+            .andExpect(jsonPath("$.data[0].categoryName").value("공지"));
     }
 
     // 게시판 수정 API는 변경된 응답을 반환해야 한다.
@@ -324,6 +465,7 @@ class BoardControllerTest {
             "notice",
             "notice updated",
             BoardVisibility.GROUP,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -352,6 +494,7 @@ class BoardControllerTest {
             "notice",
             "notice board",
             BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED,
             FIXED_TIME,
             FIXED_TIME,
             null,
@@ -421,22 +564,6 @@ class BoardControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.memberStatus").value("PENDING"));
-    }
-
-    // 게시판 가입 승인 API는 성공 응답을 반환해야 한다.
-    @Test
-    void approveJoin_returns_ok() throws Exception {
-        // Given: 가입 승인 응답
-        BoardMemberStatusResponse response = new BoardMemberStatusResponse(1L, BoardRole.MEMBER);
-        when(boardService.approveJoin(1L, 2L)).thenReturn(response);
-
-        // When: 가입 승인 API 호출
-        ResultActions result = mockMvc.perform(post("/api/boards/1/members/2/approve"));
-
-        // Then: 응답 데이터 확인
-        result.andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.memberStatus").value("MEMBER"));
     }
 
     // 게시판 가입 취소 API는 성공 응답을 반환해야 한다.

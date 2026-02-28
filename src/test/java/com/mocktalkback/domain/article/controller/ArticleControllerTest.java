@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -374,5 +375,20 @@ class ArticleControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data").value(nullValue()));
+    }
+
+    // 게시글 첨부파일 다운로드 API는 저장소 URL로 리다이렉트해야 한다.
+    @Test
+    void downloadAttachment_returns_redirect_location() throws Exception {
+        // Given: 첨부파일 다운로드 URL
+        when(articleService.resolveAttachmentDownloadLocation(10L, 20L))
+            .thenReturn("https://storage.mocktalk.local/file.zip");
+
+        // When: 첨부파일 다운로드 API 호출
+        ResultActions result = mockMvc.perform(get("/api/articles/10/attachments/20/download"));
+
+        // Then: 리다이렉트 위치를 반환한다.
+        result.andExpect(status().isFound())
+            .andExpect(header().string("Location", "https://storage.mocktalk.local/file.zip"));
     }
 }

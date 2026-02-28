@@ -41,7 +41,7 @@ import net.coobird.thumbnailator.Thumbnails;
 @RequiredArgsConstructor
 public class ImageOptimizationService {
 
-    private static final float WEBP_QUALITY = 0.8f;
+    private static final float WEBP_QUALITY = 0.7f;
     private static final AtomicBoolean PLUGINS_SCANNED = new AtomicBoolean(false);
 
     private final FileRepository fileRepository;
@@ -69,15 +69,6 @@ public class ImageOptimizationService {
         }
         byte[] strippedBytes = stripMetadata(originalBytes, format);
         if (strippedBytes == null) {
-            return new OriginalFileResult((long) originalBytes.length, mimeType, true);
-        }
-        if (originalBytes.length > 0 && strippedBytes.length > originalBytes.length) {
-            log.warn(
-                "메타데이터 제거 결과가 원본보다 큽니다. 원본 유지: {} ({} -> {})",
-                storedFile.storageKey(),
-                originalBytes.length,
-                strippedBytes.length
-            );
             return new OriginalFileResult((long) originalBytes.length, mimeType, true);
         }
         boolean stripped = !Arrays.equals(originalBytes, strippedBytes);
@@ -152,7 +143,7 @@ public class ImageOptimizationService {
             if (fileVariantRepository.findByFileIdAndVariantCodeAndDeletedAtIsNull(fileId, spec.code()).isPresent()) {
                 continue;
             }
-            int[] target = resolveTargetSize(originalWidth, originalHeight, spec.maxSize());
+            int[] target = resolveVariantTargetSize(spec, originalWidth, originalHeight);
             String variantStorageKey = buildVariantStorageKey(file.getStorageKey(), spec.code());
             try {
                 ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -294,6 +285,13 @@ public class ImageOptimizationService {
         int targetWidth = Math.max(1, (int) Math.round(width * ratio));
         int targetHeight = Math.max(1, (int) Math.round(height * ratio));
         return new int[] { targetWidth, targetHeight };
+    }
+
+    private int[] resolveVariantTargetSize(VariantSpec spec, int originalWidth, int originalHeight) {
+        if (FileVariantCode.ORIGINAL_SIZE.equals(spec.code())) {
+            return new int[] { originalWidth, originalHeight };
+        }
+        return resolveTargetSize(originalWidth, originalHeight, spec.maxSize());
     }
 
     private String buildVariantStorageKey(String originalStorageKey, FileVariantCode variantCode) {

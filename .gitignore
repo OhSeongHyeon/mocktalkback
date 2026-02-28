@@ -147,6 +147,9 @@ HELP.md
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+#gradle cache
+.gradle-home/
+
 ### STS ###
 #.apt_generated
 #.classpath
@@ -185,3 +188,4 @@ out/
 AGENTS.md
 GEMINI.md
 uploads/
+

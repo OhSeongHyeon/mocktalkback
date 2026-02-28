@@ -2,6 +2,7 @@ package com.mocktalkback.domain.board.dto;
 
 import java.time.Instant;
 
+import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.file.dto.FileResponse;
@@ -24,6 +25,9 @@ public record BoardDetailResponse(
 
     @Schema(description = "Visibility", example = "PUBLIC")
     BoardVisibility visibility,
+
+    @Schema(description = "게시글 작성 권한 정책", example = "ALL_AUTHENTICATED")
+    BoardArticleWritePolicy articleWritePolicy,
 
     @Schema(description = "Created at", example = "2024-01-01T00:00:00Z")
     Instant createdAt,
