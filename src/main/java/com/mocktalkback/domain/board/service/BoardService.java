@@ -305,22 +305,6 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardMemberStatusResponse approveJoin(Long boardId, Long targetUserId) {
-        Long approverId = currentUserService.getUserId();
-        UserEntity approver = getUser(approverId);
-        BoardEntity board = getBoard(boardId);
-        requireApprovePermission(board, approver, approverId);
-
-        BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(targetUserId, boardId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "member not found"));
-        if (member.getBoardRole() != BoardRole.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "승인 대기 상태가 아닙니다.");
-        }
-        member.approve(approver);
-        return new BoardMemberStatusResponse(boardId, BoardRole.MEMBER);
-    }
-
-    @Transactional
     public void cancelOrRejectMember(Long boardId, Long targetUserId) {
         Long userId = currentUserService.getUserId();
         UserEntity user = getUser(userId);
