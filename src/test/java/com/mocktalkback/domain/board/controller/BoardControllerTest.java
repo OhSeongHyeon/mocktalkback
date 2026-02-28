@@ -566,22 +566,6 @@ class BoardControllerTest {
             .andExpect(jsonPath("$.data.memberStatus").value("PENDING"));
     }
 
-    // 게시판 가입 승인 API는 성공 응답을 반환해야 한다.
-    @Test
-    void approveJoin_returns_ok() throws Exception {
-        // Given: 가입 승인 응답
-        BoardMemberStatusResponse response = new BoardMemberStatusResponse(1L, BoardRole.MEMBER);
-        when(boardService.approveJoin(1L, 2L)).thenReturn(response);
-
-        // When: 가입 승인 API 호출
-        ResultActions result = mockMvc.perform(post("/api/boards/1/members/2/approve"));
-
-        // Then: 응답 데이터 확인
-        result.andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.memberStatus").value("MEMBER"));
-    }
-
     // 게시판 가입 취소 API는 성공 응답을 반환해야 한다.
     @Test
     void cancelJoin_returns_ok() throws Exception {

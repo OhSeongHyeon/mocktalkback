@@ -220,21 +220,6 @@ public class BoardController {
         return ApiEnvelope.ok(boardService.requestJoin(id));
     }
 
-    @PostMapping("/boards/{id:\\d+}/members/{userId:\\d+}/approve")
-    @Operation(summary = "게시판 가입 승인", description = "가입 요청을 승인합니다.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "승인 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
-        @ApiResponse(responseCode = "401", description = "인증 필요"),
-        @ApiResponse(responseCode = "403", description = "권한 없음"),
-        @ApiResponse(responseCode = "404", description = "대상 없음")
-    })
-    public ApiEnvelope<BoardMemberStatusResponse> approveJoin(
-        @PathVariable("id") Long id,
-        @PathVariable("userId") Long userId
-    ) {
-        return ApiEnvelope.ok(boardService.approveJoin(id, userId));
-    }
-
     @DeleteMapping("/boards/{id:\\d+}/members/me")
     @Operation(summary = "게시판 가입 취소(본인)", description = "본인의 가입 상태를 취소합니다.")
     @ApiResponses({
