@@ -76,7 +76,8 @@ class BoardControllerTest {
             "notice",
             "notice",
             "notice board",
-            BoardVisibility.PUBLIC
+            BoardVisibility.PUBLIC,
+            BoardArticleWritePolicy.ALL_AUTHENTICATED
         );
         BoardResponse response = new BoardResponse(
             1L,
