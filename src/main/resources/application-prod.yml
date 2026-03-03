@@ -85,6 +85,16 @@ app:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
     redirect-path: ${OAUTH2_REDIRECT_PATH}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
+  realtime:
+    redis:
+      enabled: ${REALTIME_REDIS_ENABLED:true}
+      fallback-enabled: ${REALTIME_REDIS_FALLBACK_ENABLED:true}
+      channels:
+        notification: ${REALTIME_REDIS_NOTIFICATION_CHANNEL:realtime:notification:events}
+        board: ${REALTIME_REDIS_BOARD_CHANNEL:realtime:board:events}
+    presence:
+      ttl-seconds: ${REALTIME_PRESENCE_TTL_SECONDS:45}
+      max-sessions: ${REALTIME_PRESENCE_MAX_SESSIONS:8}
   object-storage:
     endpoint: ${OBJECT_STORAGE_ENDPOINT}
     region: ${OBJECT_STORAGE_REGION}
@@ -109,4 +119,3 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
-
