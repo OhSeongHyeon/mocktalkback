@@ -8,9 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,12 +53,12 @@ public class SearchService {
     private static final int DEFAULT_PAGE = 0;
 
     private final JPAQueryFactory queryFactory;
-    private final EntityManager entityManager;
     private final CurrentUserService currentUserService;
     private final UserRepository userRepository;
     private final BoardFileRepository boardFileRepository;
     private final CommentRepository commentRepository;
     private final ArticleReactionRepository articleReactionRepository;
+    private final SearchNativeQueryExecutor searchNativeQueryExecutor;
     private final FileMapper fileMapper;
 
     @Transactional(readOnly = true)
@@ -105,22 +102,13 @@ public class SearchService {
     ) {
         long offset = (long) page * size;
         List<Long> ftsIds = fetchBoardIdsByFts(keyword, offset, size + 1, order, context);
-        boolean hasNext = ftsIds.size() > size;
-        Set<Long> idSet = new LinkedHashSet<>();
-        for (int index = 0; index < Math.min(size, ftsIds.size()); index++) {
-            idSet.add(ftsIds.get(index));
-        }
-        if (!hasNext && idSet.size() < size) {
-            int remaining = size - idSet.size();
+        boolean hasNext = hasNext(ftsIds, size);
+        Set<Long> idSet = takeUpToSize(ftsIds, size);
+        if (!hasNext && hasRemainingSlot(idSet, size)) {
+            int remaining = remainingSlots(idSet, size);
             List<Long> fallbackIds = fetchBoardIdsByIlike(keyword, offset, remaining + 1, order, context, List.copyOf(idSet));
-            boolean fallbackHasNext = fallbackIds.size() > remaining;
-            for (Long id : fallbackIds) {
-                if (idSet.size() >= size) {
-                    break;
-                }
-                idSet.add(id);
-            }
-            hasNext = fallbackHasNext;
+            hasNext = hasNext(fallbackIds, remaining);
+            addUpToSize(idSet, fallbackIds, size);
         }
         List<Long> ids = new ArrayList<>(idSet);
         if (ids.isEmpty()) {
@@ -153,14 +141,11 @@ public class SearchService {
     ) {
         long offset = (long) page * size;
         List<Long> ftsIds = fetchArticleIdsByFts(keyword, offset, size + 1, order, boardSlug, context);
-        boolean hasNext = ftsIds.size() > size;
-        Set<Long> idSet = new LinkedHashSet<>();
-        for (int index = 0; index < Math.min(size, ftsIds.size()); index++) {
-            idSet.add(ftsIds.get(index));
-        }
-        if (!hasNext && idSet.size() < size) {
+        boolean hasNext = hasNext(ftsIds, size);
+        Set<Long> idSet = takeUpToSize(ftsIds, size);
+        if (!hasNext && hasRemainingSlot(idSet, size)) {
             // 폴백은 제목/작성자 우선 조회 후 부족할 때만 본문 스캔으로 보충한다.
-            int remaining = size - idSet.size();
+            int remaining = remainingSlots(idSet, size);
             List<Long> primaryFallbackIds = fetchArticleIdsByIlikePrimary(
                 keyword,
                 offset,
@@ -170,17 +155,12 @@ public class SearchService {
                 context,
                 List.copyOf(idSet)
             );
-            boolean primaryFallbackHasNext = primaryFallbackIds.size() > remaining;
-            for (Long id : primaryFallbackIds) {
-                if (idSet.size() >= size) {
-                    break;
-                }
-                idSet.add(id);
-            }
+            boolean primaryFallbackHasNext = hasNext(primaryFallbackIds, remaining);
+            addUpToSize(idSet, primaryFallbackIds, size);
             if (primaryFallbackHasNext) {
                 hasNext = true;
-            } else if (idSet.size() < size) {
-                int contentRemaining = size - idSet.size();
+            } else if (hasRemainingSlot(idSet, size)) {
+                int contentRemaining = remainingSlots(idSet, size);
                 List<Long> contentFallbackIds = fetchArticleIdsByIlikeContent(
                     keyword,
                     offset,
@@ -190,14 +170,8 @@ public class SearchService {
                     context,
                     List.copyOf(idSet)
                 );
-                boolean contentFallbackHasNext = contentFallbackIds.size() > contentRemaining;
-                for (Long id : contentFallbackIds) {
-                    if (idSet.size() >= size) {
-                        break;
-                    }
-                    idSet.add(id);
-                }
-                hasNext = contentFallbackHasNext;
+                hasNext = hasNext(contentFallbackIds, contentRemaining);
+                addUpToSize(idSet, contentFallbackIds, size);
             } else {
                 hasNext = false;
             }
@@ -226,22 +200,13 @@ public class SearchService {
     ) {
         long offset = (long) page * size;
         List<Long> ftsIds = fetchCommentIdsByFts(keyword, offset, size + 1, order, boardSlug, context);
-        boolean hasNext = ftsIds.size() > size;
-        Set<Long> idSet = new LinkedHashSet<>();
-        for (int index = 0; index < Math.min(size, ftsIds.size()); index++) {
-            idSet.add(ftsIds.get(index));
-        }
-        if (!hasNext && idSet.size() < size) {
-            int remaining = size - idSet.size();
+        boolean hasNext = hasNext(ftsIds, size);
+        Set<Long> idSet = takeUpToSize(ftsIds, size);
+        if (!hasNext && hasRemainingSlot(idSet, size)) {
+            int remaining = remainingSlots(idSet, size);
             List<Long> fallbackIds = fetchCommentIdsByIlike(keyword, offset, remaining + 1, order, boardSlug, context, List.copyOf(idSet));
-            boolean fallbackHasNext = fallbackIds.size() > remaining;
-            for (Long id : fallbackIds) {
-                if (idSet.size() >= size) {
-                    break;
-                }
-                idSet.add(id);
-            }
-            hasNext = fallbackHasNext;
+            hasNext = hasNext(fallbackIds, remaining);
+            addUpToSize(idSet, fallbackIds, size);
         }
         List<Long> ids = new ArrayList<>(idSet);
         if (ids.isEmpty()) {
@@ -263,22 +228,13 @@ public class SearchService {
     ) {
         long offset = (long) page * size;
         List<Long> ftsIds = fetchUserIdsByFts(keyword, offset, size + 1, order);
-        boolean hasNext = ftsIds.size() > size;
-        Set<Long> idSet = new LinkedHashSet<>();
-        for (int index = 0; index < Math.min(size, ftsIds.size()); index++) {
-            idSet.add(ftsIds.get(index));
-        }
-        if (!hasNext && idSet.size() < size) {
-            int remaining = size - idSet.size();
+        boolean hasNext = hasNext(ftsIds, size);
+        Set<Long> idSet = takeUpToSize(ftsIds, size);
+        if (!hasNext && hasRemainingSlot(idSet, size)) {
+            int remaining = remainingSlots(idSet, size);
             List<Long> fallbackIds = fetchUserIdsByIlike(keyword, offset, remaining + 1, order, List.copyOf(idSet));
-            boolean fallbackHasNext = fallbackIds.size() > remaining;
-            for (Long id : fallbackIds) {
-                if (idSet.size() >= size) {
-                    break;
-                }
-                idSet.add(id);
-            }
-            hasNext = fallbackHasNext;
+            hasNext = hasNext(fallbackIds, remaining);
+            addUpToSize(idSet, fallbackIds, size);
         }
         List<Long> ids = new ArrayList<>(idSet);
         if (ids.isEmpty()) {
@@ -304,31 +260,14 @@ public class SearchService {
         SortOrder order,
         SearchUserContext context
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select b.board_id ");
-        sql.append("from tb_boards b ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where b.deleted_at is null ");
-        if (!context.isAuthenticated()) {
-            sql.append("and b.visibility = 'PUBLIC' ");
-        } else if (!context.isManagerOrAdmin()) {
-            sql.append("and (bm.board_manager_id is null or bm.board_role <> 'BANNED') ");
-            sql.append("and (b.visibility in ('PUBLIC','GROUP') ");
-            sql.append("or (b.visibility = 'PRIVATE' and bm.board_role = 'OWNER')) ");
-        }
-        sql.append("and b.search_vector @@ plainto_tsquery('simple', :keyword) ");
-        sql.append("order by ts_rank(b.search_vector, plainto_tsquery('simple', :keyword)) desc, ");
-        sql.append(resolveBoardOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchBoardIdsByFts(
+            keyword,
+            offset,
+            limit,
+            order,
+            context.userId(),
+            context.isManagerOrAdmin()
+        );
     }
 
     private List<Long> fetchBoardIdsByIlike(
@@ -339,41 +278,15 @@ public class SearchService {
         SearchUserContext context,
         List<Long> excludeIds
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select b.board_id ");
-        sql.append("from tb_boards b ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where b.deleted_at is null ");
-        if (!context.isAuthenticated()) {
-            sql.append("and b.visibility = 'PUBLIC' ");
-        } else if (!context.isManagerOrAdmin()) {
-            sql.append("and (bm.board_manager_id is null or bm.board_role <> 'BANNED') ");
-            sql.append("and (b.visibility in ('PUBLIC','GROUP') ");
-            sql.append("or (b.visibility = 'PRIVATE' and bm.board_role = 'OWNER')) ");
-        }
-        sql.append("and (b.board_name ilike :pattern ");
-        sql.append("or b.slug ilike :pattern ");
-        sql.append("or b.description ilike :pattern) ");
-        if (!excludeIds.isEmpty()) {
-            sql.append("and b.board_id not in (:excludeIds) ");
-            params.put("excludeIds", excludeIds);
-        }
-        sql.append("order by greatest(");
-        sql.append("coalesce(extensions.similarity(b.board_name, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(b.slug, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(b.description, :keyword), 0)) desc, ");
-        sql.append(resolveBoardOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("pattern", "%" + keyword + "%");
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchBoardIdsByIlike(
+            keyword,
+            offset,
+            limit,
+            order,
+            context.userId(),
+            context.isManagerOrAdmin(),
+            excludeIds
+        );
     }
 
     private List<Long> fetchArticleIdsByFts(
@@ -384,31 +297,15 @@ public class SearchService {
         String boardSlug,
         SearchUserContext context
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select a.article_id ");
-        sql.append("from tb_articles a ");
-        sql.append("join tb_boards b on b.board_id = a.board_id ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where a.deleted_at is null ");
-        sql.append("and b.deleted_at is null ");
-        if (StringUtils.hasText(boardSlug)) {
-            sql.append("and b.slug = :boardSlug ");
-            params.put("boardSlug", boardSlug);
-        }
-        appendArticleAccessFilter(sql, context);
-        sql.append("and a.search_vector @@ plainto_tsquery('simple', :keyword) ");
-        sql.append("order by ts_rank(a.search_vector, plainto_tsquery('simple', :keyword)) desc, ");
-        sql.append(resolveArticleOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchArticleIdsByFts(
+            keyword,
+            offset,
+            limit,
+            order,
+            boardSlug,
+            context.userId(),
+            context.isManagerOrAdmin()
+        );
     }
 
     private List<Long> fetchArticleIdsByIlikePrimary(
@@ -420,41 +317,16 @@ public class SearchService {
         SearchUserContext context,
         List<Long> excludeIds
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select a.article_id ");
-        sql.append("from tb_articles a ");
-        sql.append("join tb_boards b on b.board_id = a.board_id ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where a.deleted_at is null ");
-        sql.append("and b.deleted_at is null ");
-        if (StringUtils.hasText(boardSlug)) {
-            sql.append("and b.slug = :boardSlug ");
-            params.put("boardSlug", boardSlug);
-        }
-        appendArticleAccessFilter(sql, context);
-        sql.append("and (");
-        sql.append("a.title ilike :pattern ");
-        sql.append("or coalesce(a.author_search_text, '') ilike :pattern");
-        sql.append(") ");
-        if (!excludeIds.isEmpty()) {
-            sql.append("and a.article_id not in (:excludeIds) ");
-            params.put("excludeIds", excludeIds);
-        }
-        sql.append("order by greatest(");
-        sql.append("coalesce(extensions.similarity(a.title, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(coalesce(a.author_search_text, ''), :keyword), 0)) desc, ");
-        sql.append(resolveArticleOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("pattern", "%" + keyword + "%");
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchArticleIdsByIlikePrimary(
+            keyword,
+            offset,
+            limit,
+            order,
+            boardSlug,
+            context.userId(),
+            context.isManagerOrAdmin(),
+            excludeIds
+        );
     }
 
     private List<Long> fetchArticleIdsByIlikeContent(
@@ -466,36 +338,16 @@ public class SearchService {
         SearchUserContext context,
         List<Long> excludeIds
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select a.article_id ");
-        sql.append("from tb_articles a ");
-        sql.append("join tb_boards b on b.board_id = a.board_id ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where a.deleted_at is null ");
-        sql.append("and b.deleted_at is null ");
-        if (StringUtils.hasText(boardSlug)) {
-            sql.append("and b.slug = :boardSlug ");
-            params.put("boardSlug", boardSlug);
-        }
-        appendArticleAccessFilter(sql, context);
-        sql.append("and a.content ilike :pattern ");
-        if (!excludeIds.isEmpty()) {
-            sql.append("and a.article_id not in (:excludeIds) ");
-            params.put("excludeIds", excludeIds);
-        }
-        sql.append("order by coalesce(extensions.similarity(a.content, :keyword), 0) desc, ");
-        sql.append(resolveArticleOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("pattern", "%" + keyword + "%");
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchArticleIdsByIlikeContent(
+            keyword,
+            offset,
+            limit,
+            order,
+            boardSlug,
+            context.userId(),
+            context.isManagerOrAdmin(),
+            excludeIds
+        );
     }
 
     private List<Long> fetchCommentIdsByFts(
@@ -506,33 +358,15 @@ public class SearchService {
         String boardSlug,
         SearchUserContext context
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select c.comment_id ");
-        sql.append("from tb_comments c ");
-        sql.append("join tb_articles a on a.article_id = c.article_id ");
-        sql.append("join tb_boards b on b.board_id = a.board_id ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where c.deleted_at is null ");
-        sql.append("and a.deleted_at is null ");
-        sql.append("and b.deleted_at is null ");
-        if (StringUtils.hasText(boardSlug)) {
-            sql.append("and b.slug = :boardSlug ");
-            params.put("boardSlug", boardSlug);
-        }
-        appendArticleAccessFilter(sql, context);
-        sql.append("and c.search_vector @@ plainto_tsquery('simple', :keyword) ");
-        sql.append("order by ts_rank(c.search_vector, plainto_tsquery('simple', :keyword)) desc, ");
-        sql.append(resolveCommentOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchCommentIdsByFts(
+            keyword,
+            offset,
+            limit,
+            order,
+            boardSlug,
+            context.userId(),
+            context.isManagerOrAdmin()
+        );
     }
 
     private List<Long> fetchCommentIdsByIlike(
@@ -544,38 +378,16 @@ public class SearchService {
         SearchUserContext context,
         List<Long> excludeIds
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select c.comment_id ");
-        sql.append("from tb_comments c ");
-        sql.append("join tb_articles a on a.article_id = c.article_id ");
-        sql.append("join tb_boards b on b.board_id = a.board_id ");
-        if (context.isAuthenticated() && !context.isManagerOrAdmin()) {
-            sql.append("left join tb_board_members bm on bm.board_id = b.board_id and bm.user_id = :userId ");
-            params.put("userId", context.userId());
-        }
-        sql.append("where c.deleted_at is null ");
-        sql.append("and a.deleted_at is null ");
-        sql.append("and b.deleted_at is null ");
-        if (StringUtils.hasText(boardSlug)) {
-            sql.append("and b.slug = :boardSlug ");
-            params.put("boardSlug", boardSlug);
-        }
-        appendArticleAccessFilter(sql, context);
-        sql.append("and c.content ilike :pattern ");
-        if (!excludeIds.isEmpty()) {
-            sql.append("and c.comment_id not in (:excludeIds) ");
-            params.put("excludeIds", excludeIds);
-        }
-        sql.append("order by coalesce(extensions.similarity(c.content, :keyword), 0) desc, ");
-        sql.append(resolveCommentOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("pattern", "%" + keyword + "%");
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchCommentIdsByIlike(
+            keyword,
+            offset,
+            limit,
+            order,
+            boardSlug,
+            context.userId(),
+            context.isManagerOrAdmin(),
+            excludeIds
+        );
     }
 
     private List<Long> fetchUserIdsByFts(
@@ -584,20 +396,12 @@ public class SearchService {
         int limit,
         SortOrder order
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select u.user_id ");
-        sql.append("from tb_users u ");
-        sql.append("where u.deleted_at is null ");
-        sql.append("and u.search_vector @@ plainto_tsquery('simple', :keyword) ");
-        sql.append("order by ts_rank(u.search_vector, plainto_tsquery('simple', :keyword)) desc, ");
-        sql.append(resolveUserOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
+        return searchNativeQueryExecutor.fetchUserIdsByFts(
+            keyword,
+            offset,
+            limit,
+            order
+        );
     }
 
     private List<Long> fetchUserIdsByIlike(
@@ -607,94 +411,13 @@ public class SearchService {
         SortOrder order,
         List<Long> excludeIds
     ) {
-        StringBuilder sql = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        sql.append("select u.user_id ");
-        sql.append("from tb_users u ");
-        sql.append("where u.deleted_at is null ");
-        sql.append("and (u.handle ilike :pattern or u.display_name ilike :pattern or u.user_name ilike :pattern) ");
-        if (!excludeIds.isEmpty()) {
-            sql.append("and u.user_id not in (:excludeIds) ");
-            params.put("excludeIds", excludeIds);
-        }
-        sql.append("order by greatest(");
-        sql.append("coalesce(extensions.similarity(u.handle, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(u.display_name, :keyword), 0), ");
-        sql.append("coalesce(extensions.similarity(u.user_name, :keyword), 0)) desc, ");
-        sql.append(resolveUserOrderBy(order));
-        sql.append(" offset :offset rows fetch first :limit rows only");
-
-        params.put("keyword", keyword);
-        params.put("pattern", "%" + keyword + "%");
-        params.put("offset", offset);
-        params.put("limit", limit);
-        return fetchIds(sql.toString(), params);
-    }
-
-    private List<Long> fetchIds(String sql, Map<String, Object> params) {
-        Query query = entityManager.createNativeQuery(sql);
-        for (Map.Entry<String, Object> entry : params.entrySet()) {
-            query.setParameter(entry.getKey(), entry.getValue());
-        }
-        List<?> rows = query.getResultList();
-        List<Long> ids = new ArrayList<>();
-        for (Object row : rows) {
-            if (row instanceof Number number) {
-                ids.add(number.longValue());
-            }
-        }
-        return ids;
-    }
-
-    private void appendArticleAccessFilter(StringBuilder sql, SearchUserContext context) {
-        if (!context.isAuthenticated()) {
-            sql.append("and b.visibility = 'PUBLIC' and a.visibility = 'PUBLIC' ");
-            return;
-        }
-        if (context.isManagerOrAdmin()) {
-            return;
-        }
-        sql.append("and (");
-        sql.append("(bm.board_manager_id is null or bm.board_role <> 'BANNED') ");
-        sql.append("and (");
-        sql.append("(b.visibility = 'PUBLIC' and a.visibility in ('PUBLIC', 'MEMBERS')) ");
-        sql.append("or (b.visibility = 'PUBLIC' and bm.board_role in ('OWNER', 'MODERATOR') and a.visibility = 'MODERATORS') ");
-        sql.append("or (b.visibility = 'GROUP' and (");
-        sql.append("a.visibility = 'PUBLIC' ");
-        sql.append("or (a.visibility = 'MEMBERS' and bm.board_role in ('OWNER', 'MODERATOR', 'MEMBER')) ");
-        sql.append("or (a.visibility = 'MODERATORS' and bm.board_role in ('OWNER', 'MODERATOR'))");
-        sql.append(")) ");
-        sql.append("or (b.visibility = 'PRIVATE' and bm.board_role = 'OWNER' ");
-        sql.append("and a.visibility in ('PUBLIC', 'MEMBERS', 'MODERATORS'))");
-        sql.append(")) ");
-    }
-
-    private String resolveBoardOrderBy(SortOrder order) {
-        if (order == SortOrder.OLDEST) {
-            return "b.created_at asc, b.updated_at asc, b.board_id asc";
-        }
-        return "b.created_at desc, b.updated_at desc, b.board_id desc";
-    }
-
-    private String resolveArticleOrderBy(SortOrder order) {
-        if (order == SortOrder.OLDEST) {
-            return "a.created_at asc, a.updated_at asc, a.article_id asc";
-        }
-        return "a.created_at desc, a.updated_at desc, a.article_id desc";
-    }
-
-    private String resolveCommentOrderBy(SortOrder order) {
-        if (order == SortOrder.OLDEST) {
-            return "c.created_at asc, c.comment_id asc";
-        }
-        return "c.created_at desc, c.comment_id desc";
-    }
-
-    private String resolveUserOrderBy(SortOrder order) {
-        if (order == SortOrder.OLDEST) {
-            return "u.created_at asc, u.user_id asc";
-        }
-        return "u.created_at desc, u.user_id desc";
+        return searchNativeQueryExecutor.fetchUserIdsByIlike(
+            keyword,
+            offset,
+            limit,
+            order,
+            excludeIds
+        );
     }
 
     private List<BoardEntity> loadBoards(List<Long> ids) {
@@ -766,6 +489,33 @@ public class SearchService {
         return ordered;
     }
 
+    private boolean hasNext(List<Long> candidateIds, int pageSize) {
+        return candidateIds.size() > pageSize;
+    }
+
+    private Set<Long> takeUpToSize(List<Long> candidateIds, int size) {
+        Set<Long> ids = new LinkedHashSet<>();
+        addUpToSize(ids, candidateIds, size);
+        return ids;
+    }
+
+    private void addUpToSize(Set<Long> targetIds, List<Long> candidateIds, int maxSize) {
+        for (Long id : candidateIds) {
+            if (targetIds.size() >= maxSize) {
+                break;
+            }
+            targetIds.add(id);
+        }
+    }
+
+    private boolean hasRemainingSlot(Set<Long> ids, int maxSize) {
+        return ids.size() < maxSize;
+    }
+
+    private int remainingSlots(Set<Long> ids, int maxSize) {
+        return maxSize - ids.size();
+    }
+
     private <T> SliceResponse<T> emptySlice(int page, int size) {
         return new SliceResponse<>(List.of(), page, size, false, page > 0);
     }
@@ -794,8 +544,7 @@ public class SearchService {
     }
 
     private Map<Long, Long> loadCommentCounts(List<ArticleEntity> articles) {
-        Set<Long> ids = new LinkedHashSet<>();
-        articles.forEach(article -> ids.add(article.getId()));
+        Set<Long> ids = toArticleIds(articles);
         if (ids.isEmpty()) {
             return Map.of();
         }
@@ -807,8 +556,7 @@ public class SearchService {
     }
 
     private Map<Long, ReactionCounts> loadReactionCounts(List<ArticleEntity> articles) {
-        Set<Long> ids = new LinkedHashSet<>();
-        articles.forEach(article -> ids.add(article.getId()));
+        Set<Long> ids = toArticleIds(articles);
         if (ids.isEmpty()) {
             return Map.of();
         }
@@ -823,6 +571,14 @@ public class SearchService {
             }
         }
         return counts;
+    }
+
+    private Set<Long> toArticleIds(List<ArticleEntity> articles) {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (ArticleEntity article : articles) {
+            ids.add(article.getId());
+        }
+        return ids;
     }
 
     private ArticleSearchResponse toArticleSearchResponse(
@@ -930,10 +686,6 @@ public class SearchService {
     private record SearchUserContext(Long userId, boolean managerOrAdmin) {
         private static SearchUserContext anonymous() {
             return new SearchUserContext(null, false);
-        }
-
-        private boolean isAuthenticated() {
-            return userId != null;
         }
 
         private boolean isManagerOrAdmin() {
