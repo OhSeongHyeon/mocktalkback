@@ -1,5 +1,7 @@
 package com.mocktalkback.global.config;
 
+import java.time.Duration;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,8 +9,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+
+import com.mocktalkback.domain.realtime.config.RealtimeRedisProperties;
+import com.mocktalkback.domain.realtime.service.RealtimeRedisSubscriber;
 
 @Configuration
 public class RedisConfig {
@@ -45,5 +52,46 @@ public class RedisConfig {
                 .useSsl()
                 .build();
         return new LettuceConnectionFactory(baseRedisConfig(), clientConfig);
+    }
+
+    @Bean
+    public RealtimeRedisProperties realtimeRedisProperties(
+        @Value("${app.realtime.redis.enabled:false}") boolean enabled,
+        @Value("${app.realtime.redis.fallback-enabled:true}") boolean fallbackEnabled,
+        @Value("${app.realtime.redis.channels.notification:realtime:notification:events}") String notificationChannel,
+        @Value("${app.realtime.redis.channels.board:realtime:board:events}") String boardChannel,
+        @Value("${app.realtime.presence.ttl-seconds:45}") long presenceTtlSeconds,
+        @Value("${app.realtime.presence.max-sessions:8}") int presenceMaxSessions
+    ) {
+        return new RealtimeRedisProperties(
+            enabled,
+            fallbackEnabled,
+            notificationChannel,
+            boardChannel,
+            Duration.ofSeconds(presenceTtlSeconds),
+            presenceMaxSessions
+        );
+    }
+
+    @Bean
+    public RedisMessageListenerContainer redisMessageListenerContainer(
+        RedisConnectionFactory redisConnectionFactory,
+        RealtimeRedisSubscriber realtimeRedisSubscriber,
+        RealtimeRedisProperties realtimeRedisProperties
+    ) {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(redisConnectionFactory);
+        if (!realtimeRedisProperties.enabled()) {
+            return container;
+        }
+        container.addMessageListener(
+            realtimeRedisSubscriber,
+            ChannelTopic.of(realtimeRedisProperties.notificationChannel())
+        );
+        container.addMessageListener(
+            realtimeRedisSubscriber,
+            ChannelTopic.of(realtimeRedisProperties.boardChannel())
+        );
+        return container;
     }
 }

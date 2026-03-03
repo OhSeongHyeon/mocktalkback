@@ -10,20 +10,24 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.mocktalkback.domain.realtime.config.RealtimeRedisProperties;
 import com.mocktalkback.domain.realtime.dto.NotificationRealtimeEventResponse;
 import com.mocktalkback.domain.realtime.type.NotificationRealtimeEventType;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class NotificationRealtimeSseService {
 
     private static final long EMITTER_TIMEOUT_MILLIS = 30L * 60L * 1000L;
     private static final int MAX_EMITTERS_PER_USER = 2;
 
-    private final ConcurrentHashMap<Long, ConcurrentHashMap<String, SseEmitter>> userEmitters;
-
-    public NotificationRealtimeSseService() {
-        this.userEmitters = new ConcurrentHashMap<>();
-    }
+    private final RealtimeRedisPublisher realtimeRedisPublisher;
+    private final RealtimeRedisProperties realtimeRedisProperties;
+    private final ConcurrentHashMap<Long, ConcurrentHashMap<String, SseEmitter>> userEmitters = new ConcurrentHashMap<>();
 
     public SseEmitter subscribe(Long userId, String lastEventId) {
         String emitterId = UUID.randomUUID().toString();
@@ -43,7 +47,16 @@ public class NotificationRealtimeSseService {
         connectPayload.put("emitterId", emitterId);
         connectPayload.put("lastEventId", lastEventId);
 
-        publishToEmitter(emitterId, emitter, userId, NotificationRealtimeEventType.CONNECTED, connectPayload, true);
+        publishToEmitter(
+            emitterId,
+            emitter,
+            userId,
+            NotificationRealtimeEventType.CONNECTED,
+            connectPayload,
+            UUID.randomUUID().toString(),
+            Instant.now(),
+            true
+        );
         return emitter;
     }
 
@@ -54,13 +67,47 @@ public class NotificationRealtimeSseService {
     }
 
     public void publish(Long userId, NotificationRealtimeEventType type, Object data) {
+        String eventId = UUID.randomUUID().toString();
+        Instant occurredAt = Instant.now();
+        if (tryPublishRedis(userId, type, data, eventId, occurredAt)) {
+            return;
+        }
+        publishLocal(userId, type, data, eventId, occurredAt);
+    }
+
+    void publishFromRedis(
+        Long userId,
+        NotificationRealtimeEventType type,
+        Object data,
+        String eventId,
+        Instant occurredAt
+    ) {
+        publishLocal(userId, type, data, eventId, occurredAt);
+    }
+
+    private void publishLocal(
+        Long userId,
+        NotificationRealtimeEventType type,
+        Object data,
+        String eventId,
+        Instant occurredAt
+    ) {
         ConcurrentHashMap<String, SseEmitter> emitters = userEmitters.get(userId);
         if (emitters == null || emitters.isEmpty()) {
             return;
         }
 
         for (Map.Entry<String, SseEmitter> entry : emitters.entrySet()) {
-            publishToEmitter(entry.getKey(), entry.getValue(), userId, type, data, false);
+            publishToEmitter(
+                entry.getKey(),
+                entry.getValue(),
+                userId,
+                type,
+                data,
+                eventId,
+                occurredAt,
+                false
+            );
         }
     }
 
@@ -68,7 +115,13 @@ public class NotificationRealtimeSseService {
     @Scheduled(fixedDelay = 25_000L)
     public void publishHeartbeat() {
         for (Long userId : userEmitters.keySet()) {
-            publish(userId, NotificationRealtimeEventType.HEARTBEAT, null);
+            publishLocal(
+                userId,
+                NotificationRealtimeEventType.HEARTBEAT,
+                null,
+                UUID.randomUUID().toString(),
+                Instant.now()
+            );
         }
     }
 
@@ -94,13 +147,15 @@ public class NotificationRealtimeSseService {
             Long userId,
             NotificationRealtimeEventType type,
             Object data,
+            String eventId,
+            Instant occurredAt,
             boolean removeOnFailure
     ) {
         NotificationRealtimeEventResponse event = new NotificationRealtimeEventResponse(
-                UUID.randomUUID().toString(),
+                eventId == null ? UUID.randomUUID().toString() : eventId,
                 userId,
                 type,
-                Instant.now(),
+                occurredAt == null ? Instant.now() : occurredAt,
                 data
         );
 
@@ -112,6 +167,28 @@ public class NotificationRealtimeSseService {
         } catch (Exception ex) {
             safeComplete(emitter, removeOnFailure, ex);
             removeEmitter(userId, emitterId);
+        }
+    }
+
+    private boolean tryPublishRedis(
+        Long userId,
+        NotificationRealtimeEventType type,
+        Object data,
+        String eventId,
+        Instant occurredAt
+    ) {
+        if (!realtimeRedisProperties.enabled()) {
+            return false;
+        }
+        try {
+            realtimeRedisPublisher.publishNotification(userId, type, data, eventId, occurredAt);
+            return true;
+        } catch (Exception ex) {
+            if (!realtimeRedisProperties.fallbackEnabled()) {
+                throw new IllegalStateException("알림 SSE Redis 발행에 실패했습니다.", ex);
+            }
+            log.warn("알림 SSE Redis 발행 실패로 로컬 fallback 경로를 사용합니다. userId={}", userId, ex);
+            return false;
         }
     }
 

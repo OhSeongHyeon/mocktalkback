@@ -62,6 +62,7 @@ public class NotificationService {
         if (receiver.getId().equals(sender.getId())) {
             return;
         }
+        boolean read = notificationPresenceService.isViewingArticleDetail(receiver.getId(), article.getId());
         NotificationEntity entity = NotificationEntity.builder()
             .user(receiver)
             .sender(sender)
@@ -69,10 +70,12 @@ public class NotificationService {
             .redirectUrl(buildArticleRedirect(article))
             .referenceType(ReferenceType.ARTICLE)
             .referenceId(article.getId())
-            .read(false)
+            .read(read)
             .build();
         notificationRepository.save(entity);
-        publishUnreadCountChangedAfterCommit(receiver.getId(), article.getId());
+        if (!read) {
+            publishUnreadCountChangedAfterCommit(receiver.getId(), article.getId());
+        }
     }
 
     @Transactional
@@ -85,6 +88,7 @@ public class NotificationService {
         if (receiver.getId().equals(sender.getId())) {
             return;
         }
+        boolean read = notificationPresenceService.isViewingArticleDetail(receiver.getId(), article.getId());
         NotificationEntity entity = NotificationEntity.builder()
             .user(receiver)
             .sender(sender)
@@ -92,10 +96,12 @@ public class NotificationService {
             .redirectUrl(buildArticleRedirect(article))
             .referenceType(ReferenceType.COMMENT)
             .referenceId(comment.getId())
-            .read(false)
+            .read(read)
             .build();
         notificationRepository.save(entity);
-        publishUnreadCountChangedAfterCommit(receiver.getId(), article.getId());
+        if (!read) {
+            publishUnreadCountChangedAfterCommit(receiver.getId(), article.getId());
+        }
     }
 
     @Transactional(readOnly = true)
