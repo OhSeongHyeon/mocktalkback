@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -47,6 +48,11 @@ import com.mocktalkback.domain.board.repository.BoardRepository;
 import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.BoardAccessPolicy;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
+import com.mocktalkback.domain.common.policy.RoleEvaluator;
+import com.mocktalkback.domain.common.policy.SanctionGuard;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
@@ -56,7 +62,6 @@ import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
-import com.mocktalkback.domain.moderation.repository.SanctionRepository;
 import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.role.entity.RoleEntity;
 import com.mocktalkback.domain.role.type.ContentVisibility;
@@ -124,10 +129,22 @@ class ArticleServiceTest {
     private HtmlSanitizer htmlSanitizer;
 
     @Mock
-    private SanctionRepository sanctionRepository;
+    private SanctionGuard sanctionGuard;
 
     @Mock
     private BoardRealtimeSseService boardRealtimeSseService;
+
+    @Spy
+    private RoleEvaluator roleEvaluator = new RoleEvaluator();
+
+    @Spy
+    private BoardAccessPolicy boardAccessPolicy = new BoardAccessPolicy(roleEvaluator);
+
+    @Spy
+    private PageNormalizer pageNormalizer = new PageNormalizer();
+
+    @Spy
+    private AuthorDisplayResolver authorDisplayResolver = new AuthorDisplayResolver();
 
     @InjectMocks
     private ArticleService articleService;
@@ -155,8 +172,6 @@ class ArticleServiceTest {
         when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
-        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
-            .thenReturn(false);
         when(htmlSanitizer.sanitize("content")).thenReturn("content");
 
         ArticleEntity article = createArticle(100L, board, user, category);
@@ -203,8 +218,6 @@ class ArticleServiceTest {
         when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(otherBoardCategory));
-        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
-            .thenReturn(false);
 
         // When & Then: 소속 불일치 예외 확인
         assertThatThrownBy(() -> articleService.create(request))
@@ -253,8 +266,6 @@ class ArticleServiceTest {
         when(currentUserService.getUserId()).thenReturn(2L);
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
-        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
-            .thenReturn(false);
         when(htmlSanitizer.sanitize("content")).thenReturn("content");
 
         FileClassEntity fileClass = createFileClass(FileClassCode.ARTICLE_CONTENT_IMAGE);
@@ -412,8 +423,6 @@ class ArticleServiceTest {
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
         when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
-        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
-            .thenReturn(false);
         when(articleReactionRepository.upsertToggleReaction(2L, 10L, (short) 1)).thenReturn((short) 1);
         when(articleReactionRepository.countByArticleIdAndReactionType(10L, (short) 1)).thenReturn(5L);
         when(articleReactionRepository.countByArticleIdAndReactionType(10L, (short) -1)).thenReturn(2L);
