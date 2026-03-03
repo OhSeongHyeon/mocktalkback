@@ -14,13 +14,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.mocktalkback.domain.realtime.config.RealtimeRedisProperties;
+
 class NotificationRealtimeSseServiceTest {
 
     // 구독 생성 시 사용자별 emitter 레지스트리에 연결이 등록되어야 한다.
     @Test
     void subscribe_registers_emitter_for_user() {
         // Given: 알림 SSE 서비스
-        NotificationRealtimeSseService service = new NotificationRealtimeSseService();
+        NotificationRealtimeSseService service = createService();
 
         // When: 사용자 알림 스트림을 구독
         SseEmitter emitter = service.subscribe(10L, null);
@@ -35,7 +37,7 @@ class NotificationRealtimeSseServiceTest {
     @Test
     void subscribe_over_limit_evicts_previous_emitter() {
         // Given: 알림 SSE 서비스
-        NotificationRealtimeSseService service = new NotificationRealtimeSseService();
+        NotificationRealtimeSseService service = createService();
 
         // When: 동일 사용자로 3회 구독
         service.subscribe(20L, null);
@@ -51,7 +53,7 @@ class NotificationRealtimeSseServiceTest {
     @Test
     void publish_unread_count_changed_on_send_failure_completes_emitter() throws IOException {
         // Given: 전송 시 예외가 발생하는 emitter
-        NotificationRealtimeSseService service = new NotificationRealtimeSseService();
+        NotificationRealtimeSseService service = createService();
         SseEmitter emitter = mock(SseEmitter.class);
         doThrow(new IOException("send failed")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
 
@@ -70,7 +72,7 @@ class NotificationRealtimeSseServiceTest {
     @Test
     void publish_without_subscriber_does_not_throw() {
         // Given: 구독자가 없는 SSE 서비스
-        NotificationRealtimeSseService service = new NotificationRealtimeSseService();
+        NotificationRealtimeSseService service = createService();
 
         // When & Then: 이벤트 발행 시 예외가 발생하지 않음
         assertThatCode(() -> service.publishUnreadCountChanged(999L, 1L))
@@ -84,5 +86,10 @@ class NotificationRealtimeSseServiceTest {
         Object field = ReflectionTestUtils.getField(service, "userEmitters");
         assertThat(field).isInstanceOf(ConcurrentHashMap.class);
         return (ConcurrentHashMap<Long, ConcurrentHashMap<String, SseEmitter>>) field;
+    }
+
+    private NotificationRealtimeSseService createService() {
+        RealtimeRedisPublisher redisPublisher = mock(RealtimeRedisPublisher.class);
+        return new NotificationRealtimeSseService(redisPublisher, RealtimeRedisProperties.defaults());
     }
 }
