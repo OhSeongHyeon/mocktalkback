@@ -24,10 +24,12 @@ import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.entity.QCommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
+import com.mocktalkback.domain.common.policy.RoleEvaluator;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.mapper.FileMapper;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.search.dto.ArticleSearchResponse;
 import com.mocktalkback.domain.search.dto.BoardSearchResponse;
 import com.mocktalkback.domain.search.dto.CommentSearchResponse;
@@ -60,6 +62,9 @@ public class SearchService {
     private final ArticleReactionRepository articleReactionRepository;
     private final SearchNativeQueryExecutor searchNativeQueryExecutor;
     private final FileMapper fileMapper;
+    private final RoleEvaluator roleEvaluator;
+    private final PageNormalizer pageNormalizer;
+    private final AuthorDisplayResolver authorDisplayResolver;
 
     @Transactional(readOnly = true)
     public SearchResponse search(
@@ -71,8 +76,8 @@ public class SearchService {
         String boardSlug
     ) {
         String normalized = normalizeKeyword(keyword);
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page, DEFAULT_PAGE);
+        int resolvedSize = pageNormalizer.normalizeSize(size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
         SearchUserContext context = resolveUserContext();
         SearchType resolvedType = type == null ? SearchType.ALL : type;
         SortOrder resolvedOrder = order == null ? SortOrder.LATEST : order;
@@ -593,7 +598,7 @@ public class SearchService {
             entity.getBoard().getSlug(),
             entity.getBoard().getBoardName(),
             entity.getUser().getId(),
-            resolveAuthorName(entity.getUser()),
+            authorDisplayResolver.resolveAuthorName(entity.getUser()),
             entity.getTitle(),
             entity.getHit(),
             commentCounts.getOrDefault(entity.getId(), 0L),
@@ -615,18 +620,10 @@ public class SearchService {
             board.getSlug(),
             board.getBoardName(),
             entity.getUser().getId(),
-            resolveAuthorName(entity.getUser()),
+            authorDisplayResolver.resolveAuthorName(entity.getUser()),
             entity.getContent(),
             entity.getCreatedAt()
         );
-    }
-
-    private String resolveAuthorName(UserEntity user) {
-        String displayName = user.getDisplayName();
-        if (displayName != null && !displayName.isBlank()) {
-            return displayName;
-        }
-        return user.getUserName();
     }
 
     private SearchUserContext resolveUserContext() {
@@ -638,12 +635,7 @@ public class SearchService {
     private SearchUserContext loadUserContext(Long userId) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "user not found"));
-        return new SearchUserContext(userId, isManagerOrAdmin(user));
-    }
-
-    private boolean isManagerOrAdmin(UserEntity user) {
-        String roleName = user.getRole().getRoleName();
-        return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
+        return new SearchUserContext(userId, roleEvaluator.isManagerOrAdmin(user));
     }
 
     private String normalizeKeyword(String keyword) {
@@ -651,22 +643,6 @@ public class SearchService {
             throw new IllegalArgumentException("검색어를 입력해주세요.");
         }
         return keyword.trim();
-    }
-
-    private int normalizePage(Integer page) {
-        int resolvedPage = page == null ? DEFAULT_PAGE : page;
-        if (resolvedPage < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return resolvedPage;
-    }
-
-    private int normalizeSize(Integer size) {
-        int resolvedSize = size == null ? DEFAULT_PAGE_SIZE : size;
-        if (resolvedSize <= 0 || resolvedSize > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return resolvedSize;
     }
 
     private record ReactionCounts(long likeCount, long dislikeCount) {

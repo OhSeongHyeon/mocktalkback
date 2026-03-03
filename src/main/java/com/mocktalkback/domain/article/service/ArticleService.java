@@ -1,6 +1,5 @@
 package com.mocktalkback.domain.article.service;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -49,10 +48,11 @@ import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
-import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
-import com.mocktalkback.domain.board.type.BoardRole;
-import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.BoardAccessPolicy;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
+import com.mocktalkback.domain.common.policy.SanctionGuard;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.entity.FileVariantEntity;
@@ -62,11 +62,8 @@ import com.mocktalkback.domain.file.repository.FileVariantRepository;
 import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.TemporaryFilePolicy;
 import com.mocktalkback.domain.file.type.FileClassCode;
-import com.mocktalkback.domain.moderation.repository.SanctionRepository;
-import com.mocktalkback.domain.moderation.type.SanctionScopeType;
 import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.role.type.ContentVisibility;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -108,8 +105,11 @@ public class ArticleService {
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final HtmlSanitizer htmlSanitizer;
-    private final SanctionRepository sanctionRepository;
     private final BoardRealtimeSseService boardRealtimeSseService;
+    private final BoardAccessPolicy boardAccessPolicy;
+    private final SanctionGuard sanctionGuard;
+    private final PageNormalizer pageNormalizer;
+    private final AuthorDisplayResolver authorDisplayResolver;
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
@@ -122,11 +122,11 @@ public class ArticleService {
         UserEntity user = getUser(actorUserId);
         BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(actorUserId, board.getId())
             .orElse(null);
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
-        requireCanWrite(board, user, member);
-        requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
+        boardAccessPolicy.requireCanWrite(board, user, member);
+        sanctionGuard.requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
         ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), board);
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         ArticleCreateRequest sanitizedRequest = new ArticleCreateRequest(
@@ -158,11 +158,11 @@ public class ArticleService {
             ? null
             : boardMemberRepository.findByUserIdAndBoardId(userId, board.getId()).orElse(null);
 
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
 
-        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        EnumSet<ContentVisibility> allowed = boardAccessPolicy.resolveAllowedVisibilities(board, user, member);
         if (!allowed.contains(article.getVisibility())) {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
@@ -190,7 +190,7 @@ public class ArticleService {
             article.getId(),
             boardResponse,
             article.getUser().getId(),
-            resolveAuthorName(article.getUser()),
+            authorDisplayResolver.resolveAuthorName(article.getUser()),
             article.getVisibility(),
             article.getTitle(),
             article.getContent(),
@@ -211,7 +211,7 @@ public class ArticleService {
     public ArticleBookmarkStatusResponse bookmark(Long articleId) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getArticleForReaction(articleId, user);
-        requireNotSanctioned(user, article.getBoard(), "제재 상태라 북마크를 변경할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 북마크를 변경할 수 없습니다.");
 
         if (articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), article.getId())) {
             return new ArticleBookmarkStatusResponse(article.getId(), true);
@@ -229,7 +229,7 @@ public class ArticleService {
     public ArticleBookmarkStatusResponse unbookmark(Long articleId) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getArticleForReaction(articleId, user);
-        requireNotSanctioned(user, article.getBoard(), "제재 상태라 북마크를 변경할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 북마크를 변경할 수 없습니다.");
         if (!articleBookmarkRepository.existsByUserIdAndArticleId(user.getId(), articleId)) {
             return new ArticleBookmarkStatusResponse(articleId, false);
         }
@@ -250,7 +250,7 @@ public class ArticleService {
 
         UserEntity user = getCurrentUser();
         ArticleEntity article = getArticleForReaction(articleId, user);
-        requireNotSanctioned(user, article.getBoard(), "제재 상태라 게시글에 반응할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 게시글에 반응할 수 없습니다.");
 
         short myReaction = articleReactionRepository.upsertToggleReaction(
             user.getId(),
@@ -284,7 +284,7 @@ public class ArticleService {
             ? null
             : boardMemberRepository.findByUserIdAndBoardId(userId, boardId).orElse(null);
 
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
 
@@ -302,8 +302,8 @@ public class ArticleService {
         Long categoryId,
         boolean uncategorized
     ) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         Sort sort = resolveArticleSort(order);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, sort);
 
@@ -318,11 +318,11 @@ public class ArticleService {
             ? null
             : boardMemberRepository.findByUserIdAndBoardId(userId, boardId).orElse(null);
 
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
 
-        EnumSet<ContentVisibility> visibilities = resolveAllowedVisibilities(board, user, member);
+        EnumSet<ContentVisibility> visibilities = boardAccessPolicy.resolveAllowedVisibilities(board, user, member);
         if (visibilities.isEmpty()) {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
@@ -383,7 +383,7 @@ public class ArticleService {
         ArticleEntity entity = articleRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("article not found: " + id));
         UserEntity user = getCurrentUser();
-        requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
         ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), entity.getBoard());
         String sanitizedContent = htmlSanitizer.sanitize(request.content());
         entity.update(category, request.visibility(), request.title(), sanitizedContent, request.notice());
@@ -396,7 +396,7 @@ public class ArticleService {
         ArticleEntity entity = articleRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
         UserEntity user = getCurrentUser();
-        requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 삭제할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 삭제할 수 없습니다.");
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
@@ -419,11 +419,11 @@ public class ArticleService {
             ? null
             : boardMemberRepository.findByUserIdAndBoardId(userId, board.getId()).orElse(null);
 
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
 
-        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        EnumSet<ContentVisibility> allowed = boardAccessPolicy.resolveAllowedVisibilities(board, user, member);
         if (!allowed.contains(article.getVisibility())) {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
@@ -626,118 +626,11 @@ public class ArticleService {
         return category;
     }
 
-    private boolean canAccessBoard(BoardEntity board, UserEntity user, BoardMemberEntity member) {
-        BoardVisibility visibility = board.getVisibility();
-        if (user == null) {
-            return visibility == BoardVisibility.PUBLIC;
-        }
-        if (isManagerOrAdmin(user)) {
-            return true;
-        }
-        if (member != null && member.getBoardRole() == BoardRole.BANNED) {
-            return false;
-        }
-        if (visibility == BoardVisibility.PUBLIC || visibility == BoardVisibility.GROUP) {
-            return true;
-        }
-        if (visibility == BoardVisibility.PRIVATE) {
-            return member != null && member.getBoardRole() == BoardRole.OWNER;
-        }
-        return false;
-    }
-
-    private void requireCanWrite(BoardEntity board, UserEntity user, BoardMemberEntity member) {
-        if (isManagerOrAdmin(user)) {
-            return;
-        }
-        if (member != null && member.getBoardRole() == BoardRole.PENDING) {
-            throw new AccessDeniedException("가입 승인 후 글쓰기가 가능합니다.");
-        }
-
-        BoardArticleWritePolicy policy = board.getArticleWritePolicy();
-        if (policy == null || policy == BoardArticleWritePolicy.ALL_AUTHENTICATED) {
-            return;
-        }
-
-        BoardRole role = member == null ? null : member.getBoardRole();
-        if (policy == BoardArticleWritePolicy.MEMBER && isActiveMember(member)) {
-            return;
-        }
-        if (policy == BoardArticleWritePolicy.MODERATOR && (role == BoardRole.OWNER || role == BoardRole.MODERATOR)) {
-            return;
-        }
-        if (policy == BoardArticleWritePolicy.OWNER && role == BoardRole.OWNER) {
-            return;
-        }
-        throw new AccessDeniedException("게시글 작성 권한이 없습니다.");
-    }
-
-    private EnumSet<ContentVisibility> resolveAllowedVisibilities(
-        BoardEntity board,
-        UserEntity user,
-        BoardMemberEntity member
-    ) {
-        if (user == null) {
-            return EnumSet.of(ContentVisibility.PUBLIC);
-        }
-        if (isManagerOrAdmin(user)) {
-            return EnumSet.allOf(ContentVisibility.class);
-        }
-        BoardVisibility visibility = board.getVisibility();
-        if (visibility == BoardVisibility.UNLISTED) {
-            return EnumSet.noneOf(ContentVisibility.class);
-        }
-        if (visibility == BoardVisibility.PRIVATE) {
-            if (member != null && member.getBoardRole() == BoardRole.OWNER) {
-                return EnumSet.of(ContentVisibility.PUBLIC, ContentVisibility.MEMBERS, ContentVisibility.MODERATORS);
-            }
-            return EnumSet.noneOf(ContentVisibility.class);
-        }
-        EnumSet<ContentVisibility> allowed = EnumSet.of(ContentVisibility.PUBLIC);
-        if (visibility == BoardVisibility.PUBLIC) {
-            allowed.add(ContentVisibility.MEMBERS);
-        }
-        if (visibility == BoardVisibility.GROUP && isActiveMember(member)) {
-            allowed.add(ContentVisibility.MEMBERS);
-        }
-        if (member != null && (member.getBoardRole() == BoardRole.OWNER || member.getBoardRole() == BoardRole.MODERATOR)) {
-            allowed.add(ContentVisibility.MODERATORS);
-        }
-        return allowed;
-    }
-
-    private boolean isActiveMember(BoardMemberEntity member) {
-        if (member == null) {
-            return false;
-        }
-        BoardRole role = member.getBoardRole();
-        return role == BoardRole.OWNER || role == BoardRole.MODERATOR || role == BoardRole.MEMBER;
-    }
-
-    private boolean isManagerOrAdmin(UserEntity user) {
-        String roleName = user.getRole().getRoleName();
-        return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
-    }
-
-    private void requireNotSanctioned(UserEntity user, BoardEntity board, String message) {
-        Instant now = Instant.now();
-        boolean sanctioned = sanctionRepository.existsActiveSanction(
-            user.getId(),
-            SanctionScopeType.GLOBAL,
-            SanctionScopeType.BOARD,
-            board.getId(),
-            now
-        );
-        if (sanctioned) {
-            throw new AccessDeniedException(message);
-        }
-    }
-
     private void requireOwnership(UserEntity user, ArticleEntity entity) {
         if (entity.getUser().getId().equals(user.getId())) {
             return;
         }
-        if (isManagerOrAdmin(user)) {
+        if (boardAccessPolicy.isManagerOrAdmin(user)) {
             return;
         }
         throw new AccessDeniedException("게시글 삭제 권한이 없습니다.");
@@ -836,11 +729,11 @@ public class ArticleService {
             .findByUserIdAndBoardId(user.getId(), board.getId())
             .orElse(null);
 
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
 
-        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        EnumSet<ContentVisibility> allowed = boardAccessPolicy.resolveAllowedVisibilities(board, user, member);
         if (!allowed.contains(article.getVisibility())) {
             throw new AccessDeniedException("게시글 반응 권한이 없습니다.");
         }
@@ -878,7 +771,7 @@ public class ArticleService {
                 article.getId(),
                 article.getBoard().getId(),
                 article.getUser().getId(),
-                resolveAuthorName(article.getUser()),
+                authorDisplayResolver.resolveAuthorName(article.getUser()),
                 article.getTitle(),
                 article.getHit(),
                 commentCounts.getOrDefault(article.getId(), 0L),
@@ -888,28 +781,6 @@ public class ArticleService {
                 article.getCreatedAt()
             ))
             .toList();
-    }
-
-    private String resolveAuthorName(UserEntity user) {
-        String displayName = user.getDisplayName();
-        if (displayName != null && !displayName.isBlank()) {
-            return displayName;
-        }
-        return user.getUserName();
-    }
-
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
     }
 
     private Sort resolveArticleSort(SortOrder order) {

@@ -1,8 +1,6 @@
 package com.mocktalkback.domain.comment.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -26,7 +25,11 @@ import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentReactionRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
-import com.mocktalkback.domain.moderation.repository.SanctionRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.BoardAccessPolicy;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
+import com.mocktalkback.domain.common.policy.RoleEvaluator;
+import com.mocktalkback.domain.common.policy.SanctionGuard;
 import com.mocktalkback.domain.notification.service.NotificationService;
 import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.role.entity.RoleEntity;
@@ -60,13 +63,25 @@ class CommentServiceTest {
     private NotificationService notificationService;
 
     @Mock
-    private SanctionRepository sanctionRepository;
+    private SanctionGuard sanctionGuard;
 
     @Mock
     private BoardRealtimeSseService boardRealtimeSseService;
 
     @Mock
     private ArticleSyncVersionService articleSyncVersionService;
+
+    @Spy
+    private RoleEvaluator roleEvaluator = new RoleEvaluator();
+
+    @Spy
+    private BoardAccessPolicy boardAccessPolicy = new BoardAccessPolicy(roleEvaluator);
+
+    @Spy
+    private PageNormalizer pageNormalizer = new PageNormalizer();
+
+    @Spy
+    private AuthorDisplayResolver authorDisplayResolver = new AuthorDisplayResolver();
 
     @InjectMocks
     private CommentService commentService;
@@ -85,8 +100,6 @@ class CommentServiceTest {
         when(commentRepository.findById(100L)).thenReturn(Optional.of(comment));
         when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
         when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
-        when(sanctionRepository.existsActiveSanction(anyLong(), any(), any(), anyLong(), any()))
-            .thenReturn(false);
         when(commentReactionRepository.upsertToggleReaction(2L, 100L, (short) 1)).thenReturn((short) 1);
         when(commentReactionRepository.countByCommentIdAndReactionType(100L, (short) 1)).thenReturn(3L);
         when(commentReactionRepository.countByCommentIdAndReactionType(100L, (short) -1)).thenReturn(1L);
