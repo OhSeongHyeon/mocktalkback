@@ -6,16 +6,14 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.mocktalkback.domain.comment.entity.CommentEntity;
-import com.mocktalkback.domain.moderation.type.ReportTargetType;
 import com.mocktalkback.domain.user.dto.MyCommentItemResponse;
 
-public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
+public interface CommentRepository extends JpaRepository<CommentEntity, Long>, CommentRepositoryCustom {
     Page<CommentEntity> findByUserId(Long userId, Pageable pageable);
 
     @Query("""
@@ -81,41 +79,6 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
         where c.id in :commentIds
         """)
     List<CommentArticleView> findArticleIdsByCommentIds(@Param("commentIds") Collection<Long> commentIds);
-
-    @EntityGraph(attributePaths = {"user", "article"})
-    @Query("""
-        select c
-        from CommentEntity c
-        join c.article a
-        join c.user u
-        where a.board.id = :boardId
-          and c.deletedAt is null
-          and (:authorId is null or u.id = :authorId)
-          and (
-            :reported is null
-            or (:reported = true and exists (
-              select 1
-              from ReportEntity r
-              where r.board.id = :boardId
-                and r.targetType = :targetType
-                and r.targetId = c.id
-            ))
-            or (:reported = false and not exists (
-              select 1
-              from ReportEntity r
-              where r.board.id = :boardId
-                and r.targetType = :targetType
-                and r.targetId = c.id
-            ))
-          )
-        """)
-    Page<CommentEntity> findAdminBoardComments(
-        @Param("boardId") Long boardId,
-        @Param("authorId") Long authorId,
-        @Param("reported") Boolean reported,
-        @Param("targetType") ReportTargetType targetType,
-        Pageable pageable
-    );
 
     interface CommentCountView {
         Long getArticleId();

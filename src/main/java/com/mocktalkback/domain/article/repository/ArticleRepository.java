@@ -12,11 +12,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.moderation.type.ReportTargetType;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.dto.MyArticleItemResponse;
 
-public interface ArticleRepository extends JpaRepository<ArticleEntity, Long> {
+public interface ArticleRepository extends JpaRepository<ArticleEntity, Long>, ArticleRepositoryCustom {
     Page<ArticleEntity> findByUserId(Long userId, Pageable pageable);
 
     @Query("""
@@ -106,42 +105,6 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long> {
     List<ArticleTitleView> findTitlesByIdIn(@Param("articleIds") Collection<Long> articleIds);
 
     boolean existsByCategoryIdAndDeletedAtIsNull(Long categoryId);
-
-    @EntityGraph(attributePaths = {"user"})
-    @Query("""
-        select a
-        from ArticleEntity a
-        join a.user u
-        where a.board.id = :boardId
-          and a.deletedAt is null
-          and (:authorId is null or u.id = :authorId)
-          and (:notice is null or a.notice = :notice)
-          and (
-            :reported is null
-            or (:reported = true and exists (
-              select 1
-              from ReportEntity r
-              where r.board.id = :boardId
-                and r.targetType = :targetType
-                and r.targetId = a.id
-            ))
-            or (:reported = false and not exists (
-              select 1
-              from ReportEntity r
-              where r.board.id = :boardId
-                and r.targetType = :targetType
-                and r.targetId = a.id
-            ))
-          )
-        """)
-    Page<ArticleEntity> findAdminBoardArticles(
-        @Param("boardId") Long boardId,
-        @Param("authorId") Long authorId,
-        @Param("notice") Boolean notice,
-        @Param("reported") Boolean reported,
-        @Param("targetType") ReportTargetType targetType,
-        Pageable pageable
-    );
 
     interface ArticleTitleView {
         Long getId();
