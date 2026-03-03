@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -22,6 +23,8 @@ import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.notification.entity.NotificationEntity;
 import com.mocktalkback.domain.notification.repository.NotificationRepository;
 import com.mocktalkback.domain.realtime.service.NotificationPresenceService;
@@ -51,6 +54,12 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationRealtimeSseService notificationRealtimeSseService;
+
+    @Spy
+    private PageNormalizer pageNormalizer = new PageNormalizer();
+
+    @Spy
+    private AuthorDisplayResolver authorDisplayResolver = new AuthorDisplayResolver();
 
     @InjectMocks
     private NotificationService notificationService;

@@ -15,14 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.board.entity.BoardEntity;
-import com.mocktalkback.domain.board.entity.BoardMemberEntity;
-import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
-import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
+import com.mocktalkback.domain.common.policy.RoleEvaluator;
 import com.mocktalkback.domain.moderation.dto.AdminAuditLogResponse;
 import com.mocktalkback.domain.moderation.dto.ReportCreateRequest;
 import com.mocktalkback.domain.moderation.dto.ReportDetailResponse;
@@ -37,12 +36,12 @@ import com.mocktalkback.domain.moderation.entity.SanctionEntity;
 import com.mocktalkback.domain.moderation.repository.AdminAuditLogRepository;
 import com.mocktalkback.domain.moderation.repository.ReportRepository;
 import com.mocktalkback.domain.moderation.repository.SanctionRepository;
+import com.mocktalkback.domain.moderation.policy.BoardAdminPermissionGuard;
 import com.mocktalkback.domain.moderation.type.AdminActionType;
 import com.mocktalkback.domain.moderation.type.AdminTargetType;
 import com.mocktalkback.domain.moderation.type.ReportTargetType;
 import com.mocktalkback.domain.moderation.type.ReportStatus;
 import com.mocktalkback.domain.moderation.type.SanctionScopeType;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -76,8 +75,10 @@ public class ModerationService {
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
     private final BoardRepository boardRepository;
-    private final BoardMemberRepository boardMemberRepository;
     private final CurrentUserService currentUserService;
+    private final BoardAdminPermissionGuard boardAdminPermissionGuard;
+    private final RoleEvaluator roleEvaluator;
+    private final PageNormalizer pageNormalizer;
 
     @Transactional(readOnly = true)
     public PageResponse<ReportListItemResponse> getAdminReports(ReportStatus status, int page, int size) {
@@ -628,34 +629,19 @@ public class ModerationService {
     }
 
     private void requireAdmin(UserEntity actor) {
-        if (!RoleNames.ADMIN.equals(actor.getRole().getRoleName())) {
+        if (!roleEvaluator.isAdmin(actor)) {
             throw new AccessDeniedException("사이트 관리자 권한이 없습니다.");
         }
     }
 
     private void requireBoardAdmin(UserEntity actor, BoardEntity board) {
-        if (RoleNames.ADMIN.equals(actor.getRole().getRoleName())) {
-            return;
-        }
-        BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(actor.getId(), board.getId())
-            .orElse(null);
-        if (member == null) {
-            throw new AccessDeniedException("게시판 관리자 권한이 없습니다.");
-        }
-        BoardRole role = member.getBoardRole();
-        if (role != BoardRole.OWNER && role != BoardRole.MODERATOR) {
-            throw new AccessDeniedException("게시판 관리자 권한이 없습니다.");
-        }
+        boardAdminPermissionGuard.requireBoardAdmin(actor, board);
     }
 
     private Pageable toPageable(int page, int size, Sort sort) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return PageRequest.of(page, size, sort);
+        int normalizedPage = pageNormalizer.normalizePage(page);
+        int normalizedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
+        return PageRequest.of(normalizedPage, normalizedSize, sort);
     }
 
     private String buildArticleSnapshot(ArticleEntity article) {

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -22,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
@@ -74,6 +76,9 @@ class UserServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Spy
+    private PageNormalizer pageNormalizer = new PageNormalizer();
 
     @InjectMocks
     private UserService userService;
