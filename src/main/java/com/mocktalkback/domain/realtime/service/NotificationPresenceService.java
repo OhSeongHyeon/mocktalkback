@@ -109,9 +109,36 @@ public class NotificationPresenceService {
             if (presence.notificationPanelOpen()) {
                 return true;
             }
-            if (articleId != null
-                && presence.viewType() == NotificationPresenceViewType.ARTICLE_DETAIL
-                && articleId.equals(presence.articleId())) {
+            if (isArticleDetailPresence(presence.viewType(), presence.articleId(), articleId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isViewingArticleDetail(Long userId, Long articleId) {
+        if (articleId == null) {
+            return false;
+        }
+
+        Boolean redisResult = tryRedisIsViewingArticleDetail(userId, articleId);
+        if (redisResult != null) {
+            return redisResult;
+        }
+
+        ConcurrentHashMap<String, PresenceState> presences = userPresences.get(userId);
+        if (presences == null || presences.isEmpty()) {
+            return false;
+        }
+
+        cleanupExpiredInMemory(presences);
+        if (presences.isEmpty()) {
+            userPresences.remove(userId);
+            return false;
+        }
+
+        for (PresenceState presence : presences.values()) {
+            if (isArticleDetailPresence(presence.viewType(), presence.articleId(), articleId)) {
                 return true;
             }
         }
@@ -211,13 +238,49 @@ public class NotificationPresenceService {
             if (presence.notificationPanelOpen()) {
                 return true;
             }
-            if (articleId != null
-                && presence.viewType() == NotificationPresenceViewType.ARTICLE_DETAIL
-                && articleId.equals(presence.articleId())) {
+            if (isArticleDetailPresence(presence.viewType(), presence.articleId(), articleId)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private Boolean tryRedisIsViewingArticleDetail(Long userId, Long articleId) {
+        if (!isRedisPresenceEnabled()) {
+            return null;
+        }
+        try {
+            return isViewingArticleDetailFromRedis(userId, articleId);
+        } catch (Exception ex) {
+            if (!isFallbackEnabled()) {
+                throw new IllegalStateException("알림 presence Redis 조회에 실패했습니다.", ex);
+            }
+            log.warn("알림 presence Redis 조회 실패로 메모리 fallback을 사용합니다. userId={}", userId, ex);
+            return null;
+        }
+    }
+
+    private boolean isViewingArticleDetailFromRedis(Long userId, Long articleId) {
+        List<RedisPresenceState> presences = notificationPresenceRedisStore.findByUserId(userId);
+        if (presences.isEmpty()) {
+            return false;
+        }
+        for (RedisPresenceState presence : presences) {
+            if (isArticleDetailPresence(presence.viewType(), presence.articleId(), articleId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isArticleDetailPresence(
+        NotificationPresenceViewType viewType,
+        Long currentArticleId,
+        Long targetArticleId
+    ) {
+        return targetArticleId != null
+            && viewType == NotificationPresenceViewType.ARTICLE_DETAIL
+            && targetArticleId.equals(currentArticleId);
     }
 
     private boolean isRedisPresenceEnabled() {

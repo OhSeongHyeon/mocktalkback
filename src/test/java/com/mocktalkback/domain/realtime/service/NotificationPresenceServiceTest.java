@@ -60,6 +60,36 @@ class NotificationPresenceServiceTest {
         assertThat(suppressed).isFalse();
     }
 
+    // 동일 게시글 상세를 보고 있으면 article 상세 열람 상태로 판단해야 한다.
+    @Test
+    void should_detect_viewing_same_article_detail() {
+        // Given: 게시글 상세 화면 presence가 기록된 사용자
+        MutableClock clock = new MutableClock(Instant.parse("2026-02-11T12:00:00Z"));
+        NotificationPresenceService service = createService(clock);
+        service.upsert(4L, request("session-d", NotificationPresenceViewType.ARTICLE_DETAIL, 77L, false));
+
+        // When: 동일 게시글 상세 열람 여부를 확인
+        boolean viewing = service.isViewingArticleDetail(4L, 77L);
+
+        // Then: 동일 게시글 상세 열람으로 판단되어야 함
+        assertThat(viewing).isTrue();
+    }
+
+    // 게시글 상세가 아닌 화면에서는 article 상세 열람 상태로 판단하지 않아야 한다.
+    @Test
+    void should_not_detect_viewing_article_detail_when_view_type_is_other() {
+        // Given: OTHER 화면 presence가 기록된 사용자
+        MutableClock clock = new MutableClock(Instant.parse("2026-02-11T12:00:00Z"));
+        NotificationPresenceService service = createService(clock);
+        service.upsert(5L, request("session-e", NotificationPresenceViewType.OTHER, 77L, true));
+
+        // When: 게시글 상세 열람 여부를 확인
+        boolean viewing = service.isViewingArticleDetail(5L, 77L);
+
+        // Then: 게시글 상세 열람으로 보지 않아야 함
+        assertThat(viewing).isFalse();
+    }
+
     private NotificationPresenceUpdateRequest request(
         String sessionId,
         NotificationPresenceViewType viewType,
