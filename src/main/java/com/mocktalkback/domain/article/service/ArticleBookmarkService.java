@@ -25,6 +25,8 @@ import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository.ArticleReactionCountView;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -49,6 +51,8 @@ public class ArticleBookmarkService {
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final ArticleMapper articleMapper;
+    private final PageNormalizer pageNormalizer;
+    private final AuthorDisplayResolver authorDisplayResolver;
 
     @Transactional
     public ArticleBookmarkResponse create(ArticleBookmarkCreateRequest request) {
@@ -75,8 +79,8 @@ public class ArticleBookmarkService {
 
     @Transactional(readOnly = true)
     public PageResponse<ArticleBookmarkItemResponse> findMyBookmarks(int page, int size) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, BOOKMARK_SORT);
 
         Long userId = currentUserService.getUserId();
@@ -95,7 +99,7 @@ public class ArticleBookmarkService {
                 article.getBoard().getId(),
                 article.getBoard().getSlug(),
                 article.getUser().getId(),
-                resolveAuthorName(article.getUser()),
+                authorDisplayResolver.resolveAuthorName(article.getUser()),
                 article.getTitle(),
                 article.getHit(),
                 commentCounts.getOrDefault(article.getId(), 0L),
@@ -176,28 +180,6 @@ public class ArticleBookmarkService {
             }
         }
         return counts;
-    }
-
-    private String resolveAuthorName(UserEntity user) {
-        String displayName = user.getDisplayName();
-        if (displayName != null && !displayName.isBlank()) {
-            return displayName;
-        }
-        return user.getUserName();
-    }
-
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
     }
 
     private record ReactionCounts(long likeCount, long dislikeCount) {

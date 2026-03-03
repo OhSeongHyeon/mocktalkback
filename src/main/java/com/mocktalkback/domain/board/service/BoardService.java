@@ -31,6 +31,9 @@ import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
 import com.mocktalkback.domain.board.repository.BoardSubscribeRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.BoardAccessPolicy;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.file.dto.FileResponse;
@@ -46,7 +49,6 @@ import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -83,6 +85,9 @@ public class BoardService {
     private final CurrentUserService currentUserService;
     private final BoardMapper boardMapper;
     private final FileMapper fileMapper;
+    private final BoardAccessPolicy boardAccessPolicy;
+    private final PageNormalizer pageNormalizer;
+    private final AuthorDisplayResolver authorDisplayResolver;
 
     @Transactional
     public BoardResponse create(BoardCreateRequest request) {
@@ -121,8 +126,8 @@ public class BoardService {
 
     @Transactional(readOnly = true)
     public PageResponse<BoardResponse> findAll(int page, int size) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, BOARD_SORT);
 
         Long userId = currentUserService.getOptionalUserId().orElse(null);
@@ -135,7 +140,7 @@ public class BoardService {
         }
 
         UserEntity user = getUser(userId);
-        if (isManagerOrAdmin(user)) {
+        if (boardAccessPolicy.isManagerOrAdmin(user)) {
             Page<BoardEntity> result = boardRepository.findAllByDeletedAtIsNull(pageable);
             return toPageResponse(result);
         }
@@ -153,8 +158,8 @@ public class BoardService {
 
     @Transactional(readOnly = true)
     public PageResponse<BoardSubscribeItemResponse> findSubscribes(int page, int size) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, BOARD_SUBSCRIBE_SORT);
 
         Long userId = currentUserService.getUserId();
@@ -360,7 +365,7 @@ public class BoardService {
         FileResponse boardImage = resolveBoardImage(board.getId());
         BoardMemberEntity ownerMember = boardMemberRepository.findFirstByBoardIdAndBoardRole(board.getId(), BoardRole.OWNER)
             .orElse(null);
-        String ownerDisplayName = formatOwnerDisplay(ownerMember == null ? null : ownerMember.getUser());
+        String ownerDisplayName = authorDisplayResolver.formatOwnerDisplay(ownerMember == null ? null : ownerMember.getUser());
 
         BoardRole memberStatus = null;
         boolean subscribed = false;
@@ -376,44 +381,10 @@ public class BoardService {
         return boardMapper.toDetailResponse(board, boardImage, ownerDisplayName, memberStatus, subscribed);
     }
 
-    private String formatOwnerDisplay(UserEntity user) {
-        if (user == null) {
-            return null;
-        }
-        String displayName = user.getDisplayName() == null ? "" : user.getDisplayName().trim();
-        String handle = user.getHandle() == null ? "" : user.getHandle().trim();
-        if (displayName.isEmpty() && handle.isEmpty()) {
-            return null;
-        }
-        if (handle.isEmpty()) {
-            return displayName;
-        }
-        if (displayName.isEmpty()) {
-            return "@" + handle;
-        }
-        return displayName + "@" + handle;
-    }
-
     private boolean canReadBoard(BoardEntity board, UserEntity user, Long userId) {
-        if (isManagerOrAdmin(user)) {
-            return true;
-        }
-        BoardVisibility visibility = board.getVisibility();
-        if (visibility == BoardVisibility.PUBLIC) {
-            return true;
-        }
         BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(userId, board.getId())
             .orElse(null);
-        if (member != null && member.getBoardRole() == BoardRole.BANNED) {
-            return false;
-        }
-        if (visibility == BoardVisibility.GROUP) {
-            return true;
-        }
-        if (visibility == BoardVisibility.PRIVATE) {
-            return member != null && member.getBoardRole() == BoardRole.OWNER;
-        }
-        return false;
+        return boardAccessPolicy.canAccessBoard(board, user, member);
     }
 
     private PageResponse<BoardResponse> toPageResponse(Page<BoardEntity> page) {
@@ -521,47 +492,14 @@ public class BoardService {
     }
 
     private void requireManagePermission(BoardEntity board, UserEntity user, Long userId) {
-        if (isManagerOrAdmin(user)) {
-            return;
-        }
         BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(userId, board.getId())
             .orElse(null);
-        if (member == null || member.getBoardRole() != BoardRole.OWNER) {
-            throw new AccessDeniedException("게시판 관리 권한이 없습니다.");
-        }
+        boardAccessPolicy.requireManagePermission(user, member, "게시판 관리 권한이 없습니다.");
     }
 
     private void requireApprovePermission(BoardEntity board, UserEntity user, Long userId) {
-        if (isManagerOrAdmin(user)) {
-            return;
-        }
         BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(userId, board.getId())
             .orElse(null);
-        if (member == null) {
-            throw new AccessDeniedException("가입 승인 권한이 없습니다.");
-        }
-        BoardRole role = member.getBoardRole();
-        if (role != BoardRole.OWNER && role != BoardRole.MODERATOR) {
-            throw new AccessDeniedException("가입 승인 권한이 없습니다.");
-        }
-    }
-
-    private boolean isManagerOrAdmin(UserEntity user) {
-        String roleName = user.getRole().getRoleName();
-        return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
-    }
-
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
+        boardAccessPolicy.requireApprovePermission(user, member, "가입 승인 권한이 없습니다.");
     }
 }

@@ -38,6 +38,7 @@ import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.moderation.dto.AdminBoardCreateRequest;
 import com.mocktalkback.domain.moderation.dto.AdminBoardUpdateRequest;
 import com.mocktalkback.domain.moderation.type.AdminBoardSortBy;
@@ -65,6 +66,7 @@ public class AdminBoardService {
     private final CurrentUserService currentUserService;
     private final BoardMapper boardMapper;
     private final FileMapper fileMapper;
+    private final PageNormalizer pageNormalizer;
 
     @Transactional(readOnly = true)
     public PageResponse<BoardResponse> findBoards(
@@ -248,16 +250,12 @@ public class AdminBoardService {
     }
 
     private Pageable toPageable(int page, int size, boolean sortAsc, AdminBoardSortBy sortBy) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
+        int normalizedPage = pageNormalizer.normalizePage(page);
+        int normalizedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         String sortField = sortBy == AdminBoardSortBy.UPDATED_AT ? "updatedAt" : "createdAt";
         Sort sort = sortAsc
             ? Sort.by(Sort.Order.asc(sortField), Sort.Order.asc("id"))
             : Sort.by(Sort.Order.desc(sortField), Sort.Order.desc("id"));
-        return PageRequest.of(page, size, sort);
+        return PageRequest.of(normalizedPage, normalizedSize, sort);
     }
 }

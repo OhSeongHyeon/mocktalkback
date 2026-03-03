@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
@@ -66,6 +67,7 @@ public class UserService {
     private final ImageOptimizationService imageOptimizationService;
     private final CurrentUserService currentUserService;
     private final PasswordEncoder passwordEncoder;
+    private final PageNormalizer pageNormalizer;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile() {
@@ -250,23 +252,9 @@ public class UserService {
     }
 
     private Pageable createPageable(int page, int size) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         return PageRequest.of(resolvedPage, resolvedSize, MY_CONTENT_SORT);
-    }
-
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
     }
 
     private int normalizeMentionSize(int size) {

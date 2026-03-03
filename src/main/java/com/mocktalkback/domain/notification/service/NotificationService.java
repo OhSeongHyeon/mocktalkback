@@ -29,6 +29,8 @@ import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository.CommentArticleView;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.article.repository.ArticleRepository.ArticleTitleView;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -52,6 +54,8 @@ public class NotificationService {
     private final CurrentUserService currentUserService;
     private final NotificationPresenceService notificationPresenceService;
     private final NotificationRealtimeSseService notificationRealtimeSseService;
+    private final PageNormalizer pageNormalizer;
+    private final AuthorDisplayResolver authorDisplayResolver;
 
     @Transactional
     public void createArticleComment(
@@ -116,8 +120,8 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public PageResponse<NotificationResponse> findAll(int page, int size, Boolean read) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, DEFAULT_SORT);
         Long userId = currentUserService.getUserId();
 
@@ -184,7 +188,7 @@ public class NotificationService {
 
     private NotificationResponse toResponse(NotificationEntity entity, String articleTitle) {
         UserEntity sender = entity.getSender();
-        String senderName = resolveSenderName(sender);
+        String senderName = sender == null ? null : authorDisplayResolver.resolveAuthorName(sender);
         String senderHandle = sender == null ? null : sender.getHandle();
         Long senderId = sender == null ? null : sender.getId();
         return new NotificationResponse(
@@ -206,17 +210,6 @@ public class NotificationService {
 
     private String buildArticleRedirect(ArticleEntity article) {
         return "/b/" + article.getBoard().getSlug() + "/articles/" + article.getId();
-    }
-
-    private String resolveSenderName(UserEntity sender) {
-        if (sender == null) {
-            return null;
-        }
-        String displayName = sender.getDisplayName();
-        if (displayName != null && !displayName.isBlank()) {
-            return displayName;
-        }
-        return sender.getUserName();
     }
 
     private ArticleTitleBundle resolveArticleTitles(List<NotificationEntity> entities) {
@@ -263,20 +256,6 @@ public class NotificationService {
             return titles.articleTitles().get(articleId);
         }
         return null;
-    }
-
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
     }
 
     private String normalizeRedirectUrl(String redirectUrl) {
