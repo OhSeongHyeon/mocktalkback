@@ -3,8 +3,6 @@ package com.mocktalkback.infra.storage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 
@@ -120,21 +118,16 @@ public class ObjectStorageFileStorageService implements FileStorage {
     public String resolveDownloadUrl(String storageKey, String fileName, String mimeType) {
         String normalizedKey = normalizeKey(storageKey);
         int expireSeconds = normalizePresignExpireSeconds(properties.getPresignExpireSeconds());
-        String resolvedMimeType = StringUtils.hasText(mimeType) ? mimeType : "application/octet-stream";
-        String contentDisposition = buildDownloadContentDisposition(fileName);
         try {
-            return presignClient.getPresignedObjectUrl(
+            String rawUrl = presignClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET)
                     .bucket(properties.getBucket())
                     .object(normalizedKey)
                     .expiry(expireSeconds)
-                    .extraQueryParams(Map.of(
-                        "response-content-disposition", contentDisposition,
-                        "response-content-type", resolvedMimeType
-                    ))
                     .build()
             );
+            return toProxyUrl(rawUrl);
         } catch (Exception ex) {
             throw new IllegalStateException("파일 다운로드 URL 생성에 실패했습니다.");
         }
@@ -154,7 +147,7 @@ public class ObjectStorageFileStorageService implements FileStorage {
                     .build()
             );
             return new PresignedUploadUrl(
-                toUploadProxyUrl(rawUrl),
+                toProxyUrl(rawUrl),
                 "PUT",
                 resolveUploadHeaders(mimeType),
                 Instant.now().plusSeconds(expireSeconds)
@@ -194,18 +187,6 @@ public class ObjectStorageFileStorageService implements FileStorage {
         return (int) expireSeconds;
     }
 
-    private String buildDownloadContentDisposition(String fileName) {
-        String resolvedFileName = StringUtils.hasText(fileName) ? fileName.trim() : "attachment";
-        String asciiFallback = resolvedFileName
-            .replaceAll("[\\r\\n\"]", "_")
-            .replaceAll("[^\\x20-\\x7E]", "_");
-        if (!StringUtils.hasText(asciiFallback)) {
-            asciiFallback = "attachment";
-        }
-        String encodedFileName = URLEncoder.encode(resolvedFileName, StandardCharsets.UTF_8).replace("+", "%20");
-        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodedFileName;
-    }
-
     private Map<String, String> resolveUploadHeaders(String mimeType) {
         if (!StringUtils.hasText(mimeType)) {
             return Map.of();
@@ -213,7 +194,7 @@ public class ObjectStorageFileStorageService implements FileStorage {
         return Map.of("Content-Type", mimeType);
     }
 
-    private String toUploadProxyUrl(String rawUrl) {
+    private String toProxyUrl(String rawUrl) {
         URI uri = URI.create(rawUrl);
         String path = uri.getRawPath();
         if (!StringUtils.hasText(path)) {
