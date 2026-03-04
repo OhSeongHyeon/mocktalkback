@@ -1,0 +1,79 @@
+package com.mocktalkback.domain.file.upload.service;
+
+import java.time.Duration;
+import java.util.Optional;
+
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+@Component
+public class UploadSessionRedisStore {
+
+    private static final String KEY_PREFIX = "upload:session:";
+
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
+
+    public UploadSessionRedisStore(
+        StringRedisTemplate stringRedisTemplate,
+        ObjectMapper objectMapper
+    ) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.objectMapper = objectMapper;
+    }
+
+    public void save(UploadSessionState state, Duration ttl) {
+        if (state == null) {
+            throw new IllegalArgumentException("업로드 세션 상태가 비어있습니다.");
+        }
+        String serialized = serialize(state);
+        stringRedisTemplate.opsForValue().set(key(state.uploadToken()), serialized, ttl);
+    }
+
+    public Optional<UploadSessionState> consume(String uploadToken) {
+        String raw = stringRedisTemplate.opsForValue().getAndDelete(key(uploadToken));
+        if (!StringUtils.hasText(raw)) {
+            return Optional.empty();
+        }
+        return Optional.of(deserialize(raw));
+    }
+
+    public Optional<UploadSessionState> find(String uploadToken) {
+        String raw = stringRedisTemplate.opsForValue().get(key(uploadToken));
+        if (!StringUtils.hasText(raw)) {
+            return Optional.empty();
+        }
+        return Optional.of(deserialize(raw));
+    }
+
+    public void delete(String uploadToken) {
+        stringRedisTemplate.delete(key(uploadToken));
+    }
+
+    private String key(String uploadToken) {
+        if (!StringUtils.hasText(uploadToken)) {
+            throw new IllegalArgumentException("업로드 토큰이 비어있습니다.");
+        }
+        return KEY_PREFIX + uploadToken.trim();
+    }
+
+    private String serialize(UploadSessionState state) {
+        try {
+            return objectMapper.writeValueAsString(state);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("업로드 세션 저장 직렬화에 실패했습니다.");
+        }
+    }
+
+    private UploadSessionState deserialize(String raw) {
+        try {
+            return objectMapper.readValue(raw, UploadSessionState.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("업로드 세션 역직렬화에 실패했습니다.");
+        }
+    }
+}

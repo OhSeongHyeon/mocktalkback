@@ -2,13 +2,11 @@ package com.mocktalkback.domain.board.controller;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -24,7 +22,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -482,40 +479,6 @@ class BoardControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.boardName").value("notice updated"));
-    }
-
-    // 게시판 이미지 업로드 API는 성공 응답을 반환해야 한다.
-    @Test
-    void uploadImage_returns_ok() throws Exception {
-        // Given: 게시판 이미지 업로드 응답
-        BoardResponse response = new BoardResponse(
-            1L,
-            "notice",
-            "notice",
-            "notice board",
-            BoardVisibility.PUBLIC,
-            BoardArticleWritePolicy.ALL_AUTHENTICATED,
-            FIXED_TIME,
-            FIXED_TIME,
-            null,
-            null
-        );
-        when(boardService.uploadBoardImage(eq(1L), any(), anyBoolean())).thenReturn(response);
-
-        MockMultipartFile file = new MockMultipartFile(
-            "boardImage",
-            "board.png",
-            "image/png",
-            "data".getBytes()
-        );
-
-        // When: 게시판 이미지 업로드 API 호출
-        ResultActions result = mockMvc.perform(multipart("/api/boards/1/image").file(file));
-
-        // Then: 응답 데이터 확인
-        result.andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.id").value(1L));
     }
 
     // 게시판 구독 API는 성공 응답을 반환해야 한다.

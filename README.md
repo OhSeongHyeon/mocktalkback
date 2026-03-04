@@ -1,6 +1,6 @@
 # Mocktalk Backend
 
-OpenAPI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
+SwaggerUI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
 
 Mocktalk 커뮤니티 서비스의 백엔드 API 서버입니다.  
 Spring Boot 기반으로 인증, 게시판, 댓글/대댓글, 알림, 파일 업로드 기능을 제공합니다.
@@ -116,6 +116,20 @@ docker compose -f docker-compose.minio.yml up -d
 | `OBJECT_STORAGE_PUBLIC_BASE_URL` | 퍼블릭 조회 URL 베이스(선택) |
 | `OBJECT_STORAGE_PRESIGN_ENDPOINT` | Presigned URL 생성 기준 엔드포인트(선택) |
 | `OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS` | Presigned URL 만료(초) |
+| `OBJECT_STORAGE_UPLOAD_PROXY_PREFIX` | Presigned 업로드 URL 프록시 prefix(기본 `/storage`) |
+| `UPLOAD_SESSION_TTL_SECONDS` | Presigned 업로드 세션 만료(초) |
+| `UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS` | 업로드 세션 만료 후 고아 정리 유예 시간(초) |
+| `UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS` | Presigned 고아 파일 정리 스케줄 주기(ms) |
+| `UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE` | Presigned 고아 파일 정리 배치 크기 |
+| `STORAGE_DELETE_RETRY_ENABLED` | 오브젝트 삭제 재시도 큐 활성화 여부 |
+| `STORAGE_DELETE_RETRY_INTERVAL_MS` | 오브젝트 삭제 재시도 워커 주기(ms) |
+| `STORAGE_DELETE_RETRY_BATCH_SIZE` | 오브젝트 삭제 재시도 처리 배치 크기 |
+| `STORAGE_DELETE_RETRY_INITIAL_DELAY_SEC` | 삭제 재시도 초기 지연 시간(초) |
+| `STORAGE_DELETE_RETRY_MAX_DELAY_SEC` | 삭제 재시도 최대 지연 시간(초) |
+| `STORAGE_DELETE_RETRY_MAX_ATTEMPTS` | 삭제 재시도 최대 횟수 |
+| `STORAGE_DELETE_DLQ_RETENTION_SEC` | 삭제 재시도 DLQ 보관 시간(초) |
+| `APP_FILE_TEMP_EXPIRE_HOURS` | 임시 파일 만료 시간(시간) |
+| `APP_FILE_TEMP_CLEANUP_INTERVAL_MS` | 임시 파일 정리 스케줄 주기(ms) |
 | `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
 | `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
 
