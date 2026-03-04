@@ -1,6 +1,6 @@
 # Mocktalk Backend
 
-OpenAPI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
+SwaggerUI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
 
 Mocktalk 커뮤니티 서비스의 백엔드 API 서버입니다.  
 Spring Boot 기반으로 인증, 게시판, 댓글/대댓글, 알림, 파일 업로드 기능을 제공합니다.
@@ -128,6 +128,8 @@ docker compose -f docker-compose.minio.yml up -d
 | `STORAGE_DELETE_RETRY_MAX_DELAY_SEC` | 삭제 재시도 최대 지연 시간(초) |
 | `STORAGE_DELETE_RETRY_MAX_ATTEMPTS` | 삭제 재시도 최대 횟수 |
 | `STORAGE_DELETE_DLQ_RETENTION_SEC` | 삭제 재시도 DLQ 보관 시간(초) |
+| `APP_FILE_TEMP_EXPIRE_HOURS` | 임시 파일 만료 시간(시간) |
+| `APP_FILE_TEMP_CLEANUP_INTERVAL_MS` | 임시 파일 정리 스케줄 주기(ms) |
 | `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
 | `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
 

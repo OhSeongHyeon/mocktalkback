@@ -101,6 +101,8 @@ app:
     orphan-cleanup-interval-ms: ${UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS:300000}
     orphan-cleanup-batch-size: ${UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE:200}
   file:
+    temp-expire-hours: ${APP_FILE_TEMP_EXPIRE_HOURS:24}
+    temp-cleanup-interval-ms: ${APP_FILE_TEMP_CLEANUP_INTERVAL_MS:3600000}
     delete-retry:
       enabled: ${STORAGE_DELETE_RETRY_ENABLED:true}
       interval-ms: ${STORAGE_DELETE_RETRY_INTERVAL_MS:30000}
