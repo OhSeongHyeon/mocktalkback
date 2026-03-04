@@ -213,6 +213,16 @@ public class BoardService {
         requireManagePermission(board, user, userId);
 
         StoredFile storedFile = fileStorage.store(FileClassCode.BOARD_IMAGE, boardImage, userId);
+        return completeBoardImageUpload(boardId, storedFile, preserveMetadata);
+    }
+
+    @Transactional
+    public BoardResponse completeBoardImageUpload(Long boardId, StoredFile storedFile, boolean preserveMetadata) {
+        BoardEntity board = getBoard(boardId);
+        Long userId = currentUserService.getUserId();
+        UserEntity user = getUser(userId);
+        requireManagePermission(board, user, userId);
+
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getBoardImageClass();

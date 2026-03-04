@@ -100,6 +100,8 @@ app:
     presence:
       ttl-seconds: ${REALTIME_PRESENCE_TTL_SECONDS:45}
       max-sessions: ${REALTIME_PRESENCE_MAX_SESSIONS:8}
+  upload:
+    session-ttl-seconds: ${UPLOAD_SESSION_TTL_SECONDS:600}
   object-storage:
     endpoint: ${OBJECT_STORAGE_ENDPOINT:http://localhost:9000}
     region: ${OBJECT_STORAGE_REGION:ap-seoul-1}
@@ -111,6 +113,7 @@ app:
     public-base-url: ${OBJECT_STORAGE_PUBLIC_BASE_URL:}
     presign-endpoint: ${OBJECT_STORAGE_PRESIGN_ENDPOINT:http://localhost:9000}
     presign-expire-seconds: ${OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS:300}
+    upload-proxy-prefix: ${OBJECT_STORAGE_UPLOAD_PROXY_PREFIX:/storage}
   sanitize:
     allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS:http://localhost:9000,http://localhost:8082}
     allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES:https://www.youtube.com/embed,https://www.youtube-nocookie.com/embed}

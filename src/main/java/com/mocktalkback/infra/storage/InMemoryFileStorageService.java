@@ -1,6 +1,7 @@
 package com.mocktalkback.infra.storage;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -85,6 +86,26 @@ public class InMemoryFileStorageService implements FileStorage {
         String resolvedFileName = StringUtils.hasText(fileName) ? fileName : "attachment";
         String encodedFileName = URLEncoder.encode(resolvedFileName, StandardCharsets.UTF_8).replace("+", "%20");
         return "/" + normalizedKey + "?download=1&filename=" + encodedFileName;
+    }
+
+    @Override
+    public PresignedUploadUrl createPresignedUploadUrl(String storageKey, String mimeType) {
+        String normalizedKey = normalizeKey(storageKey);
+        return new PresignedUploadUrl(
+            "/storage/" + normalizedKey,
+            "PUT",
+            StringUtils.hasText(mimeType) ? Map.of("Content-Type", mimeType) : Map.of(),
+            Instant.now().plusSeconds(300)
+        );
+    }
+
+    @Override
+    public StoredObjectMeta stat(String storageKey) {
+        StoredObject stored = store.get(normalizeKey(storageKey));
+        if (stored == null) {
+            throw new IllegalStateException("파일을 찾을 수 없습니다.");
+        }
+        return new StoredObjectMeta((long) stored.bytes().length, stored.mimeType(), null);
     }
 
     private void validateFile(String fileClassCode, MultipartFile file) {

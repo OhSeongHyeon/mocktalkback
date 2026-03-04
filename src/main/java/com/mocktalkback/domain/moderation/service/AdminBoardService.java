@@ -127,10 +127,16 @@ public class AdminBoardService {
 
     @Transactional
     public BoardResponse uploadBoardImage(Long boardId, MultipartFile boardImage, boolean preserveMetadata) {
-        BoardEntity board = getBoard(boardId);
         UserEntity actor = getCurrentUser();
 
         StoredFile storedFile = fileStorage.store(FileClassCode.BOARD_IMAGE, boardImage, actor.getId());
+        return completeBoardImageUpload(boardId, storedFile, preserveMetadata);
+    }
+
+    @Transactional
+    public BoardResponse completeBoardImageUpload(Long boardId, StoredFile storedFile, boolean preserveMetadata) {
+        BoardEntity board = getBoard(boardId);
+
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getBoardImageClass();

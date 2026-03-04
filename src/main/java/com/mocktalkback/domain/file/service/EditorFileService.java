@@ -39,6 +39,14 @@ public class EditorFileService {
         Long userId = currentUserService.getUserId();
 
         StoredFile storedFile = fileStorage.store(fileClassCode, file, userId);
+        return completeEditorFileUpload(storedFile, preserveMetadata);
+    }
+
+    @Transactional
+    public FileResponse completeEditorFileUpload(StoredFile storedFile, boolean preserveMetadata) {
+        validateStoredFile(storedFile);
+        String fileClassCode = resolveFileClassCode(storedFile.mimeType());
+
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getOrCreateFileClass(fileClassCode);
@@ -56,6 +64,29 @@ public class EditorFileService {
         FileEntity saved = fileRepository.save(fileEntity);
         imageOptimizationService.enqueueVariantGeneration(saved);
         return fileMapper.toResponse(saved);
+    }
+
+    private void validateStoredFile(StoredFile storedFile) {
+        if (storedFile == null) {
+            throw new IllegalArgumentException("업로드 파일 정보가 비어있습니다.");
+        }
+        if (storedFile.fileSize() == null || storedFile.fileSize() <= 0L) {
+            throw new IllegalArgumentException("파일 크기가 올바르지 않습니다.");
+        }
+        if (storedFile.fileSize() > MAX_UPLOAD_SIZE) {
+            throw new IllegalArgumentException("파일 사이즈 제한 50MB");
+        }
+        String contentType = storedFile.mimeType();
+        if (!StringUtils.hasText(contentType)) {
+            throw new IllegalArgumentException("지원하지 않는 파일 형식입니다.");
+        }
+        if (contentType.startsWith("image/")) {
+            return;
+        }
+        if ("video/mp4".equals(contentType) || "video/webm".equals(contentType)) {
+            return;
+        }
+        throw new IllegalArgumentException("이미지 또는 MP4/WebM 영상만 업로드할 수 있습니다.");
     }
 
     private void validateFile(MultipartFile file) {
@@ -80,6 +111,13 @@ public class EditorFileService {
 
     private String resolveFileClassCode(MultipartFile file) {
         String contentType = file.getContentType();
+        if (StringUtils.hasText(contentType) && contentType.startsWith("image/")) {
+            return FileClassCode.ARTICLE_CONTENT_IMAGE;
+        }
+        return FileClassCode.ARTICLE_CONTENT_VIDEO;
+    }
+
+    private String resolveFileClassCode(String contentType) {
         if (StringUtils.hasText(contentType) && contentType.startsWith("image/")) {
             return FileClassCode.ARTICLE_CONTENT_IMAGE;
         }

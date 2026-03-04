@@ -116,6 +116,8 @@ docker compose -f docker-compose.minio.yml up -d
 | `OBJECT_STORAGE_PUBLIC_BASE_URL` | 퍼블릭 조회 URL 베이스(선택) |
 | `OBJECT_STORAGE_PRESIGN_ENDPOINT` | Presigned URL 생성 기준 엔드포인트(선택) |
 | `OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS` | Presigned URL 만료(초) |
+| `OBJECT_STORAGE_UPLOAD_PROXY_PREFIX` | Presigned 업로드 URL 프록시 prefix(기본 `/storage`) |
+| `UPLOAD_SESSION_TTL_SECONDS` | Presigned 업로드 세션 만료(초) |
 | `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
 | `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
 

@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -24,6 +25,8 @@ import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
 import io.minio.http.Method;
 
 @Service
@@ -180,6 +183,50 @@ public class ObjectStorageFileStorageService implements FileStorage {
         }
     }
 
+    @Override
+    public PresignedUploadUrl createPresignedUploadUrl(String storageKey, String mimeType) {
+        String normalizedKey = normalizeKey(storageKey);
+        int expireSeconds = normalizePresignExpireSeconds(properties.getPresignExpireSeconds());
+        try {
+            String rawUrl = presignClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                    .method(Method.PUT)
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .expiry(expireSeconds)
+                    .build()
+            );
+            return new PresignedUploadUrl(
+                toUploadProxyUrl(rawUrl),
+                "PUT",
+                resolveUploadHeaders(mimeType),
+                Instant.now().plusSeconds(expireSeconds)
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("파일 업로드 URL 생성에 실패했습니다.");
+        }
+    }
+
+    @Override
+    public StoredObjectMeta stat(String storageKey) {
+        String normalizedKey = normalizeKey(storageKey);
+        try {
+            StatObjectResponse stat = objectClient.statObject(
+                StatObjectArgs.builder()
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .build()
+            );
+            return new StoredObjectMeta(
+                stat.size(),
+                stat.contentType(),
+                stat.etag()
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("저장소 객체 메타 조회에 실패했습니다.");
+        }
+    }
+
     private int normalizePresignExpireSeconds(long expireSeconds) {
         if (expireSeconds <= 0L) {
             return DEFAULT_PRESIGN_EXPIRE_SECONDS;
@@ -200,6 +247,42 @@ public class ObjectStorageFileStorageService implements FileStorage {
         }
         String encodedFileName = URLEncoder.encode(resolvedFileName, StandardCharsets.UTF_8).replace("+", "%20");
         return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encodedFileName;
+    }
+
+    private Map<String, String> resolveUploadHeaders(String mimeType) {
+        if (!StringUtils.hasText(mimeType)) {
+            return Map.of();
+        }
+        return Map.of("Content-Type", mimeType);
+    }
+
+    private String toUploadProxyUrl(String rawUrl) {
+        URI uri = URI.create(rawUrl);
+        String path = uri.getRawPath();
+        if (!StringUtils.hasText(path)) {
+            throw new IllegalStateException("Presigned URL 경로가 비어있습니다.");
+        }
+        String prefix = normalizeUploadProxyPrefix(properties.getUploadProxyPrefix());
+        String query = uri.getRawQuery();
+        if (!StringUtils.hasText(query)) {
+            return prefix + path;
+        }
+        return prefix + path + "?" + query;
+    }
+
+    private String normalizeUploadProxyPrefix(String rawPrefix) {
+        if (!StringUtils.hasText(rawPrefix)) {
+            return "/storage";
+        }
+        String normalized = rawPrefix.trim();
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        normalized = normalized.replaceAll("/+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            return "/storage";
+        }
+        return normalized;
     }
 
     private MinioClient createClient(String endpoint) {

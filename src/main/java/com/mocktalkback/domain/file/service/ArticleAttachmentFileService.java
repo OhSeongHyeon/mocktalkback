@@ -100,6 +100,13 @@ public class ArticleAttachmentFileService {
         String fileClassCode = FileClassCode.ARTICLE_ATTACHMENT;
 
         StoredFile storedFile = fileStorage.store(fileClassCode, file, userId);
+        return completeArticleAttachmentFileUpload(storedFile, preserveMetadata);
+    }
+
+    @Transactional
+    public FileResponse completeArticleAttachmentFileUpload(StoredFile storedFile, boolean preserveMetadata) {
+        validateStoredFile(storedFile);
+
         // 첨부파일은 원본 보존을 우선한다(파일명/바이트 원본 유지).
         boolean preserveOriginalAttachment = true;
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
@@ -119,6 +126,45 @@ public class ArticleAttachmentFileService {
         FileEntity saved = fileRepository.save(fileEntity);
         imageOptimizationService.enqueueVariantGeneration(saved);
         return fileMapper.toResponse(saved);
+    }
+
+    private void validateStoredFile(StoredFile storedFile) {
+        if (storedFile == null) {
+            throw new IllegalArgumentException("업로드 파일 정보가 비어있습니다.");
+        }
+        if (storedFile.fileSize() == null || storedFile.fileSize() <= 0L) {
+            throw new IllegalArgumentException("파일 크기가 올바르지 않습니다.");
+        }
+        if (storedFile.fileSize() > MAX_UPLOAD_SIZE) {
+            throw new IllegalArgumentException("파일 사이즈 제한 50MB");
+        }
+
+        String fileName = storedFile.fileName();
+        String extension = normalizeExtension(resolveExtension(fileName));
+        if (!StringUtils.hasText(extension)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
+        }
+        if (BLOCKED_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("업로드할 수 없는 확장자입니다.");
+        }
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
+        }
+
+        String contentType = storedFile.mimeType();
+        if (!StringUtils.hasText(contentType)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
+        }
+        String normalizedContentType = normalizeMimeType(contentType);
+        if (BLOCKED_MIME_TYPES.contains(normalizedContentType)) {
+            throw new IllegalArgumentException("업로드할 수 없는 파일 형식입니다.");
+        }
+        if ("application/octet-stream".equals(normalizedContentType)) {
+            return;
+        }
+        if (!ALLOWED_MIME_TYPES.contains(normalizedContentType)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
+        }
     }
 
     private void validateFile(MultipartFile file) {
