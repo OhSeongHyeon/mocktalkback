@@ -9,4 +9,5 @@ import com.mocktalkback.domain.file.entity.FileEntity;
 
 public interface FileRepository extends JpaRepository<FileEntity, Long> {
     List<FileEntity> findAllByTempExpiresAtBeforeAndDeletedAtIsNull(Instant now);
+    boolean existsByStorageKeyAndDeletedAtIsNull(String storageKey);
 }

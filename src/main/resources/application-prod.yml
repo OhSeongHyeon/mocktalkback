@@ -97,6 +97,9 @@ app:
       max-sessions: ${REALTIME_PRESENCE_MAX_SESSIONS:8}
   upload:
     session-ttl-seconds: ${UPLOAD_SESSION_TTL_SECONDS:600}
+    orphan-cleanup-grace-seconds: ${UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS:120}
+    orphan-cleanup-interval-ms: ${UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS:300000}
+    orphan-cleanup-batch-size: ${UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE:200}
   object-storage:
     endpoint: ${OBJECT_STORAGE_ENDPOINT}
     region: ${OBJECT_STORAGE_REGION}

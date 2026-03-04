@@ -37,7 +37,7 @@ public class TemporaryFileCleanupService {
             if (fileId == null) {
                 continue;
             }
-            if (!isEditorFile(file)) {
+            if (!isTemporaryCleanupTarget(file)) {
                 file.clearTemporary();
                 continue;
             }
@@ -82,12 +82,14 @@ public class TemporaryFileCleanupService {
         }
     }
 
-    private boolean isEditorFile(FileEntity file) {
+    private boolean isTemporaryCleanupTarget(FileEntity file) {
         if (file == null || file.getFileClass() == null) {
             return false;
         }
         String code = file.getFileClass().getCode();
         return FileClassCode.ARTICLE_CONTENT_IMAGE.equals(code)
-            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(code);
+            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(code)
+            || FileClassCode.ARTICLE_ATTACHMENT.equals(code)
+            || FileClassCode.ARTICLE_THUMBNAIL.equals(code);
     }
 }

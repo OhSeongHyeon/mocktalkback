@@ -36,6 +36,7 @@ public class UploadSessionService {
     private final UploadStorageKeyFactory uploadStorageKeyFactory;
     private final UploadPolicyValidator uploadPolicyValidator;
     private final UploadSessionRedisStore uploadSessionRedisStore;
+    private final UploadOrphanTrackerRedisStore uploadOrphanTrackerRedisStore;
     private final UploadSessionProperties uploadSessionProperties;
     private final CurrentUserService currentUserService;
     private final EditorFileService editorFileService;
@@ -50,6 +51,7 @@ public class UploadSessionService {
         UploadStorageKeyFactory uploadStorageKeyFactory,
         UploadPolicyValidator uploadPolicyValidator,
         UploadSessionRedisStore uploadSessionRedisStore,
+        UploadOrphanTrackerRedisStore uploadOrphanTrackerRedisStore,
         UploadSessionProperties uploadSessionProperties,
         CurrentUserService currentUserService,
         EditorFileService editorFileService,
@@ -63,6 +65,7 @@ public class UploadSessionService {
         this.uploadStorageKeyFactory = uploadStorageKeyFactory;
         this.uploadPolicyValidator = uploadPolicyValidator;
         this.uploadSessionRedisStore = uploadSessionRedisStore;
+        this.uploadOrphanTrackerRedisStore = uploadOrphanTrackerRedisStore;
         this.uploadSessionProperties = uploadSessionProperties;
         this.currentUserService = currentUserService;
         this.editorFileService = editorFileService;
@@ -110,6 +113,8 @@ public class UploadSessionService {
         );
         long ttlSeconds = normalizeTtlSeconds(uploadSessionProperties.getSessionTtlSeconds());
         uploadSessionRedisStore.save(state, Duration.ofSeconds(ttlSeconds));
+        long deadlineEpochSeconds = Instant.now().plusSeconds(ttlSeconds + resolveOrphanCleanupGraceSeconds()).getEpochSecond();
+        uploadOrphanTrackerRedisStore.track(uploadToken, preparedFile.storageKey(), deadlineEpochSeconds);
 
         return new UploadInitResponse(
             uploadToken,
@@ -124,6 +129,7 @@ public class UploadSessionService {
     public UploadCompleteResponse complete(String uploadToken) {
         UploadSessionState state = uploadSessionRedisStore.consume(uploadToken)
             .orElseThrow(() -> new IllegalArgumentException("유효하지 않거나 만료된 업로드 토큰입니다."));
+        uploadOrphanTrackerRedisStore.untrack(uploadToken);
 
         try {
             verifyOwner(state.ownerId());
@@ -148,11 +154,13 @@ public class UploadSessionService {
     public void cancel(String uploadToken) {
         Optional<UploadSessionState> optional = uploadSessionRedisStore.find(uploadToken);
         if (optional.isEmpty()) {
+            uploadOrphanTrackerRedisStore.untrack(uploadToken);
             return;
         }
         UploadSessionState state = optional.get();
         verifyOwner(state.ownerId());
         uploadSessionRedisStore.delete(uploadToken);
+        uploadOrphanTrackerRedisStore.untrack(uploadToken);
         safeDelete(state.storageKey());
     }
 
@@ -241,6 +249,10 @@ public class UploadSessionService {
             return 600L;
         }
         return ttlSeconds;
+    }
+
+    private long resolveOrphanCleanupGraceSeconds() {
+        return Math.max(30L, uploadSessionProperties.getOrphanCleanupGraceSeconds());
     }
 
     private void safeDelete(String storageKey) {
