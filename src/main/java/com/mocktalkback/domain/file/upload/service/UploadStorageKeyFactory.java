@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.mocktalkback.domain.file.service.FileStoragePathResolver;
-import com.mocktalkback.domain.file.type.FileClassCode;
 
 @Component
 public class UploadStorageKeyFactory {
@@ -34,8 +33,8 @@ public class UploadStorageKeyFactory {
         }
         String resolvedOriginalName = resolveOriginalFileName(originalFileName);
         String sanitizedOriginalName = sanitizeFileNameForStorage(resolvedOriginalName);
-        String savedName = resolveStoredFileName(fileClassCode, sanitizedOriginalName);
-        String fileNameForDatabase = resolveFileNameForDatabase(fileClassCode, resolvedOriginalName, savedName);
+        String savedName = resolveStoredFileName(sanitizedOriginalName);
+        String fileNameForDatabase = resolveFileNameForDatabase(resolvedOriginalName);
         String category = pathResolver.resolveCategory(fileClassCode);
         String storageKey = buildStorageKey(category, ownerId, savedName);
         return new PreparedUploadFile(fileNameForDatabase, storageKey);
@@ -60,25 +59,17 @@ public class UploadStorageKeyFactory {
         return sanitized;
     }
 
-    private String resolveStoredFileName(String fileClassCode, String sanitizedOriginalName) {
+    private String resolveStoredFileName(String sanitizedOriginalName) {
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        if (FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)
-            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(fileClassCode)
-            || FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)) {
-            String extension = resolveExtension(sanitizedOriginalName);
-            if (!StringUtils.hasText(extension)) {
-                return uuid;
-            }
-            return uuid + "." + extension;
+        String extension = resolveExtension(sanitizedOriginalName);
+        if (!StringUtils.hasText(extension)) {
+            return uuid;
         }
-        return uuid + "_" + sanitizedOriginalName;
+        return uuid + "." + extension;
     }
 
-    private String resolveFileNameForDatabase(String fileClassCode, String originalName, String storedName) {
-        if (FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)) {
-            return originalName;
-        }
-        return storedName;
+    private String resolveFileNameForDatabase(String originalName) {
+        return originalName;
     }
 
     private String resolveExtension(String fileName) {
