@@ -11,7 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.util.StringUtils;
 
@@ -33,7 +32,6 @@ import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
-import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
@@ -60,7 +58,6 @@ public class AdminBoardService {
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
     private final FileVariantRepository fileVariantRepository;
-    private final FileStorage fileStorage;
     private final ImageOptimizationService imageOptimizationService;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
@@ -126,11 +123,9 @@ public class AdminBoardService {
     }
 
     @Transactional
-    public BoardResponse uploadBoardImage(Long boardId, MultipartFile boardImage, boolean preserveMetadata) {
+    public BoardResponse completeBoardImageUpload(Long boardId, StoredFile storedFile, boolean preserveMetadata) {
         BoardEntity board = getBoard(boardId);
-        UserEntity actor = getCurrentUser();
 
-        StoredFile storedFile = fileStorage.store(FileClassCode.BOARD_IMAGE, boardImage, actor.getId());
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getBoardImageClass();

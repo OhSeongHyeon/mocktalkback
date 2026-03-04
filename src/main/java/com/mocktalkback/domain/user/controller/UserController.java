@@ -2,10 +2,8 @@ package com.mocktalkback.domain.user.controller;
 
 import java.util.List;
 
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,8 +52,8 @@ public class UserController {
         return ApiEnvelope.ok(userService.getMyProfile());
     }
 
-    @PutMapping(value = "/users/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "내 프로필 수정", description = "이름/이메일/닉네임/핸들, 비밀번호 및 프로필 이미지를 수정합니다.")
+    @PutMapping("/users/me")
+    @Operation(summary = "내 프로필 수정", description = "이름/이메일/닉네임/핸들 및 비밀번호를 수정합니다.")
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
@@ -66,7 +64,7 @@ public class UserController {
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
     public ApiEnvelope<UserProfileResponse> updateMyProfile(
-        @ModelAttribute @Valid UserProfileUpdateRequest request
+        @RequestBody @Valid UserProfileUpdateRequest request
     ) {
         return ApiEnvelope.ok(userService.updateMyProfile(request));
     }

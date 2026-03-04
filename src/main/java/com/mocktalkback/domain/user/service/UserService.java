@@ -10,7 +10,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
@@ -23,7 +22,6 @@ import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
-import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
@@ -63,7 +61,6 @@ public class UserService {
     private final FileClassRepository fileClassRepository;
     private final FileVariantRepository fileVariantRepository;
     private final FileMapper fileMapper;
-    private final FileStorage fileStorage;
     private final ImageOptimizationService imageOptimizationService;
     private final CurrentUserService currentUserService;
     private final PasswordEncoder passwordEncoder;
@@ -116,11 +113,14 @@ public class UserService {
             updatePassword(user, password);
         }
 
-        MultipartFile profileImage = request.getProfileImage();
-        if (profileImage != null && !profileImage.isEmpty()) {
-            updateProfileImage(user, profileImage, request.isPreserveMetadata());
-        }
+        return getMyProfile();
+    }
 
+    @Transactional
+    public UserProfileResponse completeProfileImageUpload(StoredFile storedFile, boolean preserveMetadata) {
+        Long userId = currentUserService.getUserId();
+        UserEntity user = getUser(userId);
+        updateProfileImage(user, storedFile, preserveMetadata);
         return getMyProfile();
     }
 
@@ -173,12 +173,7 @@ public class UserService {
             .toList();
     }
 
-    private void updateProfileImage(UserEntity user, MultipartFile profileImage, boolean preserveMetadata) {
-        StoredFile storedFile = fileStorage.store(
-            FileClassCode.PROFILE_IMAGE,
-            profileImage,
-            user.getId()
-        );
+    private void updateProfileImage(UserEntity user, StoredFile storedFile, boolean preserveMetadata) {
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getProfileImageClass();

@@ -25,7 +25,7 @@ public class TemporaryFileCleanupService {
     private final FileRepository fileRepository;
     private final FileVariantRepository fileVariantRepository;
     private final ArticleFileRepository articleFileRepository;
-    private final FileStorage fileStorage;
+    private final StorageDeleteRetryService storageDeleteRetryService;
 
     @Scheduled(fixedDelayString = "${app.file.temp-cleanup-interval-ms:3600000}")
     @Transactional
@@ -37,7 +37,7 @@ public class TemporaryFileCleanupService {
             if (fileId == null) {
                 continue;
             }
-            if (!isEditorFile(file)) {
+            if (!isTemporaryCleanupTarget(file)) {
                 file.clearTemporary();
                 continue;
             }
@@ -57,11 +57,12 @@ public class TemporaryFileCleanupService {
         if (file == null || file.getStorageKey() == null) {
             return;
         }
-        try {
-            fileStorage.delete(file.getStorageKey());
-        } catch (Exception ex) {
-            log.warn("원본 파일 삭제 실패: {}", file.getStorageKey(), ex);
-        }
+        String contextId = file.getId() == null ? null : "file:" + file.getId();
+        storageDeleteRetryService.deleteNowOrEnqueue(
+            file.getStorageKey(),
+            StorageDeleteSource.TEMP_FILE_CLEANUP,
+            contextId
+        );
     }
 
     private void softDeleteVariants(Long fileId) {
@@ -74,20 +75,23 @@ public class TemporaryFileCleanupService {
     private void deleteVariantObjects(Long fileId) {
         List<FileVariantEntity> variants = fileVariantRepository.findAllByFileIdAndDeletedAtIsNull(fileId);
         for (FileVariantEntity variant : variants) {
-            try {
-                fileStorage.delete(variant.getStorageKey());
-            } catch (Exception ex) {
-                log.warn("변환본 파일 삭제 실패: {}", variant.getStorageKey(), ex);
-            }
+            String contextId = variant.getId() == null ? null : "variant:" + variant.getId();
+            storageDeleteRetryService.deleteNowOrEnqueue(
+                variant.getStorageKey(),
+                StorageDeleteSource.TEMP_FILE_CLEANUP,
+                contextId
+            );
         }
     }
 
-    private boolean isEditorFile(FileEntity file) {
+    private boolean isTemporaryCleanupTarget(FileEntity file) {
         if (file == null || file.getFileClass() == null) {
             return false;
         }
         String code = file.getFileClass().getCode();
         return FileClassCode.ARTICLE_CONTENT_IMAGE.equals(code)
-            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(code);
+            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(code)
+            || FileClassCode.ARTICLE_ATTACHMENT.equals(code)
+            || FileClassCode.ARTICLE_THUMBNAIL.equals(code);
     }
 }

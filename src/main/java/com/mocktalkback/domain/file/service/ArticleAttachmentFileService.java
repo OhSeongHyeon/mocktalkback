@@ -7,7 +7,6 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
@@ -18,7 +17,6 @@ import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
-import com.mocktalkback.global.auth.CurrentUserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -85,21 +83,16 @@ public class ArticleAttachmentFileService {
         "application/x-shellscript"
     );
 
-    private final FileStorage fileStorage;
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
     private final FileMapper fileMapper;
-    private final CurrentUserService currentUserService;
     private final ImageOptimizationService imageOptimizationService;
     private final TemporaryFilePolicy temporaryFilePolicy;
 
     @Transactional
-    public FileResponse uploadArticleAttachmentFile(MultipartFile file, boolean preserveMetadata) {
-        validateFile(file);
-        Long userId = currentUserService.getUserId();
-        String fileClassCode = FileClassCode.ARTICLE_ATTACHMENT;
+    public FileResponse completeArticleAttachmentFileUpload(StoredFile storedFile, boolean preserveMetadata) {
+        validateStoredFile(storedFile);
 
-        StoredFile storedFile = fileStorage.store(fileClassCode, file, userId);
         // 첨부파일은 원본 보존을 우선한다(파일명/바이트 원본 유지).
         boolean preserveOriginalAttachment = true;
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
@@ -121,15 +114,19 @@ public class ArticleAttachmentFileService {
         return fileMapper.toResponse(saved);
     }
 
-    private void validateFile(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
+    private void validateStoredFile(StoredFile storedFile) {
+        if (storedFile == null) {
+            throw new IllegalArgumentException("업로드 파일 정보가 비어있습니다.");
         }
-        if (file.getSize() > MAX_UPLOAD_SIZE) {
+        if (storedFile.fileSize() == null || storedFile.fileSize() <= 0L) {
+            throw new IllegalArgumentException("파일 크기가 올바르지 않습니다.");
+        }
+        if (storedFile.fileSize() > MAX_UPLOAD_SIZE) {
             throw new IllegalArgumentException("파일 사이즈 제한 50MB");
         }
 
-        String extension = normalizeExtension(resolveExtension(file.getOriginalFilename()));
+        String fileName = storedFile.fileName();
+        String extension = normalizeExtension(resolveExtension(fileName));
         if (!StringUtils.hasText(extension)) {
             throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
         }
@@ -140,7 +137,7 @@ public class ArticleAttachmentFileService {
             throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
         }
 
-        String contentType = file.getContentType();
+        String contentType = storedFile.mimeType();
         if (!StringUtils.hasText(contentType)) {
             throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
         }
