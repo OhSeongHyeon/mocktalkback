@@ -7,7 +7,6 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
@@ -18,7 +17,6 @@ import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
-import com.mocktalkback.global.auth.CurrentUserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -85,23 +83,11 @@ public class ArticleAttachmentFileService {
         "application/x-shellscript"
     );
 
-    private final FileStorage fileStorage;
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
     private final FileMapper fileMapper;
-    private final CurrentUserService currentUserService;
     private final ImageOptimizationService imageOptimizationService;
     private final TemporaryFilePolicy temporaryFilePolicy;
-
-    @Transactional
-    public FileResponse uploadArticleAttachmentFile(MultipartFile file, boolean preserveMetadata) {
-        validateFile(file);
-        Long userId = currentUserService.getUserId();
-        String fileClassCode = FileClassCode.ARTICLE_ATTACHMENT;
-
-        StoredFile storedFile = fileStorage.store(fileClassCode, file, userId);
-        return completeArticleAttachmentFileUpload(storedFile, preserveMetadata);
-    }
 
     @Transactional
     public FileResponse completeArticleAttachmentFileUpload(StoredFile storedFile, boolean preserveMetadata) {
@@ -152,41 +138,6 @@ public class ArticleAttachmentFileService {
         }
 
         String contentType = storedFile.mimeType();
-        if (!StringUtils.hasText(contentType)) {
-            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
-        }
-        String normalizedContentType = normalizeMimeType(contentType);
-        if (BLOCKED_MIME_TYPES.contains(normalizedContentType)) {
-            throw new IllegalArgumentException("업로드할 수 없는 파일 형식입니다.");
-        }
-        if ("application/octet-stream".equals(normalizedContentType)) {
-            return;
-        }
-        if (!ALLOWED_MIME_TYPES.contains(normalizedContentType)) {
-            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
-        }
-    }
-
-    private void validateFile(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
-        }
-        if (file.getSize() > MAX_UPLOAD_SIZE) {
-            throw new IllegalArgumentException("파일 사이즈 제한 50MB");
-        }
-
-        String extension = normalizeExtension(resolveExtension(file.getOriginalFilename()));
-        if (!StringUtils.hasText(extension)) {
-            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
-        }
-        if (BLOCKED_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("업로드할 수 없는 확장자입니다.");
-        }
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
-        }
-
-        String contentType = file.getContentType();
         if (!StringUtils.hasText(contentType)) {
             throw new IllegalArgumentException("허용되지 않는 파일 형식입니다.");
         }

@@ -1,13 +1,11 @@
 package com.mocktalkback.domain.moderation.controller;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,13 +20,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mocktalkback.domain.board.dto.BoardResponse;
@@ -193,40 +189,6 @@ class AdminBoardControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data").value(nullValue()));
-    }
-
-    // 게시판 대표 이미지 업로드 API는 응답을 반환해야 한다.
-    @Test
-    void uploadImage_returns_board() throws Exception {
-        // Given: 이미지 업로드 응답
-        BoardResponse response = new BoardResponse(
-            1L,
-            "공지사항",
-            "notice",
-            "notice board",
-            BoardVisibility.PUBLIC,
-            BoardArticleWritePolicy.ALL_AUTHENTICATED,
-            FIXED_TIME,
-            FIXED_TIME,
-            null,
-            null
-        );
-        MockMultipartFile file = new MockMultipartFile(
-            "boardImage",
-            "board.png",
-            "image/png",
-            "file-content".getBytes()
-        );
-        when(adminBoardService.uploadBoardImage(eq(1L), any(MultipartFile.class), anyBoolean())).thenReturn(response);
-
-        // When: 게시판 대표 이미지 업로드 API 호출
-        ResultActions result = mockMvc.perform(multipart("/api/admin/boards/1/image")
-            .file(file));
-
-        // Then: 응답 데이터 확인
-        result.andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.id").value(1L));
     }
 
     // 게시판 대표 이미지 삭제 API는 응답을 반환해야 한다.

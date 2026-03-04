@@ -10,10 +10,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.MediaType;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
 import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
@@ -168,22 +165,6 @@ public class BoardController {
     public ApiEnvelope<Void> delete(@PathVariable("id") Long id) {
         boardService.delete(id);
         return ApiEnvelope.ok();
-    }
-
-    @PostMapping(value = "/boards/{id:\\d+}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "게시판 대표 이미지 업로드", description = "게시판 대표 이미지를 업로드합니다.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "업로드 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
-        @ApiResponse(responseCode = "400", description = "요청 값 오류"),
-        @ApiResponse(responseCode = "401", description = "인증 필요"),
-        @ApiResponse(responseCode = "403", description = "권한 없음")
-    })
-    public ApiEnvelope<BoardResponse> uploadImage(
-        @PathVariable("id") Long id,
-        @RequestPart("boardImage") MultipartFile boardImage,
-        @RequestParam(name = "preserveMetadata", defaultValue = "false") boolean preserveMetadata
-    ) {
-        return ApiEnvelope.ok(boardService.uploadBoardImage(id, boardImage, preserveMetadata));
     }
 
     @PostMapping("/boards/{id:\\d+}/subscribe")

@@ -5,20 +5,14 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.file.service.FileStorage;
-import com.mocktalkback.domain.file.service.FileStoragePathResolver;
-import com.mocktalkback.domain.file.type.FileClassCode;
 
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
@@ -37,51 +31,14 @@ public class ObjectStorageFileStorageService implements FileStorage {
     private static final int MAX_PRESIGN_EXPIRE_SECONDS = 604800;
 
     private final ObjectStorageProperties properties;
-    private final FileStoragePathResolver pathResolver;
     private final MinioClient objectClient;
     private final MinioClient presignClient;
 
-    public ObjectStorageFileStorageService(
-        ObjectStorageProperties properties,
-        FileStoragePathResolver pathResolver
-    ) {
+    public ObjectStorageFileStorageService(ObjectStorageProperties properties) {
         this.properties = properties;
-        this.pathResolver = pathResolver;
         validateProperties(properties);
         this.objectClient = createClient(properties.getEndpoint());
         this.presignClient = createClient(resolvePresignEndpoint(properties));
-    }
-
-    @Override
-    public StoredFile store(String fileClassCode, MultipartFile file, Long ownerId) {
-        validateFile(fileClassCode, file);
-        if (ownerId == null) {
-            throw new IllegalArgumentException("파일 소유자 식별자가 비어있습니다.");
-        }
-        String originalName = resolveOriginalFileName(file);
-        String sanitizedOriginalName = sanitizeFileNameForStorage(originalName);
-        String savedName = resolveStoredFileName(fileClassCode, sanitizedOriginalName);
-        String fileNameForDatabase = resolveFileNameForDatabase(fileClassCode, originalName, savedName);
-        String category = pathResolver.resolveCategory(fileClassCode);
-        String storageKey = buildStorageKey(category, ownerId, savedName);
-        try (InputStream inputStream = file.getInputStream()) {
-            PutObjectArgs.Builder builder = PutObjectArgs.builder()
-                .bucket(properties.getBucket())
-                .object(storageKey)
-                .stream(inputStream, file.getSize(), -1);
-            if (StringUtils.hasText(file.getContentType())) {
-                builder.contentType(file.getContentType());
-            }
-            objectClient.putObject(builder.build());
-        } catch (Exception ex) {
-            throw new IllegalStateException("파일 저장에 실패했습니다.");
-        }
-        return new StoredFile(
-            fileNameForDatabase,
-            storageKey,
-            file.getSize(),
-            file.getContentType()
-        );
     }
 
     @Override
@@ -316,111 +273,6 @@ public class ObjectStorageFileStorageService implements FileStorage {
         if (!StringUtils.hasText(props.getSecretKey())) {
             throw new IllegalStateException("오브젝트 스토리지 secret-key 설정이 비어있습니다.");
         }
-    }
-
-    private void validateFile(String fileClassCode, MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
-        }
-        if (FileClassCode.PROFILE_IMAGE.equals(fileClassCode)
-            || FileClassCode.BOARD_IMAGE.equals(fileClassCode)
-            || FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)) {
-            validateImage(file);
-            return;
-        }
-        if (FileClassCode.ARTICLE_CONTENT_VIDEO.equals(fileClassCode)) {
-            validateVideo(file);
-        }
-    }
-
-    private void validateImage(MultipartFile file) {
-        String contentType = file.getContentType();
-        if (!StringUtils.hasText(contentType) || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
-        }
-    }
-
-    private void validateVideo(MultipartFile file) {
-        String contentType = file.getContentType();
-        if (!StringUtils.hasText(contentType)) {
-            throw new IllegalArgumentException("영상 파일만 업로드할 수 있습니다.");
-        }
-        if (!"video/mp4".equals(contentType) && !"video/webm".equals(contentType)) {
-            throw new IllegalArgumentException("MP4 또는 WebM 영상만 업로드할 수 있습니다.");
-        }
-    }
-
-    private String resolveOriginalFileName(MultipartFile file) {
-        String original = Objects.requireNonNullElse(file.getOriginalFilename(), "file");
-        String cleanedPath = StringUtils.cleanPath(original).replace('\\', '/');
-        int slashIndex = cleanedPath.lastIndexOf('/');
-        String fileName = slashIndex >= 0 ? cleanedPath.substring(slashIndex + 1) : cleanedPath;
-        if (!StringUtils.hasText(fileName)) {
-            return "file";
-        }
-        return fileName;
-    }
-
-    private String sanitizeFileNameForStorage(String originalName) {
-        String sanitized = originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
-        if (!StringUtils.hasText(sanitized)) {
-            return "file";
-        }
-        return sanitized;
-    }
-
-    private String resolveStoredFileName(String fileClassCode, String sanitizedOriginalName) {
-        String uuid = UUID.randomUUID().toString().replace("-", "");
-        if (FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)
-            || FileClassCode.ARTICLE_CONTENT_VIDEO.equals(fileClassCode)
-            || FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)) {
-            String extension = resolveExtension(sanitizedOriginalName);
-            if (!StringUtils.hasText(extension)) {
-                return uuid;
-            }
-            return uuid + "." + extension;
-        }
-        return uuid + "_" + sanitizedOriginalName;
-    }
-
-    private String resolveFileNameForDatabase(String fileClassCode, String originalName, String storedName) {
-        if (FileClassCode.ARTICLE_ATTACHMENT.equals(fileClassCode)) {
-            return originalName;
-        }
-        return storedName;
-    }
-
-    private String resolveExtension(String fileName) {
-        if (!StringUtils.hasText(fileName)) {
-            return null;
-        }
-        int dotIndex = fileName.lastIndexOf('.');
-        if (dotIndex < 0 || dotIndex == fileName.length() - 1) {
-            return null;
-        }
-        return fileName.substring(dotIndex + 1);
-    }
-
-    private String buildStorageKey(String category, Long ownerId, String savedName) {
-        LocalDate today = LocalDate.now();
-        String year = String.valueOf(today.getYear());
-        String month = String.format("%02d", today.getMonthValue());
-        String day = String.format("%02d", today.getDayOfMonth());
-        String prefix = normalizePrefix(properties.getKeyPrefix());
-        return prefix + "/" + category + "/" + ownerId + "/" + year + "/" + month + "/" + day + "/" + savedName;
-    }
-
-    private String normalizePrefix(String rawPrefix) {
-        if (!StringUtils.hasText(rawPrefix)) {
-            return "uploads";
-        }
-        String normalized = rawPrefix.trim().replace('\\', '/');
-        normalized = normalized.replaceAll("^/+", "");
-        normalized = normalized.replaceAll("/+$", "");
-        if (!StringUtils.hasText(normalized)) {
-            return "uploads";
-        }
-        return normalized;
     }
 
     private String normalizeKey(String storageKey) {

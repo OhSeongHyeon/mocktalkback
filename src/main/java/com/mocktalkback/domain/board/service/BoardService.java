@@ -13,7 +13,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.board.dto.BoardCreateRequest;
 import com.mocktalkback.domain.board.dto.BoardDetailResponse;
@@ -203,17 +202,6 @@ public class BoardService {
         UserEntity user = getUser(userId);
         requireManagePermission(entity, user, userId);
         entity.softDelete();
-    }
-
-    @Transactional
-    public BoardResponse uploadBoardImage(Long boardId, MultipartFile boardImage, boolean preserveMetadata) {
-        BoardEntity board = getBoard(boardId);
-        Long userId = currentUserService.getUserId();
-        UserEntity user = getUser(userId);
-        requireManagePermission(board, user, userId);
-
-        StoredFile storedFile = fileStorage.store(FileClassCode.BOARD_IMAGE, boardImage, userId);
-        return completeBoardImageUpload(boardId, storedFile, preserveMetadata);
     }
 
     @Transactional
