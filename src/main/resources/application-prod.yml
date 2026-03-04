@@ -100,6 +100,15 @@ app:
     orphan-cleanup-grace-seconds: ${UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS:120}
     orphan-cleanup-interval-ms: ${UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS:300000}
     orphan-cleanup-batch-size: ${UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE:200}
+  file:
+    delete-retry:
+      enabled: ${STORAGE_DELETE_RETRY_ENABLED:true}
+      interval-ms: ${STORAGE_DELETE_RETRY_INTERVAL_MS:30000}
+      batch-size: ${STORAGE_DELETE_RETRY_BATCH_SIZE:200}
+      initial-delay-seconds: ${STORAGE_DELETE_RETRY_INITIAL_DELAY_SEC:30}
+      max-delay-seconds: ${STORAGE_DELETE_RETRY_MAX_DELAY_SEC:3600}
+      max-attempts: ${STORAGE_DELETE_RETRY_MAX_ATTEMPTS:10}
+      dlq-retention-seconds: ${STORAGE_DELETE_DLQ_RETENTION_SEC:2592000}
   object-storage:
     endpoint: ${OBJECT_STORAGE_ENDPOINT}
     region: ${OBJECT_STORAGE_REGION}

@@ -16,6 +16,8 @@ import com.mocktalkback.domain.file.service.ArticleAttachmentFileService;
 import com.mocktalkback.domain.file.service.EditorFileService;
 import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
+import com.mocktalkback.domain.file.service.StorageDeleteRetryService;
+import com.mocktalkback.domain.file.service.StorageDeleteSource;
 import com.mocktalkback.domain.file.upload.config.UploadSessionProperties;
 import com.mocktalkback.domain.file.upload.dto.UploadCompleteResponse;
 import com.mocktalkback.domain.file.upload.dto.UploadInitContext;
@@ -45,6 +47,7 @@ public class UploadSessionService {
     private final AdminBoardService adminBoardService;
     private final BoardSettingsAdminService boardSettingsAdminService;
     private final UserService userService;
+    private final StorageDeleteRetryService storageDeleteRetryService;
 
     public UploadSessionService(
         FileStorage fileStorage,
@@ -59,7 +62,8 @@ public class UploadSessionService {
         BoardService boardService,
         AdminBoardService adminBoardService,
         BoardSettingsAdminService boardSettingsAdminService,
-        UserService userService
+        UserService userService,
+        StorageDeleteRetryService storageDeleteRetryService
     ) {
         this.fileStorage = fileStorage;
         this.uploadStorageKeyFactory = uploadStorageKeyFactory;
@@ -74,6 +78,7 @@ public class UploadSessionService {
         this.adminBoardService = adminBoardService;
         this.boardSettingsAdminService = boardSettingsAdminService;
         this.userService = userService;
+        this.storageDeleteRetryService = storageDeleteRetryService;
     }
 
     public UploadInitResponse init(UploadInitRequest request) {
@@ -146,7 +151,7 @@ public class UploadSessionService {
 
             return finalizeUpload(state, storedFile);
         } catch (RuntimeException ex) {
-            safeDelete(state.storageKey());
+            safeDelete(state.storageKey(), StorageDeleteSource.UPLOAD_COMPLETE_ROLLBACK, state.uploadToken());
             throw ex;
         }
     }
@@ -161,7 +166,7 @@ public class UploadSessionService {
         verifyOwner(state.ownerId());
         uploadSessionRedisStore.delete(uploadToken);
         uploadOrphanTrackerRedisStore.untrack(uploadToken);
-        safeDelete(state.storageKey());
+        safeDelete(state.storageKey(), StorageDeleteSource.UPLOAD_CANCEL, uploadToken);
     }
 
     private UploadCompleteResponse finalizeUpload(UploadSessionState state, StoredFile storedFile) {
@@ -255,11 +260,7 @@ public class UploadSessionService {
         return Math.max(30L, uploadSessionProperties.getOrphanCleanupGraceSeconds());
     }
 
-    private void safeDelete(String storageKey) {
-        try {
-            fileStorage.delete(storageKey);
-        } catch (RuntimeException ignored) {
-            // 업로드 실패 정리에서 삭제 실패는 주처리 오류를 덮지 않도록 무시한다.
-        }
+    private void safeDelete(String storageKey, StorageDeleteSource source, String contextId) {
+        storageDeleteRetryService.deleteNowOrEnqueue(storageKey, source, contextId);
     }
 }

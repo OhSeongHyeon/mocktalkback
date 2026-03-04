@@ -10,7 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.mocktalkback.domain.file.repository.FileRepository;
-import com.mocktalkback.domain.file.service.FileStorage;
+import com.mocktalkback.domain.file.service.StorageDeleteRetryService;
+import com.mocktalkback.domain.file.service.StorageDeleteSource;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,20 +22,20 @@ public class UploadOrphanCleanupService {
     private final UploadOrphanTrackerRedisStore uploadOrphanTrackerRedisStore;
     private final UploadSessionRedisStore uploadSessionRedisStore;
     private final FileRepository fileRepository;
-    private final FileStorage fileStorage;
+    private final StorageDeleteRetryService storageDeleteRetryService;
     private final int batchSize;
 
     public UploadOrphanCleanupService(
         UploadOrphanTrackerRedisStore uploadOrphanTrackerRedisStore,
         UploadSessionRedisStore uploadSessionRedisStore,
         FileRepository fileRepository,
-        FileStorage fileStorage,
+        StorageDeleteRetryService storageDeleteRetryService,
         @Value("${app.upload.orphan-cleanup-batch-size:200}") int batchSize
     ) {
         this.uploadOrphanTrackerRedisStore = uploadOrphanTrackerRedisStore;
         this.uploadSessionRedisStore = uploadSessionRedisStore;
         this.fileRepository = fileRepository;
-        this.fileStorage = fileStorage;
+        this.storageDeleteRetryService = storageDeleteRetryService;
         this.batchSize = Math.max(1, batchSize);
     }
 
@@ -65,7 +66,11 @@ public class UploadOrphanCleanupService {
             if (fileRepository.existsByStorageKeyAndDeletedAtIsNull(storageKey)) {
                 return;
             }
-            fileStorage.delete(storageKey);
+            storageDeleteRetryService.deleteNowOrEnqueue(
+                storageKey,
+                StorageDeleteSource.UPLOAD_ORPHAN_CLEANUP,
+                uploadToken
+            );
             log.info("Presigned 업로드 고아 파일 정리 완료: token={}", uploadToken);
         } catch (Exception ex) {
             log.warn("Presigned 업로드 고아 파일 정리 실패: token={}", uploadToken, ex);

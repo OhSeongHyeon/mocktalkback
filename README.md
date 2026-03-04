@@ -121,6 +121,13 @@ docker compose -f docker-compose.minio.yml up -d
 | `UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS` | 업로드 세션 만료 후 고아 정리 유예 시간(초) |
 | `UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS` | Presigned 고아 파일 정리 스케줄 주기(ms) |
 | `UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE` | Presigned 고아 파일 정리 배치 크기 |
+| `STORAGE_DELETE_RETRY_ENABLED` | 오브젝트 삭제 재시도 큐 활성화 여부 |
+| `STORAGE_DELETE_RETRY_INTERVAL_MS` | 오브젝트 삭제 재시도 워커 주기(ms) |
+| `STORAGE_DELETE_RETRY_BATCH_SIZE` | 오브젝트 삭제 재시도 처리 배치 크기 |
+| `STORAGE_DELETE_RETRY_INITIAL_DELAY_SEC` | 삭제 재시도 초기 지연 시간(초) |
+| `STORAGE_DELETE_RETRY_MAX_DELAY_SEC` | 삭제 재시도 최대 지연 시간(초) |
+| `STORAGE_DELETE_RETRY_MAX_ATTEMPTS` | 삭제 재시도 최대 횟수 |
+| `STORAGE_DELETE_DLQ_RETENTION_SEC` | 삭제 재시도 DLQ 보관 시간(초) |
 | `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
 | `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
 

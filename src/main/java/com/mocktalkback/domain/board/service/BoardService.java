@@ -43,7 +43,6 @@ import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
-import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
@@ -78,7 +77,6 @@ public class BoardService {
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
     private final FileVariantRepository fileVariantRepository;
-    private final FileStorage fileStorage;
     private final ImageOptimizationService imageOptimizationService;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
