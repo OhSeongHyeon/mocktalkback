@@ -7,7 +7,7 @@ import org.springframework.test.context.TestPropertySource;
 
 @ActiveProfiles("test")
 @SpringBootTest
-@TestPropertySource(properties = "DEV_SERVER_PORT=0")
+@TestPropertySource(properties = "SERVER_PORT=0")
 class MocktalkbackApplicationTests {
 
     /**
