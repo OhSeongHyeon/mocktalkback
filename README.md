@@ -46,14 +46,17 @@ Nginx
 - `article`: 게시글
 - `board`: 게시판/포럼
 - `comment`: 댓글/대댓글
+- `common`: 도메인 공통 타입/지원 모듈
 - `file`: 파일 업로드
 - `moderation`: 관리/제재
 - `notification`: 알림
+- `realtime`: 실시간 알림/연결 관리
 - `role`: 권한
 - `search`: 검색
 - `user`: 회원/인증 연계
 
-공통 모듈은 `global` 패키지(`auth`, `common`, `config`, `exception`)에 위치합니다.
+공통 모듈은 `global` 패키지(`auth`, `common`, `config`, `exception`)에 위치합니다.  
+개발 전용 지원 코드는 `dev` 패키지에 위치합니다.
 
 ## 실행 방법
 
@@ -77,6 +80,22 @@ macOS/Linux:
 
 ```bash
 ./gradlew bootRun --args='--spring.profiles.active=dev'
+```
+
+### 3) 테스트/빌드
+
+Windows:
+
+```powershell
+.\gradlew.bat test
+.\gradlew.bat build
+```
+
+macOS/Linux:
+
+```bash
+./gradlew test
+./gradlew build
 ```
 
 DB/Redis/Object Storage는 사전에 실행되어 있어야 합니다.
@@ -142,6 +161,7 @@ docker compose -f docker-compose.minio.yml up -d
 
 ```text
 com.mocktalkback/
+├── dev/         # 개발용 시드/보조 코드
 ├── global/
 │   ├── auth/
 │   ├── common/
@@ -152,9 +172,11 @@ com.mocktalkback/
 │   ├── article/
 │   ├── board/
 │   ├── comment/
+│   ├── common/
 │   ├── file/
 │   ├── moderation/
 │   ├── notification/
+│   ├── realtime/
 │   ├── role/
 │   └── search/
 └── infra/
