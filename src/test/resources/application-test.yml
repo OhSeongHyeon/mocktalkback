@@ -1,3 +1,2 @@
 server:
-  port: ${DEV_SERVER_PORT}
-
+  port: ${SERVER_PORT}

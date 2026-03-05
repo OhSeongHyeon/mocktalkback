@@ -66,7 +66,7 @@ Nginx
 - 운영: `mocktalkback/.env.prod`
 - 기본 키 목록: `mocktalkback/.env.example`
 
-개발 프로파일(`application-dev.yml`)은 `DEV_*` 키(`DEV_DB_URL`, `DEV_REDIS_HOST` 등)를 사용합니다.
+개발/운영 프로파일 모두 동일한 키(`DB_*`, `REDIS_*`)를 사용하고 값만 다르게 관리합니다.
 
 ### 2) 애플리케이션 실행
 
@@ -110,8 +110,8 @@ docker compose -f docker-compose.minio.yml up -d
 
 ## 프로파일
 
-- `dev`: `application-dev.yml` 사용, 개발용 DB/Redis 키(`DEV_*`) 사용
-- `prod`: `application-prod.yml` 사용, 운영용 키(`DB_*`, `REDIS_*`) 사용
+- `dev`: `application-dev.yml` 사용, 공통 DB/Redis 키(`DB_*`, `REDIS_*`)를 개발 값으로 사용
+- `prod`: `application-prod.yml` 사용, 공통 DB/Redis 키(`DB_*`, `REDIS_*`)를 운영 값으로 사용
 
 ## 핵심 환경 변수
 
@@ -149,8 +149,8 @@ docker compose -f docker-compose.minio.yml up -d
 | `STORAGE_DELETE_DLQ_RETENTION_SEC` | 삭제 재시도 DLQ 보관 시간(초) |
 | `APP_FILE_TEMP_EXPIRE_HOURS` | 임시 파일 만료 시간(시간) |
 | `APP_FILE_TEMP_CLEANUP_INTERVAL_MS` | 임시 파일 정리 스케줄 주기(ms) |
-| `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
-| `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
+| `DB_URL` | PostgreSQL 접속 URL(프로파일별 값만 다르게 관리) |
+| `REDIS_HOST` | Redis 호스트(프로파일별 값만 다르게 관리) |
 
 ## API 문서(개발)
 

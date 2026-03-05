@@ -22,9 +22,9 @@ spring:
     name: mocktalkback
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DEV_DB_URL}
-    username: ${DEV_DB_USERNAME}
-    password: ${DEV_DB_PASSWORD}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     hikari:
       connection-test-query: "SELECT 1"
   jackson:
@@ -42,16 +42,16 @@ spring:
     properties:
       hibernate:
         # "[format_sql]": true    # SQL 포맷
-        # dialect: ${DEV_JPA_DIALECT}
+        # dialect: ${JPA_DIALECT}
         jdbc:
           time-zone: Asia/Seoul
     open-in-view: false  # 웬만하면 false 권장 (N+1 잡기 쉬움)
 
   data:
     redis:
-      host: ${DEV_REDIS_HOST}
-      port: ${DEV_REDIS_PORT}
-      password: ${DEV_REDIS_PASSWORD}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
 
   security:
     # user:              # oauth2-client 의존성 추가하면 시큐리티 비밀번호 안나옴
