@@ -65,21 +65,31 @@ Nginx
 - 개발: `mocktalkback/.env.dev`
 - 운영: `mocktalkback/.env.prod`
 - 기본 키 목록: `mocktalkback/.env.example`
+- 기본 `.env` 파일은 사용하지 않고, `.env.{profile}` 파일만 사용합니다.
 
 개발/운영 프로파일 모두 동일한 키(`DB_*`, `REDIS_*`)를 사용하고 값만 다르게 관리합니다.
+Spring Boot는 `.env.*` 파일을 자동 로딩하지 않으므로, 실행 전에 IDE/쉘/Docker에서 환경변수를 주입해야 합니다.
 
 ### 2) 애플리케이션 실행
 
 Windows:
 
 ```powershell
-.\gradlew.bat bootRun --args="--spring.profiles.active=dev"
+.\scripts\dev-run.ps1
+# 또는
+.\scripts\dev-run.ps1 -EnvFile ".env.dev" -Profile "dev"
+# 실행 실패 시 창 유지
+.\scripts\dev-run.ps1 -KeepOpen
+# 탐색기 우클릭 실행 대체(창 자동 종료 방지)
+.\scripts\dev-run-open.cmd
 ```
 
 macOS/Linux:
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=dev'
+./scripts/dev-run.sh
+# 또는
+./scripts/dev-run.sh --env-file .env.dev --profile dev
 ```
 
 ### 3) 테스트/빌드
