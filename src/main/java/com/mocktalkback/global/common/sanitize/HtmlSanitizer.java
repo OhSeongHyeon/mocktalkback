@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.owasp.html.AttributePolicy;
+import org.owasp.html.CssSchema;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,15 @@ public class HtmlSanitizer {
         "https://www.youtube.com/embed",
         "https://www.youtube-nocookie.com/embed"
     );
+    private static final CssSchema SAFE_EDITOR_STYLE_SCHEMA = CssSchema.withProperties(List.of(
+        "background-color",
+        "color",
+        "font-family",
+        "font-size",
+        "height",
+        "text-align",
+        "width"
+    ));
 
     private final HtmlSanitizerProperties properties;
     private PolicyFactory policy;
@@ -108,7 +118,7 @@ public class HtmlSanitizer {
             .onElements("img")
             .allowAttributes("data-youtube-video").onElements("div")
             .allowAttributes("colspan", "rowspan").onElements("th", "td")
-            .allowStyling()
+            .allowStyling(SAFE_EDITOR_STYLE_SCHEMA)
             .allowUrlProtocols("http", "https")
             .toFactory();
     }
