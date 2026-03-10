@@ -41,6 +41,7 @@ import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
+import com.mocktalkback.domain.article.type.ArticleContentFormat;
 import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
@@ -69,7 +70,6 @@ import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.type.SortOrder;
-import com.mocktalkback.global.common.sanitize.HtmlSanitizer;
 
 @ExtendWith(MockitoExtension.class)
 class ArticleServiceTest {
@@ -126,7 +126,7 @@ class ArticleServiceTest {
     private CurrentUserService currentUserService;
 
     @Mock
-    private HtmlSanitizer htmlSanitizer;
+    private ArticleContentService articleContentService;
 
     @Mock
     private SanctionGuard sanctionGuard;
@@ -163,6 +163,7 @@ class ArticleServiceTest {
             ContentVisibility.PUBLIC,
             "title",
             "content",
+            ArticleContentFormat.HTML,
             false,
             List.of(10L, 20L)
         );
@@ -172,7 +173,8 @@ class ArticleServiceTest {
         when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
-        when(htmlSanitizer.sanitize("content")).thenReturn("content");
+        when(articleContentService.render("content", ArticleContentFormat.HTML))
+            .thenReturn(new ArticleContentService.RenderedContent("content", "content"));
 
         ArticleEntity article = createArticle(100L, board, user, category);
         when(articleMapper.toEntity(any(ArticleCreateRequest.class), eq(board), eq(user), eq(category)))
@@ -209,6 +211,7 @@ class ArticleServiceTest {
             ContentVisibility.PUBLIC,
             "title",
             "content",
+            ArticleContentFormat.HTML,
             false,
             List.of()
         );
@@ -238,6 +241,7 @@ class ArticleServiceTest {
             ContentVisibility.PUBLIC,
             "title",
             "content",
+            ArticleContentFormat.HTML,
             false,
             List.of()
         );
@@ -262,11 +266,12 @@ class ArticleServiceTest {
         ArticleCategoryEntity category = createCategory(3L, board);
         ArticleEntity article = createArticle(100L, board, user, category);
 
-        when(articleRepository.findById(100L)).thenReturn(Optional.of(article));
+        when(articleRepository.findByIdAndDeletedAtIsNull(100L)).thenReturn(Optional.of(article));
         when(currentUserService.getUserId()).thenReturn(2L);
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
-        when(htmlSanitizer.sanitize("content")).thenReturn("content");
+        when(articleContentService.render("content", ArticleContentFormat.HTML))
+            .thenReturn(new ArticleContentService.RenderedContent("content", "content"));
 
         FileClassEntity fileClass = createFileClass(FileClassCode.ARTICLE_CONTENT_IMAGE);
         FileEntity existingFile = createFile(10L, fileClass, null);
@@ -289,6 +294,7 @@ class ArticleServiceTest {
             ContentVisibility.PUBLIC,
             "title",
             "content",
+            ArticleContentFormat.HTML,
             false,
             List.of(20L)
         );
@@ -548,6 +554,8 @@ class ArticleServiceTest {
             .visibility(ContentVisibility.PUBLIC)
             .title("title")
             .content("content")
+            .contentSource("content")
+            .contentFormat(ArticleContentFormat.HTML)
             .notice(false)
             .hit(0)
             .build();

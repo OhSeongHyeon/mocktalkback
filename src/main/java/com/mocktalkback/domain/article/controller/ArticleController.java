@@ -23,8 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkItemResponse;
+import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
+import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
@@ -92,6 +95,29 @@ public class ArticleController {
             response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         }
         return ApiEnvelope.ok(detail);
+    }
+
+    @GetMapping("/articles/{id}/editor")
+    @Operation(summary = "게시글 수정용 조회", description = "게시글 수정 화면에서 사용할 작성 원본과 포맷을 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "401", description = "인증 필요"),
+        @ApiResponse(responseCode = "403", description = "권한 없음"),
+        @ApiResponse(responseCode = "404", description = "게시글 없음")
+    })
+    public ApiEnvelope<ArticleEditorDetailResponse> findEditorById(@PathVariable("id") Long id) {
+        return ApiEnvelope.ok(articleService.findEditorDetailById(id));
+    }
+
+    @PostMapping("/articles/preview")
+    @Operation(summary = "게시글 미리보기", description = "작성 원본과 포맷을 받아 저장 전 미리보기 HTML을 반환합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "미리보기 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "400", description = "요청 값 오류"),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    public ApiEnvelope<ArticlePreviewResponse> preview(@RequestBody @Valid ArticlePreviewRequest request) {
+        return ApiEnvelope.ok(articleService.preview(request));
     }
 
     @GetMapping("/articles/{id}/attachments/{fileId}/download")

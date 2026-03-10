@@ -3,6 +3,7 @@ package com.mocktalkback.domain.article.dto;
 import java.util.List;
 
 import com.mocktalkback.domain.role.type.ContentVisibility;
+import com.mocktalkback.domain.article.type.ArticleContentFormat;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -35,9 +36,13 @@ public record ArticleCreateRequest(
     @Size(max = 255)
     String title,
 
-    @Schema(description = "Content", example = "This is a post.")
+    @Schema(description = "작성 원본", example = "# Hello world")
     @NotBlank
-    String content,
+    String contentSource,
+
+    @Schema(description = "작성 원본 포맷", example = "MARKDOWN")
+    @NotNull
+    ArticleContentFormat contentFormat,
 
     @Schema(description = "Notice flag", example = "false")
     boolean notice,

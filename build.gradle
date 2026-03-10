@@ -61,6 +61,7 @@ dependencies {
 
 	implementation 'org.bouncycastle:bcprov-jdk18on:1.83'  // argon2
 	implementation 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260102.1'  // owasp sanitizer
+	implementation 'com.vladsch.flexmark:flexmark-all:0.64.8'  // markdown 렌더링
 
 	implementation 'org.flywaydb:flyway-core'  // flyway
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
