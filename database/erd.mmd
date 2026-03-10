@@ -33,6 +33,7 @@ erDiagram
         VARCHAR slug
         TEXT description
         VARCHAR visibility
+        VARCHAR article_write_policy
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
         TIMESTAMPTZ deleted_at
@@ -62,6 +63,7 @@ erDiagram
         TIMESTAMPTZ deleted_at
         TSVECTOR search_vector
         BIGINT sync_version
+        TEXT author_search_text
     }
 
     tb_comments {
@@ -326,4 +328,3 @@ erDiagram
 
     tb_users ||--o{ tb_admin_audit_logs : actor
     tb_boards ||--o{ tb_admin_audit_logs : board
-
