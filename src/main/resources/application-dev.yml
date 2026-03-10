@@ -83,6 +83,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    postgresql:
+      transactional-lock: false  # CREATE INDEX CONCURRENTLY 같은 비트랜잭션 DDL 정지를 방지
     # baseline-on-migrate: true   # 기존 DB에 붙일 때 유용(초기엔 없어도 됨)
     # baseline-version: 1
 
