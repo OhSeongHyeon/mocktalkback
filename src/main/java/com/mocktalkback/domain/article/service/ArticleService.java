@@ -23,6 +23,9 @@ import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
 import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
+import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
@@ -68,7 +71,6 @@ import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.dto.PageResponse;
-import com.mocktalkback.global.common.sanitize.HtmlSanitizer;
 import com.mocktalkback.global.common.util.ActivityPointPolicy;
 import com.mocktalkback.global.common.util.ReactionTypeValidator;
 import com.mocktalkback.global.common.type.SortOrder;
@@ -104,7 +106,7 @@ public class ArticleService {
     private final FileStorage fileStorage;
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
-    private final HtmlSanitizer htmlSanitizer;
+    private final ArticleContentService articleContentService;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final BoardAccessPolicy boardAccessPolicy;
     private final SanctionGuard sanctionGuard;
@@ -128,18 +130,31 @@ public class ArticleService {
         boardAccessPolicy.requireCanWrite(board, user, member);
         sanctionGuard.requireNotSanctioned(user, board, "제재 상태라 게시글을 작성할 수 없습니다.");
         ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), board);
-        String sanitizedContent = htmlSanitizer.sanitize(request.content());
+        ArticleContentService.RenderedContent renderedContent = articleContentService.render(
+            request.contentSource(),
+            request.contentFormat()
+        );
         ArticleCreateRequest sanitizedRequest = new ArticleCreateRequest(
             request.boardId(),
             actorUserId,
             request.categoryId(),
             request.visibility(),
             request.title(),
-            sanitizedContent,
+            renderedContent.contentSource(),
+            request.contentFormat(),
             request.notice(),
             request.fileIds()
         );
         ArticleEntity entity = articleMapper.toEntity(sanitizedRequest, board, user, category);
+        entity.update(
+            category,
+            request.visibility(),
+            request.title(),
+            renderedContent.content(),
+            renderedContent.contentSource(),
+            request.contentFormat(),
+            request.notice()
+        );
         ArticleEntity saved = articleRepository.save(entity);
         attachArticleFiles(saved, sanitizedRequest.fileIds());
         user.changePoint(ActivityPointPolicy.CREATE_ARTICLE.delta);
@@ -205,6 +220,56 @@ public class ArticleService {
             article.getUpdatedAt(),
             attachments
         );
+    }
+
+    @Transactional(readOnly = true)
+    public ArticleEditorDetailResponse findEditorDetailById(Long id) {
+        ArticleEntity article = articleRepository.findByIdAndDeletedAtIsNull(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
+
+        UserEntity user = getCurrentUser();
+        sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
+        requireOwnership(user, article);
+
+        BoardEntity board = article.getBoard();
+        FileResponse boardImage = resolveBoardImage(board.getId());
+        List<FileResponse> attachments = resolveAttachments(article.getId());
+        ArticleCategoryEntity category = article.getCategory();
+        ArticleBoardResponse boardResponse = new ArticleBoardResponse(
+            board.getId(),
+            board.getBoardName(),
+            board.getSlug(),
+            board.getDescription(),
+            board.getVisibility(),
+            boardImage
+        );
+
+        return new ArticleEditorDetailResponse(
+            article.getId(),
+            boardResponse,
+            article.getUser().getId(),
+            category != null ? category.getId() : null,
+            category != null ? category.getCategoryName() : null,
+            authorDisplayResolver.resolveAuthorName(article.getUser()),
+            article.getVisibility(),
+            article.getTitle(),
+            article.getContent(),
+            article.getContentSource(),
+            article.getContentFormat(),
+            article.isNotice(),
+            article.getCreatedAt(),
+            article.getUpdatedAt(),
+            attachments
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public ArticlePreviewResponse preview(ArticlePreviewRequest request) {
+        ArticleContentService.RenderedContent renderedContent = articleContentService.render(
+            request.contentSource(),
+            request.contentFormat()
+        );
+        return new ArticlePreviewResponse(renderedContent.content());
     }
 
     @Transactional
@@ -380,13 +445,25 @@ public class ArticleService {
 
     @Transactional
     public ArticleResponse update(Long id, ArticleUpdateRequest request) {
-        ArticleEntity entity = articleRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("article not found: " + id));
+        ArticleEntity entity = articleRepository.findByIdAndDeletedAtIsNull(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
         UserEntity user = getCurrentUser();
         sanctionGuard.requireNotSanctioned(user, entity.getBoard(), "제재 상태라 게시글을 수정할 수 없습니다.");
+        requireOwnership(user, entity);
         ArticleCategoryEntity category = getCategoryForBoard(request.categoryId(), entity.getBoard());
-        String sanitizedContent = htmlSanitizer.sanitize(request.content());
-        entity.update(category, request.visibility(), request.title(), sanitizedContent, request.notice());
+        ArticleContentService.RenderedContent renderedContent = articleContentService.render(
+            request.contentSource(),
+            request.contentFormat()
+        );
+        entity.update(
+            category,
+            request.visibility(),
+            request.title(),
+            renderedContent.content(),
+            renderedContent.contentSource(),
+            request.contentFormat(),
+            request.notice()
+        );
         syncArticleFiles(entity, request.fileIds());
         return articleMapper.toResponse(entity);
     }

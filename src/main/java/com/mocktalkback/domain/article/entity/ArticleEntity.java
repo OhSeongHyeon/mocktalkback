@@ -1,6 +1,7 @@
 package com.mocktalkback.domain.article.entity;
 
 import com.mocktalkback.domain.board.entity.BoardEntity;
+import com.mocktalkback.domain.article.type.ArticleContentFormat;
 import com.mocktalkback.global.common.entity.SoftDeleteEntity;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -66,6 +67,13 @@ public class ArticleEntity extends SoftDeleteEntity {
     @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
 
+    @Column(name = "content_source", nullable = false, columnDefinition = "text")
+    private String contentSource;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "content_format", nullable = false, length = 16)
+    private ArticleContentFormat contentFormat;
+
     @Column(name = "hit", nullable = false)
     private long hit;
 
@@ -83,6 +91,8 @@ public class ArticleEntity extends SoftDeleteEntity {
         ContentVisibility visibility,
         String title,
         String content,
+        String contentSource,
+        ArticleContentFormat contentFormat,
         long hit,
         boolean notice
     ) {
@@ -92,6 +102,8 @@ public class ArticleEntity extends SoftDeleteEntity {
         this.visibility = visibility;
         this.title = title;
         this.content = content;
+        this.contentSource = contentSource;
+        this.contentFormat = contentFormat;
         this.hit = hit;
         this.notice = notice;
     }
@@ -101,12 +113,16 @@ public class ArticleEntity extends SoftDeleteEntity {
         ContentVisibility visibility,
         String title,
         String content,
+        String contentSource,
+        ArticleContentFormat contentFormat,
         boolean notice
     ) {
         this.category = category;
         this.visibility = visibility;
         this.title = title;
         this.content = content;
+        this.contentSource = contentSource;
+        this.contentFormat = contentFormat;
         this.notice = notice;
     }
 

@@ -32,10 +32,14 @@ import com.mocktalkback.domain.article.dto.ArticleBookmarkDeleteRequest;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
+import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
+import com.mocktalkback.domain.article.type.ArticleContentFormat;
 import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
 import com.mocktalkback.domain.article.service.ArticleService;
@@ -73,7 +77,8 @@ class ArticleControllerTest {
             3L,
             ContentVisibility.PUBLIC,
             "title",
-            "content",
+            "# title",
+            ArticleContentFormat.MARKDOWN,
             false,
             List.of()
         );
@@ -144,6 +149,66 @@ class ArticleControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.id").value(10L));
+    }
+
+    // 게시글 수정용 조회 API는 작성 원본과 포맷을 반환해야 한다.
+    @Test
+    void findEditorById_returns_editor_payload() throws Exception {
+        // Given: 수정용 게시글 응답
+        ArticleBoardResponse boardResponse = new ArticleBoardResponse(
+            1L,
+            "notice",
+            "notice",
+            "notice board",
+            BoardVisibility.PUBLIC,
+            null
+        );
+        ArticleEditorDetailResponse response = new ArticleEditorDetailResponse(
+            10L,
+            boardResponse,
+            2L,
+            3L,
+            "공지",
+            "author",
+            ContentVisibility.PUBLIC,
+            "title",
+            "<h1>title</h1>",
+            "# title",
+            ArticleContentFormat.MARKDOWN,
+            false,
+            FIXED_TIME,
+            FIXED_TIME,
+            List.of()
+        );
+        when(articleService.findEditorDetailById(10L)).thenReturn(response);
+
+        // When: 수정용 조회 API 호출
+        ResultActions result = mockMvc.perform(get("/api/articles/10/editor"));
+
+        // Then: 작성 원본과 포맷이 반환되어야 한다.
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.contentSource").value("# title"))
+            .andExpect(jsonPath("$.data.contentFormat").value("MARKDOWN"));
+    }
+
+    // 게시글 미리보기 API는 렌더링된 HTML을 반환해야 한다.
+    @Test
+    void preview_returns_rendered_html() throws Exception {
+        // Given: 미리보기 요청과 응답
+        ArticlePreviewRequest request = new ArticlePreviewRequest("# 제목", ArticleContentFormat.MARKDOWN);
+        ArticlePreviewResponse response = new ArticlePreviewResponse("<h1>제목</h1>");
+        when(articleService.preview(request)).thenReturn(response);
+
+        // When: 미리보기 API 호출
+        ResultActions result = mockMvc.perform(post("/api/articles/preview")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)));
+
+        // Then: 렌더링된 HTML이 반환되어야 한다.
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.content").value("<h1>제목</h1>"));
     }
 
     // 게시글 목록 조회 API는 리스트 응답을 반환해야 한다.
@@ -331,7 +396,8 @@ class ArticleControllerTest {
             3L,
             ContentVisibility.MEMBERS,
             "updated title",
-            "updated content",
+            "## updated content",
+            ArticleContentFormat.MARKDOWN,
             true,
             List.of()
         );

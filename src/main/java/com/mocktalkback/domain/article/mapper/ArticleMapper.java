@@ -58,7 +58,9 @@ public interface ArticleMapper {
             .category(category)
             .visibility(request.visibility())
             .title(request.title())
-            .content(request.content())
+            .content(request.contentSource())
+            .contentSource(request.contentSource())
+            .contentFormat(request.contentFormat())
             .hit(0L)
             .notice(request.notice())
             .build();
