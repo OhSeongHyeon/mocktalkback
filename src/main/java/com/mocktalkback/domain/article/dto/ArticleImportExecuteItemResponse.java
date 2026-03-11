@@ -21,6 +21,15 @@ public record ArticleImportExecuteItemResponse(
     @Schema(description = "공개 범위", example = "PUBLIC")
     String visibility,
 
+    @Schema(description = "업로드한 이미지 수", example = "2")
+    int uploadedImageCount,
+
+    @Schema(description = "업로드한 동영상 수", example = "1")
+    int uploadedVideoCount,
+
+    @Schema(description = "유효한 유튜브 임베드 수", example = "1")
+    int youtubeEmbedCount,
+
     @Schema(description = "생성 성공 여부", example = "true")
     boolean created,
 

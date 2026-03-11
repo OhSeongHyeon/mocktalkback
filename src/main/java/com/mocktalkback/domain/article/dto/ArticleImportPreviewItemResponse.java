@@ -21,6 +21,24 @@ public record ArticleImportPreviewItemResponse(
     @Schema(description = "공개 범위", example = "PUBLIC")
     String visibility,
 
+    @Schema(description = "상대경로 이미지 수", example = "2")
+    int relativeImageCount,
+
+    @Schema(description = "상대경로 동영상 수", example = "1")
+    int relativeVideoCount,
+
+    @Schema(description = "유효한 유튜브 임베드 수", example = "1")
+    int youtubeEmbedCount,
+
+    @Schema(description = "누락된 본문 assets 수", example = "0")
+    int missingAssetCount,
+
+    @Schema(description = "크기 제한 초과 assets 수", example = "0")
+    int oversizedAssetCount,
+
+    @Schema(description = "미지원 assets 수", example = "0")
+    int unsupportedAssetCount,
+
     @Schema(description = "실행 가능 여부", example = "true")
     boolean executable,
 

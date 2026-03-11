@@ -2,6 +2,8 @@ package com.mocktalkback.domain.article.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ public class ArticleContentService {
     private static final Pattern TABLE_DELIMITER_PATTERN = Pattern.compile(
         "^\\s*\\|?(\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?\\s*$"
     );
+    private static final Pattern YOUTUBE_PATTERN = Pattern.compile("!youtube\\[(.+?)]");
     private final HtmlSanitizer htmlSanitizer;
     private final Parser markdownParser;
     private final HtmlRenderer markdownRenderer;
@@ -56,7 +59,7 @@ public class ArticleContentService {
             return new RenderedContent(sanitized, sanitized);
         }
 
-        String normalizedMarkdown = normalizeMarkdownTables(stripMarkdownFrontmatter(contentSource));
+        String normalizedMarkdown = normalizeMarkdownTables(normalizeMarkdownYouTubeEmbeds(stripMarkdownFrontmatter(contentSource)));
         String rendered = markdownRenderer.render(markdownParser.parse(normalizedMarkdown));
         String sanitized = htmlSanitizer.sanitize(rendered);
         return new RenderedContent(sanitized, contentSource);
@@ -111,6 +114,29 @@ public class ArticleContentService {
         return String.join("\n", normalized);
     }
 
+    private String normalizeMarkdownYouTubeEmbeds(String markdown) {
+        if (markdown.isBlank()) {
+            return markdown;
+        }
+
+        Matcher matcher = YOUTUBE_PATTERN.matcher(markdown);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String rawValue = matcher.group(1) == null ? null : matcher.group(1).trim();
+            String videoId = resolveYouTubeVideoId(rawValue);
+            if (videoId == null) {
+                matcher.appendReplacement(buffer, Matcher.quoteReplacement(matcher.group(0)));
+                continue;
+            }
+            String iframe = """
+                <iframe class="article-youtube-embed" src="https://www.youtube.com/embed/%s" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                """.formatted(videoId).trim();
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(iframe));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
     private String stripMarkdownFrontmatter(String markdown) {
         if (markdown.isBlank()) {
             return markdown;
@@ -155,5 +181,58 @@ public class ArticleContentService {
     private boolean isTableRowLine(String line) {
         String trimmed = line.trim();
         return !trimmed.isEmpty() && trimmed.contains("|") && !isCodeFenceLine(trimmed);
+    }
+
+    private String resolveYouTubeVideoId(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return null;
+        }
+        String normalized = rawValue.trim();
+        if (normalized.matches("^[A-Za-z0-9_-]{11}$")) {
+            return normalized;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(normalized);
+            String host = uri.getHost();
+            if (host == null || host.isBlank()) {
+                return null;
+            }
+            String normalizedHost = host.toLowerCase(Locale.ROOT);
+            String path = uri.getPath() == null ? "" : uri.getPath().trim();
+            if ("youtu.be".equals(normalizedHost) && !path.isBlank()) {
+                String candidate = path.startsWith("/") ? path.substring(1) : path;
+                return candidate.matches("^[A-Za-z0-9_-]{11}$") ? candidate : null;
+            }
+            if (normalizedHost.endsWith("youtube.com") || normalizedHost.endsWith("youtube-nocookie.com")) {
+                if (path.startsWith("/embed/")) {
+                    String candidate = path.substring("/embed/".length());
+                    int slashIndex = candidate.indexOf('/');
+                    if (slashIndex >= 0) {
+                        candidate = candidate.substring(0, slashIndex);
+                    }
+                    return candidate.matches("^[A-Za-z0-9_-]{11}$") ? candidate : null;
+                }
+                if (path.startsWith("/shorts/")) {
+                    String candidate = path.substring("/shorts/".length());
+                    int slashIndex = candidate.indexOf('/');
+                    if (slashIndex >= 0) {
+                        candidate = candidate.substring(0, slashIndex);
+                    }
+                    return candidate.matches("^[A-Za-z0-9_-]{11}$") ? candidate : null;
+                }
+                String query = uri.getQuery();
+                if (query != null && !query.isBlank()) {
+                    for (String queryPart : query.split("&")) {
+                        String[] pair = queryPart.split("=", 2);
+                        if (pair.length == 2 && "v".equals(pair[0])) {
+                            return pair[1].matches("^[A-Za-z0-9_-]{11}$") ? pair[1] : null;
+                        }
+                    }
+                }
+            }
+            return null;
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 }

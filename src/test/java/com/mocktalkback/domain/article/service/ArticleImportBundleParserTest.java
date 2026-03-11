@@ -54,6 +54,7 @@ class ArticleImportBundleParserTest {
         assertThat(bundle.articles()).hasSize(1);
         ArticleImportBundleParser.ArticleImportCandidate article = bundle.articles().get(0);
         assertThat(article.filePath()).isEqualTo("posts/post-1.md");
+        assertThat(article.markdownPath()).isEqualTo("batch/posts/post-1.md");
         assertThat(article.title()).isEqualTo("frontmatter 제목");
         assertThat(article.boardSlug()).isEqualTo("dev");
         assertThat(article.visibility()).isEqualTo("PUBLIC");
@@ -99,16 +100,54 @@ class ArticleImportBundleParserTest {
         assertThat(article.warnings()).contains("frontmatter 종료 구분자가 없어 원본 전체를 Markdown으로 사용합니다.");
     }
 
-    private byte[] createZip(String firstPath, String firstContent, String secondPath, String secondContent) throws Exception {
+    // manifest가 없어도 zip 안의 markdown 파일을 자동 스캔해 후보를 만들어야 한다.
+    @Test
+    void parse_bundle_scans_markdown_files_without_manifest() throws Exception {
+        // Given: manifest 없이 여러 markdown과 assets가 포함된 zip
+        ArticleImportBundleParser parser = new ArticleImportBundleParser();
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "batch.zip",
+            "application/zip",
+            createZip(
+                "docs/post-1.md", """
+                    ---
+                    title: "첫 번째 문서"
+                    boardSlug: "dev"
+                    ---
+
+                    # 본문 1
+                    """,
+                "post-2.md", """
+                    # 본문 2
+                    """,
+                "assets/cover.png", "png"
+            )
+        );
+
+        // When: zip을 파싱하면
+        ArticleImportBundleParser.ArticleImportBundle bundle = parser.parse(file);
+
+        // Then: markdown 파일 2개가 자동 스캔되어야 한다.
+        assertThat(bundle.articles()).hasSize(2);
+        assertThat(bundle.articles())
+            .extracting(ArticleImportBundleParser.ArticleImportCandidate::markdownPath)
+            .containsExactly("docs/post-1.md", "post-2.md");
+        assertThat(bundle.articles().get(0).title()).isEqualTo("첫 번째 문서");
+        assertThat(bundle.articles().get(1).title()).isEqualTo("post 2");
+    }
+
+    private byte[] createZip(String... entries) throws Exception {
+        if (entries.length % 2 != 0) {
+            throw new IllegalArgumentException("zip 엔트리는 path/content 쌍이어야 합니다.");
+        }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, StandardCharsets.UTF_8)) {
-            zipOutputStream.putNextEntry(new ZipEntry(firstPath));
-            zipOutputStream.write(firstContent.getBytes(StandardCharsets.UTF_8));
-            zipOutputStream.closeEntry();
-
-            zipOutputStream.putNextEntry(new ZipEntry(secondPath));
-            zipOutputStream.write(secondContent.getBytes(StandardCharsets.UTF_8));
-            zipOutputStream.closeEntry();
+            for (int index = 0; index < entries.length; index += 2) {
+                zipOutputStream.putNextEntry(new ZipEntry(entries[index]));
+                zipOutputStream.write(entries[index + 1].getBytes(StandardCharsets.UTF_8));
+                zipOutputStream.closeEntry();
+            }
         }
         return outputStream.toByteArray();
     }

@@ -48,6 +48,9 @@ class ArticleImportServiceTest {
     private ArticleService articleService;
 
     @Mock
+    private ArticleImportAssetStorageService articleImportAssetStorageService;
+
+    @Mock
     private BoardRepository boardRepository;
 
     @Mock
@@ -74,7 +77,7 @@ class ArticleImportServiceTest {
         // Given: 비어 있는 번들과 현재 사용자
         MockMultipartFile file = new MockMultipartFile("file", "batch.zip", "application/zip", new byte[] {1, 2, 3});
         UserEntity actor = createUser(1L, RoleNames.MANAGER);
-        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", List.of()));
+        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", java.util.Map.of(), List.of()));
         when(currentUserService.getUserId()).thenReturn(1L);
         when(userRepository.findByIdWithRoleAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
 
@@ -98,6 +101,7 @@ class ArticleImportServiceTest {
         BoardEntity board = createBoard(10L, "dev");
         ArticleImportCandidate candidate = new ArticleImportCandidate(
             "posts/post-1.md",
+            "posts/post-1.md",
             "카테고리 테스트",
             "dev",
             "PUBLIC",
@@ -107,7 +111,7 @@ class ArticleImportServiceTest {
             List.of()
         );
 
-        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", List.of(candidate)));
+        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", java.util.Map.of(), List.of(candidate)));
         when(currentUserService.getUserId()).thenReturn(1L);
         when(userRepository.findByIdWithRoleAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
         when(boardRepository.findBySlugAndDeletedAtIsNull("dev")).thenReturn(Optional.of(board));
@@ -138,6 +142,7 @@ class ArticleImportServiceTest {
         BoardEntity board = createBoard(10L, "dev");
         ArticleImportCandidate candidate = new ArticleImportCandidate(
             "posts/post-1.md",
+            "posts/post-1.md",
             "카테고리 테스트",
             "dev",
             "PUBLIC",
@@ -152,7 +157,7 @@ class ArticleImportServiceTest {
             List.of()
         );
 
-        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", List.of(candidate)));
+        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", java.util.Map.of(), List.of(candidate)));
         when(currentUserService.getUserId()).thenReturn(1L);
         when(userRepository.findByIdWithRoleAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
         when(boardRepository.findBySlugAndDeletedAtIsNull("dev")).thenReturn(Optional.of(board));
@@ -182,6 +187,7 @@ class ArticleImportServiceTest {
         ArticleCategoryEntity category = createCategory(30L, board, "백엔드");
         ArticleImportCandidate candidate = new ArticleImportCandidate(
             "posts/post-1.md",
+            "posts/post-1.md",
             "카테고리 테스트",
             "dev",
             "PUBLIC",
@@ -191,7 +197,7 @@ class ArticleImportServiceTest {
             List.of()
         );
 
-        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", List.of(candidate)));
+        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", java.util.Map.of(), List.of(candidate)));
         when(currentUserService.getUserId()).thenReturn(1L);
         when(userRepository.findByIdWithRoleAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
         when(boardRepository.findBySlugAndDeletedAtIsNull("dev")).thenReturn(Optional.of(board));
@@ -227,9 +233,64 @@ class ArticleImportServiceTest {
             assertThat(item.created()).isTrue();
             assertThat(item.categoryName()).isEqualTo("백엔드");
             assertThat(item.articleId()).isEqualTo(99L);
+            assertThat(item.uploadedImageCount()).isZero();
+            assertThat(item.uploadedVideoCount()).isZero();
         });
         verify(articleCategoryRepository).save(argThat(saved -> isExpectedCategory(saved, board, "백엔드")));
         verify(articleService).create(argThat(request -> isExpectedCreateRequest(request, board.getId(), actor.getId(), category.getId())));
+    }
+
+    // 상대경로 본문 assets와 해석할 수 없는 유튜브 문법은 미리보기에서 개수와 경고를 함께 반환해야 한다.
+    @Test
+    void preview_counts_assets_and_keeps_invalid_youtube_as_warning() {
+        // Given: 상대경로 이미지/동영상과 해석할 수 없는 유튜브 문법이 섞인 markdown
+        MockMultipartFile file = new MockMultipartFile("file", "batch.zip", "application/zip", new byte[] {1, 2, 3});
+        UserEntity actor = createUser(1L, RoleNames.MANAGER);
+        BoardEntity board = createBoard(10L, "dev");
+        ArticleImportCandidate candidate = new ArticleImportCandidate(
+            "posts/post-1.md",
+            "posts/post-1.md",
+            "assets 테스트",
+            "dev",
+            "PUBLIC",
+            null,
+            """
+            ![표지](../assets/cover.png)
+
+            <video controls src="../assets/demo.mp4"></video>
+
+            !youtube[not-a-youtube-value]
+            """,
+            List.of(),
+            List.of()
+        );
+
+        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle(
+            "batch.zip",
+            java.util.Map.of(
+                "assets/cover.png", new byte[] {1, 2, 3},
+                "assets/demo.mp4", new byte[] {4, 5, 6}
+            ),
+            List.of(candidate)
+        ));
+        when(currentUserService.getUserId()).thenReturn(1L);
+        when(userRepository.findByIdWithRoleAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        when(boardRepository.findBySlugAndDeletedAtIsNull("dev")).thenReturn(Optional.of(board));
+        when(boardMemberRepository.findByUserIdAndBoardId(1L, 10L)).thenReturn(Optional.empty());
+        when(boardAccessPolicy.canAccessBoard(board, actor, null)).thenReturn(true);
+        when(boardAccessPolicy.resolveAllowedVisibilities(board, actor, null)).thenReturn(java.util.EnumSet.of(ContentVisibility.PUBLIC));
+
+        // When: 미리보기를 실행하면
+        ArticleImportPreviewResponse response = articleImportService.preview(file, true);
+
+        // Then: assets 개수와 유튜브 원문 보존 경고가 반환되어야 한다.
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.relativeImageCount()).isEqualTo(1);
+            assertThat(item.relativeVideoCount()).isEqualTo(1);
+            assertThat(item.youtubeEmbedCount()).isZero();
+            assertThat(item.errors()).isEmpty();
+            assertThat(item.warnings()).contains("유튜브 문법을 해석하지 못해 원문을 그대로 보존합니다: !youtube[not-a-youtube-value]");
+        });
     }
 
     private UserEntity createUser(Long id, String roleName) {
@@ -275,7 +336,8 @@ class ArticleImportServiceTest {
             && categoryId.equals(request.categoryId())
             && request.visibility() == ContentVisibility.PUBLIC
             && "카테고리 테스트".equals(request.title())
-            && "# 본문".equals(request.contentSource());
+            && request.contentSource() != null
+            && request.contentSource().contains("# 본문");
     }
 
     private boolean isExpectedCategory(ArticleCategoryEntity category, BoardEntity board, String categoryName) {

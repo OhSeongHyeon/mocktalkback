@@ -41,8 +41,18 @@ public class ArticleImportBundleParser {
             throw new IllegalArgumentException("zip 파일이 비어 있습니다.");
         }
 
-        Map<String, String> textEntries = readTextEntries(file);
+        Map<String, byte[]> zipEntries = readZipEntries(file);
+        Map<String, String> textEntries = readTextEntries(zipEntries);
         String manifestPath = resolveManifestPath(textEntries.keySet());
+
+        List<ArticleImportCandidate> candidates = manifestPath == null
+            ? parseWithoutManifest(textEntries)
+            : parseWithManifest(textEntries, manifestPath);
+
+        return new ArticleImportBundle(file.getOriginalFilename(), zipEntries, candidates);
+    }
+
+    private List<ArticleImportCandidate> parseWithManifest(Map<String, String> textEntries, String manifestPath) {
         Map<String, Object> manifest = asMap(yaml.load(textEntries.get(manifestPath)), "manifest 형식이 올바르지 않습니다.");
         Map<String, Object> defaults = getMap(manifest, "defaults");
         List<?> articles = getList(manifest.get("articles"), "manifest articles는 배열이어야 합니다.");
@@ -57,6 +67,7 @@ public class ArticleImportBundleParser {
             if (!(rawItem instanceof Map<?, ?> rawMap)) {
                 candidates.add(new ArticleImportCandidate(
                     "articles[" + index + "]",
+                    null,
                     null,
                     null,
                     null,
@@ -77,6 +88,7 @@ public class ArticleImportBundleParser {
                 errors.add("markdown 파일 경로(file)가 없습니다.");
                 candidates.add(new ArticleImportCandidate(
                     "articles[" + index + "]",
+                    null,
                     normalizeText(resolveString(item, "title")),
                     normalizeText(resolveString(item, "boardSlug", "board_slug", "board-slug")),
                     normalizeText(resolveString(item, "visibility")),
@@ -88,15 +100,13 @@ public class ArticleImportBundleParser {
                 continue;
             }
 
-            String directPath = normalizeZipPath(filePath);
-            String resolvedPath = textEntries.containsKey(directPath)
-                ? directPath
-                : resolveRelativePath(manifestDirectory, filePath);
+            String resolvedPath = resolveRelativePath(manifestDirectory, filePath);
             String markdown = textEntries.get(resolvedPath);
             if (!StringUtils.hasText(markdown)) {
                 errors.add("markdown 파일을 찾을 수 없습니다: " + filePath);
                 candidates.add(new ArticleImportCandidate(
                     filePath,
+                    resolvedPath,
                     normalizeText(resolveString(item, "title")),
                     normalizeText(resolveString(item, "boardSlug", "board_slug", "board-slug")),
                     normalizeText(resolveString(item, "visibility")),
@@ -108,56 +118,94 @@ public class ArticleImportBundleParser {
                 continue;
             }
 
-            FrontmatterResult frontmatter = parseFrontmatter(markdown);
-            warnings.addAll(frontmatter.warnings());
-            errors.addAll(frontmatter.errors());
-
-            String title = firstNonBlank(
-                resolveString(item, "title"),
-                frontmatter.metadata().title(),
-                deriveTitleFromPath(filePath)
-            );
-            String boardSlug = firstNonBlank(
-                resolveString(item, "boardSlug", "board_slug", "board-slug"),
-                frontmatter.metadata().boardSlug(),
-                resolveString(defaults, "boardSlug", "board_slug", "board-slug")
-            );
-            String visibility = firstNonBlank(
-                resolveString(item, "visibility"),
-                frontmatter.metadata().visibility(),
-                resolveString(defaults, "visibility"),
-                "PUBLIC"
-            );
-            String categoryName = firstNonBlank(
-                resolveString(item, "categoryName", "category_name", "category-name", "category"),
-                frontmatter.metadata().categoryName(),
-                resolveString(defaults, "categoryName", "category_name", "category-name", "category")
-            );
-
-            if (!frontmatter.metadata().tags().isEmpty()) {
-                warnings.add("frontmatter tags는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
-            }
-            if (StringUtils.hasText(frontmatter.metadata().summary())) {
-                warnings.add("frontmatter summary는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
-            }
-
-            candidates.add(new ArticleImportCandidate(
-                filePath,
-                normalizeText(title),
-                normalizeText(boardSlug),
-                normalizeText(visibility),
-                normalizeText(categoryName),
-                frontmatter.contentSource(),
-                warnings,
-                errors
-            ));
+            candidates.add(buildCandidate(filePath, resolvedPath, markdown, item, defaults, warnings, errors));
         }
 
-        return new ArticleImportBundle(file.getOriginalFilename(), candidates);
+        return candidates;
     }
 
-    private Map<String, String> readTextEntries(MultipartFile file) {
-        Map<String, String> entries = new LinkedHashMap<>();
+    private List<ArticleImportCandidate> parseWithoutManifest(Map<String, String> textEntries) {
+        List<String> markdownPaths = textEntries.keySet().stream()
+            .filter(this::isMarkdownCandidateForAutoScan)
+            .sorted()
+            .toList();
+        if (markdownPaths.isEmpty()) {
+            throw new IllegalArgumentException("zip 안에 import할 markdown 파일이 없습니다.");
+        }
+
+        List<ArticleImportCandidate> candidates = new ArrayList<>();
+        for (String markdownPath : markdownPaths) {
+            String markdown = textEntries.get(markdownPath);
+            candidates.add(buildCandidate(
+                markdownPath,
+                markdownPath,
+                markdown,
+                Map.of(),
+                Map.of(),
+                new ArrayList<>(),
+                new ArrayList<>()
+            ));
+        }
+        return candidates;
+    }
+
+    private ArticleImportCandidate buildCandidate(
+        String filePath,
+        String markdownPath,
+        String markdown,
+        Map<String, Object> item,
+        Map<String, Object> defaults,
+        List<String> warnings,
+        List<String> errors
+    ) {
+        FrontmatterResult frontmatter = parseFrontmatter(markdown);
+        warnings.addAll(frontmatter.warnings());
+        errors.addAll(frontmatter.errors());
+
+        String title = firstNonBlank(
+            resolveString(item, "title"),
+            frontmatter.metadata().title(),
+            deriveTitleFromPath(filePath)
+        );
+        String boardSlug = firstNonBlank(
+            resolveString(item, "boardSlug", "board_slug", "board-slug"),
+            frontmatter.metadata().boardSlug(),
+            resolveString(defaults, "boardSlug", "board_slug", "board-slug")
+        );
+        String visibility = firstNonBlank(
+            resolveString(item, "visibility"),
+            frontmatter.metadata().visibility(),
+            resolveString(defaults, "visibility"),
+            "PUBLIC"
+        );
+        String categoryName = firstNonBlank(
+            resolveString(item, "categoryName", "category_name", "category-name", "category"),
+            frontmatter.metadata().categoryName(),
+            resolveString(defaults, "categoryName", "category_name", "category-name", "category")
+        );
+
+        if (!frontmatter.metadata().tags().isEmpty()) {
+            warnings.add("frontmatter tags는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
+        }
+        if (StringUtils.hasText(frontmatter.metadata().summary())) {
+            warnings.add("frontmatter summary는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
+        }
+
+        return new ArticleImportCandidate(
+            filePath,
+            markdownPath,
+            normalizeText(title),
+            normalizeText(boardSlug),
+            normalizeText(visibility),
+            normalizeText(categoryName),
+            frontmatter.contentSource(),
+            warnings,
+            errors
+        );
+    }
+
+    private Map<String, byte[]> readZipEntries(MultipartFile file) {
+        Map<String, byte[]> entries = new LinkedHashMap<>();
         try (ZipInputStream zipInputStream = new ZipInputStream(file.getInputStream(), StandardCharsets.UTF_8)) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
@@ -165,7 +213,7 @@ public class ArticleImportBundleParser {
                     continue;
                 }
                 String normalizedPath = normalizeZipPath(entry.getName());
-                if (!isSupportedTextEntry(normalizedPath)) {
+                if (!StringUtils.hasText(normalizedPath) || isIgnoredSystemPath(normalizedPath)) {
                     continue;
                 }
                 entries.put(normalizedPath, readEntry(zipInputStream));
@@ -176,16 +224,52 @@ public class ArticleImportBundleParser {
         return entries;
     }
 
-    private String readEntry(InputStream inputStream) throws IOException {
+    private Map<String, String> readTextEntries(Map<String, byte[]> zipEntries) {
+        Map<String, String> textEntries = new LinkedHashMap<>();
+        for (Map.Entry<String, byte[]> entry : zipEntries.entrySet()) {
+            if (!isSupportedTextEntry(entry.getKey())) {
+                continue;
+            }
+            textEntries.put(entry.getKey(), new String(entry.getValue(), StandardCharsets.UTF_8));
+        }
+        return textEntries;
+    }
+
+    private byte[] readEntry(InputStream inputStream) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         inputStream.transferTo(outputStream);
-        return outputStream.toString(StandardCharsets.UTF_8);
+        return outputStream.toByteArray();
     }
 
     private boolean isSupportedTextEntry(String path) {
         String lowerCasePath = path.toLowerCase(Locale.ROOT);
         return MARKDOWN_EXTENSIONS.stream().anyMatch(lowerCasePath::endsWith)
             || YAML_EXTENSIONS.stream().anyMatch(lowerCasePath::endsWith);
+    }
+
+    private boolean isMarkdownCandidateForAutoScan(String path) {
+        String lowerCasePath = path.toLowerCase(Locale.ROOT);
+        if (YAML_EXTENSIONS.stream().anyMatch(lowerCasePath::endsWith)) {
+            return false;
+        }
+        if (!MARKDOWN_EXTENSIONS.stream().anyMatch(lowerCasePath::endsWith)) {
+            return false;
+        }
+        return !isIgnoredSystemPath(path);
+    }
+
+    private boolean isIgnoredSystemPath(String path) {
+        String normalized = normalizeZipPath(path);
+        if (normalized.startsWith("__MACOSX/")) {
+            return true;
+        }
+        String[] segments = normalized.split("/");
+        for (String segment : segments) {
+            if (segment.startsWith(".") && !segment.equals(".well-known")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String resolveManifestPath(Set<String> paths) {
@@ -197,7 +281,7 @@ public class ArticleImportBundleParser {
             .sorted()
             .toList();
         if (candidates.isEmpty()) {
-            throw new IllegalArgumentException("zip 안에 manifest.yml 또는 manifest.yaml 파일이 필요합니다.");
+            return null;
         }
         if (candidates.size() > 1) {
             throw new IllegalArgumentException("manifest 파일은 하나만 허용됩니다.");
@@ -218,7 +302,7 @@ public class ArticleImportBundleParser {
 
         int closingIndex = -1;
         for (int index = 1; index < lines.length; index += 1) {
-            if ("---".equals(lines[index].trim())) {
+            if ("---".equals(lines[index].trim()) || "...".equals(lines[index].trim())) {
                 closingIndex = index;
                 break;
             }
@@ -423,12 +507,14 @@ public class ArticleImportBundleParser {
 
     public record ArticleImportBundle(
         String sourceFileName,
+        Map<String, byte[]> zipEntries,
         List<ArticleImportCandidate> articles
     ) {
     }
 
     public record ArticleImportCandidate(
         String filePath,
+        String markdownPath,
         String title,
         String boardSlug,
         String visibility,

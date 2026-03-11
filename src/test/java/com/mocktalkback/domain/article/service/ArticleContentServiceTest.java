@@ -58,6 +58,24 @@ class ArticleContentServiceTest {
         assertThat(rendered.content()).doesNotContain("visibility:");
     }
 
+    // velog식 유튜브 문법은 HTML iframe으로 렌더링해야 한다.
+    @Test
+    void render_markdown_converts_youtube_syntax_to_iframe() {
+        // Given: 유튜브 커스텀 문법이 포함된 Markdown 원본
+        ArticleContentService articleContentService = new ArticleContentService(createSanitizer());
+        String markdown = """
+            !youtube[dQw4w9WgXcQ]
+            """;
+
+        // When: Markdown을 HTML로 렌더링하면
+        ArticleContentService.RenderedContent rendered = articleContentService.render(markdown, ArticleContentFormat.MARKDOWN);
+
+        // Then: 유튜브 iframe이 포함되어야 한다.
+        assertThat(rendered.contentSource()).isEqualTo(markdown);
+        assertThat(rendered.content()).contains("https://www.youtube.com/embed/dQw4w9WgXcQ");
+        assertThat(rendered.content()).contains("<iframe");
+    }
+
     // 표 앞뒤 공백 줄이 없어도 Markdown 표를 HTML table로 렌더링해야 한다.
     @Test
     void render_markdown_table_without_blank_lines_renders_table() {
