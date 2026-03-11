@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.mocktalkback.domain.board.entity.BoardSubscribeEntity;
 
-public interface BoardSubscribeRepository extends JpaRepository<BoardSubscribeEntity, Long> {
+public interface BoardSubscribeRepository extends JpaRepository<BoardSubscribeEntity, Long>, BoardSubscribeRepositoryCustom {
     boolean existsByUserIdAndBoardId(Long userId, Long boardId);
 
     void deleteByUserIdAndBoardId(Long userId, Long boardId);

@@ -160,8 +160,20 @@ public class BoardService {
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, BOARD_SUBSCRIBE_SORT);
 
         Long userId = currentUserService.getUserId();
-        Page<BoardSubscribeEntity> pageResult = boardSubscribeRepository
-            .findAllByUserIdAndBoardDeletedAtIsNull(userId, pageable);
+        UserEntity user = getUser(userId);
+        Page<BoardSubscribeEntity> pageResult;
+        if (boardAccessPolicy.isManagerOrAdmin(user)) {
+            pageResult = boardSubscribeRepository.findAllByUserIdAndBoardDeletedAtIsNull(userId, pageable);
+        } else {
+            pageResult = boardSubscribeRepository.findAccessibleSubscribes(
+                userId,
+                List.of(BoardVisibility.PUBLIC, BoardVisibility.GROUP),
+                BoardVisibility.PRIVATE,
+                BoardRole.OWNER,
+                BoardRole.BANNED,
+                pageable
+            );
+        }
         List<BoardSubscribeEntity> subscribes = pageResult.getContent();
         List<BoardEntity> boards = subscribes.stream()
             .map(BoardSubscribeEntity::getBoard)

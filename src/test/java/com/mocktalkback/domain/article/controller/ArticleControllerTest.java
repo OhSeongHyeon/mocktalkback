@@ -35,12 +35,14 @@ import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
 import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.type.ArticleContentFormat;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.dto.SliceResponse;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
 import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.domain.board.type.BoardVisibility;
@@ -255,6 +257,47 @@ class ArticleControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data[0].id").value(10L))
             .andExpect(jsonPath("$.data[1].id").value(11L));
+    }
+
+    // 홈 최근 공개 게시글 API는 슬라이스 응답을 반환해야 한다.
+    @Test
+    void findRecentPublic_returns_slice() throws Exception {
+        // Given: 홈 최근 공개 게시글 응답
+        SliceResponse<ArticleRecentItemResponse> response = new SliceResponse<>(
+            List.of(
+                new ArticleRecentItemResponse(
+                    10L,
+                    1L,
+                    "free",
+                    "자유게시판",
+                    2L,
+                    "author",
+                    "첫 글",
+                    "본문 미리보기",
+                    3L,
+                    7L,
+                    12L,
+                    FIXED_TIME
+                )
+            ),
+            0,
+            8,
+            true,
+            false
+        );
+        when(articleService.findRecentPublic(0, 8)).thenReturn(response);
+
+        // When: 홈 최근 공개 게시글 API 호출
+        ResultActions result = mockMvc.perform(get("/api/articles/recent")
+            .param("page", "0")
+            .param("size", "8"));
+
+        // Then: 슬라이스 응답 확인
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.items[0].boardSlug").value("free"))
+            .andExpect(jsonPath("$.data.items[0].previewText").value("본문 미리보기"))
+            .andExpect(jsonPath("$.data.hasNext").value(true));
     }
 
     // 게시글 반응 토글 API는 성공 응답을 반환해야 한다.
