@@ -135,10 +135,10 @@ public class ArticleImportBundleParser {
             );
 
             if (!frontmatter.metadata().tags().isEmpty()) {
-                warnings.add("frontmatter tags는 아직 자동 반영되지 않아 무시됩니다.");
+                warnings.add("frontmatter tags는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
             }
             if (StringUtils.hasText(frontmatter.metadata().summary())) {
-                warnings.add("frontmatter summary는 아직 자동 반영되지 않아 무시됩니다.");
+                warnings.add("frontmatter summary는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
             }
 
             candidates.add(new ArticleImportCandidate(
@@ -147,7 +147,7 @@ public class ArticleImportBundleParser {
                 normalizeText(boardSlug),
                 normalizeText(visibility),
                 normalizeText(categoryName),
-                frontmatter.content(),
+                frontmatter.contentSource(),
                 warnings,
                 errors
             ));
@@ -228,13 +228,12 @@ public class ArticleImportBundleParser {
             return new FrontmatterResult(
                 content,
                 ArticleFrontmatterMetadata.empty(),
-                List.of("frontmatter 종료 구분자가 없어 본문 전체를 Markdown으로 사용합니다."),
+                List.of("frontmatter 종료 구분자가 없어 원본 전체를 Markdown으로 사용합니다."),
                 List.of()
             );
         }
 
         String yamlBlock = String.join("\n", List.of(lines).subList(1, closingIndex));
-        String markdownBody = String.join("\n", List.of(lines).subList(closingIndex + 1, lines.length));
         Object loaded;
         try {
             loaded = yaml.load(yamlBlock);
@@ -242,19 +241,19 @@ public class ArticleImportBundleParser {
             return new FrontmatterResult(
                 content,
                 ArticleFrontmatterMetadata.empty(),
-                List.of("frontmatter 파싱에 실패해 본문 전체를 Markdown으로 사용합니다."),
+                List.of("frontmatter 파싱에 실패해 원본 전체를 Markdown으로 사용합니다."),
                 List.of()
             );
         }
 
         if (loaded == null) {
-            return new FrontmatterResult(markdownBody, ArticleFrontmatterMetadata.empty(), List.of(), List.of());
+            return new FrontmatterResult(content, ArticleFrontmatterMetadata.empty(), List.of(), List.of());
         }
         if (!(loaded instanceof Map<?, ?> rawMap)) {
             return new FrontmatterResult(
                 content,
                 ArticleFrontmatterMetadata.empty(),
-                List.of("frontmatter 형식이 올바르지 않아 본문 전체를 Markdown으로 사용합니다."),
+                List.of("frontmatter 형식이 올바르지 않아 원본 전체를 Markdown으로 사용합니다."),
                 List.of()
             );
         }
@@ -268,7 +267,7 @@ public class ArticleImportBundleParser {
             normalizeText(resolveString(metadataMap, "categoryName", "category_name", "category-name", "category")),
             normalizeText(resolveString(metadataMap, "summary"))
         );
-        return new FrontmatterResult(markdownBody, metadata, List.of(), List.of());
+        return new FrontmatterResult(content, metadata, List.of(), List.of());
     }
 
     private Map<String, Object> getMap(Map<String, Object> source, String key) {
@@ -441,7 +440,7 @@ public class ArticleImportBundleParser {
     }
 
     private record FrontmatterResult(
-        String content,
+        String contentSource,
         ArticleFrontmatterMetadata metadata,
         List<String> warnings,
         List<String> errors

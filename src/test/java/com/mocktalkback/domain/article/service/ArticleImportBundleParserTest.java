@@ -58,10 +58,10 @@ class ArticleImportBundleParserTest {
         assertThat(article.boardSlug()).isEqualTo("dev");
         assertThat(article.visibility()).isEqualTo("PUBLIC");
         assertThat(article.categoryName()).isEqualTo("manifest 카테고리");
-        assertThat(article.contentSource()).doesNotContain("title:");
+        assertThat(article.contentSource()).contains("title: \"frontmatter 제목\"");
         assertThat(article.contentSource()).contains("# 본문");
-        assertThat(article.warnings()).contains("frontmatter tags는 아직 자동 반영되지 않아 무시됩니다.");
-        assertThat(article.warnings()).contains("frontmatter summary는 아직 자동 반영되지 않아 무시됩니다.");
+        assertThat(article.warnings()).contains("frontmatter tags는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
+        assertThat(article.warnings()).contains("frontmatter summary는 원본 content_source에 보존되며 별도 UI에는 아직 반영되지 않습니다.");
     }
 
     // frontmatter 종료 구분자가 없으면 본문 전체를 Markdown으로 사용하고 경고를 남겨야 한다.
@@ -96,7 +96,7 @@ class ArticleImportBundleParserTest {
         ArticleImportBundleParser.ArticleImportCandidate article = bundle.articles().get(0);
         assertThat(article.title()).isEqualTo("post");
         assertThat(article.contentSource()).contains("title: \"닫히지 않음\"");
-        assertThat(article.warnings()).contains("frontmatter 종료 구분자가 없어 본문 전체를 Markdown으로 사용합니다.");
+        assertThat(article.warnings()).contains("frontmatter 종료 구분자가 없어 원본 전체를 Markdown으로 사용합니다.");
     }
 
     private byte[] createZip(String firstPath, String firstContent, String secondPath, String secondContent) throws Exception {

@@ -19,6 +19,8 @@ import com.vladsch.flexmark.util.data.MutableDataSet;
 @Service
 public class ArticleContentService {
 
+    private static final Pattern FRONTMATTER_BOUNDARY_PATTERN = Pattern.compile("^---\\s*$");
+    private static final Pattern FRONTMATTER_END_PATTERN = Pattern.compile("^(---|\\.\\.\\.)\\s*$");
     private static final Pattern TABLE_DELIMITER_PATTERN = Pattern.compile(
         "^\\s*\\|?(\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?\\s*$"
     );
@@ -54,7 +56,7 @@ public class ArticleContentService {
             return new RenderedContent(sanitized, sanitized);
         }
 
-        String normalizedMarkdown = normalizeMarkdownTables(contentSource);
+        String normalizedMarkdown = normalizeMarkdownTables(stripMarkdownFrontmatter(contentSource));
         String rendered = markdownRenderer.render(markdownParser.parse(normalizedMarkdown));
         String sanitized = htmlSanitizer.sanitize(rendered);
         return new RenderedContent(sanitized, contentSource);
@@ -107,6 +109,33 @@ public class ArticleContentService {
         }
 
         return String.join("\n", normalized);
+    }
+
+    private String stripMarkdownFrontmatter(String markdown) {
+        if (markdown.isBlank()) {
+            return markdown;
+        }
+
+        String normalized = markdown.startsWith("\uFEFF") ? markdown.substring(1) : markdown;
+        String[] lines = normalized.split("\\R", -1);
+        if (lines.length == 0 || !FRONTMATTER_BOUNDARY_PATTERN.matcher(lines[0].trim()).matches()) {
+            return normalized;
+        }
+
+        int closingIndex = -1;
+        for (int index = 1; index < lines.length; index += 1) {
+            if (FRONTMATTER_END_PATTERN.matcher(lines[index].trim()).matches()) {
+                closingIndex = index;
+                break;
+            }
+        }
+
+        if (closingIndex < 0) {
+            return normalized;
+        }
+
+        String body = String.join("\n", List.of(lines).subList(closingIndex + 1, lines.length));
+        return body.replaceFirst("^(\\r?\\n)+", "");
     }
 
     private boolean isCodeFenceLine(String line) {

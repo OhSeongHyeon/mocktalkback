@@ -34,6 +34,30 @@ class ArticleContentServiceTest {
         assertThat(rendered.content()).contains("<table>");
     }
 
+    // Markdown frontmatter는 contentSource에 보존하되 렌더 HTML에는 포함하지 않아야 한다.
+    @Test
+    void render_markdown_strips_frontmatter_before_rendering() {
+        // Given: frontmatter가 포함된 Markdown 원본
+        ArticleContentService articleContentService = new ArticleContentService(createSanitizer());
+        String markdown = """
+            ---
+            title: "문서 제목"
+            visibility: "PUBLIC"
+            ---
+
+            # 본문
+            """;
+
+        // When: Markdown을 HTML로 렌더링하면
+        ArticleContentService.RenderedContent rendered = articleContentService.render(markdown, ArticleContentFormat.MARKDOWN);
+
+        // Then: 원본은 그대로 유지하고 HTML에는 frontmatter가 포함되지 않아야 한다.
+        assertThat(rendered.contentSource()).isEqualTo(markdown);
+        assertThat(rendered.content()).contains("<h1>본문</h1>");
+        assertThat(rendered.content()).doesNotContain("문서 제목");
+        assertThat(rendered.content()).doesNotContain("visibility:");
+    }
+
     // 표 앞뒤 공백 줄이 없어도 Markdown 표를 HTML table로 렌더링해야 한다.
     @Test
     void render_markdown_table_without_blank_lines_renders_table() {

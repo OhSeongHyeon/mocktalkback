@@ -147,7 +147,8 @@ public class ArticleImportService {
             }
 
             String contentSource = candidate.contentSource();
-            if (contentSource == null || contentSource.isBlank()) {
+            String bodyContent = stripMarkdownFrontmatter(contentSource);
+            if (bodyContent == null || bodyContent.isBlank()) {
                 errors.add("본문이 비어 있습니다.");
             }
 
@@ -273,6 +274,34 @@ public class ArticleImportService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String stripMarkdownFrontmatter(String contentSource) {
+        if (contentSource == null || contentSource.isBlank()) {
+            return contentSource;
+        }
+
+        String normalized = contentSource.startsWith("\uFEFF") ? contentSource.substring(1) : contentSource;
+        String[] lines = normalized.split("\\R", -1);
+        if (lines.length == 0 || !"---".equals(lines[0].trim())) {
+            return normalized;
+        }
+
+        int closingIndex = -1;
+        for (int index = 1; index < lines.length; index += 1) {
+            String line = lines[index].trim();
+            if ("---".equals(line) || "...".equals(line)) {
+                closingIndex = index;
+                break;
+            }
+        }
+
+        if (closingIndex < 0) {
+            return normalized;
+        }
+
+        String body = String.join("\n", List.of(lines).subList(closingIndex + 1, lines.length));
+        return body.replaceFirst("^(\\r?\\n)+", "");
     }
 
     private record PreparedImportArticle(

@@ -129,6 +129,49 @@ class ArticleImportServiceTest {
         });
     }
 
+    // frontmatter만 있고 본문이 없는 Markdown은 실행 불가로 판단해야 한다.
+    @Test
+    void preview_rejects_frontmatter_only_markdown() {
+        // Given: frontmatter만 있고 본문이 없는 대량 임포트 후보
+        MockMultipartFile file = new MockMultipartFile("file", "batch.zip", "application/zip", new byte[] {1, 2, 3});
+        UserEntity actor = createUser(1L, RoleNames.MANAGER);
+        BoardEntity board = createBoard(10L, "dev");
+        ArticleImportCandidate candidate = new ArticleImportCandidate(
+            "posts/post-1.md",
+            "카테고리 테스트",
+            "dev",
+            "PUBLIC",
+            null,
+            """
+            ---
+            title: "카테고리 테스트"
+            visibility: "PUBLIC"
+            ---
+            """,
+            List.of(),
+            List.of()
+        );
+
+        when(articleImportBundleParser.parse(file)).thenReturn(new ArticleImportBundle("batch.zip", List.of(candidate)));
+        when(currentUserService.getUserId()).thenReturn(1L);
+        when(userRepository.findByIdWithRoleAndDeletedAtIsNull(1L)).thenReturn(Optional.of(actor));
+        when(boardRepository.findBySlugAndDeletedAtIsNull("dev")).thenReturn(Optional.of(board));
+        when(boardMemberRepository.findByUserIdAndBoardId(1L, 10L)).thenReturn(Optional.empty());
+        when(boardAccessPolicy.canAccessBoard(board, actor, null)).thenReturn(true);
+        when(boardAccessPolicy.resolveAllowedVisibilities(board, actor, null)).thenReturn(java.util.EnumSet.of(ContentVisibility.PUBLIC));
+
+        // When: 미리보기를 실행하면
+        ArticleImportPreviewResponse response = articleImportService.preview(file, true);
+
+        // Then: 본문이 비어 있어 실행할 수 없어야 한다.
+        assertThat(response.canExecute()).isFalse();
+        assertThat(response.invalidCount()).isEqualTo(1);
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.executable()).isFalse();
+            assertThat(item.errors()).contains("본문이 비어 있습니다.");
+        });
+    }
+
     // 대량 임포트는 autoCreate가 켜져 있으면 없는 categoryName을 먼저 만들고 생성 요청에 전달해야 한다.
     @Test
     void execute_creates_missing_category_when_auto_create_enabled() {
