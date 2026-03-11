@@ -164,8 +164,10 @@ public class UploadPolicyValidator {
     }
 
     private void validateEditorVideoMimeType(String normalizedMimeType) {
-        if (!"video/mp4".equals(normalizedMimeType) && !"video/webm".equals(normalizedMimeType)) {
-            throw new IllegalArgumentException("MP4 또는 WebM 영상만 업로드할 수 있습니다.");
+        if (!"video/mp4".equals(normalizedMimeType)
+            && !"video/webm".equals(normalizedMimeType)
+            && !"video/ogg".equals(normalizedMimeType)) {
+            throw new IllegalArgumentException("MP4, WebM 또는 Ogg 영상만 업로드할 수 있습니다.");
         }
     }
 
