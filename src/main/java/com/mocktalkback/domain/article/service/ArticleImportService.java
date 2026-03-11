@@ -198,7 +198,7 @@ public class ArticleImportService {
 
     private UserEntity getCurrentUser() {
         Long userId = currentUserService.getUserId();
-        return userRepository.findById(userId)
+        return userRepository.findByIdWithRoleAndDeletedAtIsNull(userId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
     }
 
