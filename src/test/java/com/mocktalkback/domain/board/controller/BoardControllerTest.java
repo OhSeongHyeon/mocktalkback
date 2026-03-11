@@ -265,6 +265,8 @@ class BoardControllerTest {
                 2L,
                 "author",
                 "notice",
+                3L,
+                "공지",
                 0L,
                 0L,
                 0L,
@@ -280,6 +282,8 @@ class BoardControllerTest {
                 2L,
                 "author",
                 "title",
+                4L,
+                "자유",
                 0L,
                 0L,
                 0L,
@@ -310,7 +314,8 @@ class BoardControllerTest {
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.pinned[0].id").value(1L))
-            .andExpect(jsonPath("$.data.page.items[0].id").value(2L));
+            .andExpect(jsonPath("$.data.page.items[0].id").value(2L))
+            .andExpect(jsonPath("$.data.page.items[0].categoryName").value("자유"));
     }
 
     // 게시판 게시글 목록 API는 카테고리 필터 파라미터를 전달할 수 있어야 한다.
@@ -324,6 +329,8 @@ class BoardControllerTest {
                 2L,
                 "author",
                 "category title",
+                3L,
+                "공지",
                 0L,
                 0L,
                 0L,
@@ -368,6 +375,8 @@ class BoardControllerTest {
                 2L,
                 "author",
                 "uncategorized title",
+                null,
+                null,
                 0L,
                 0L,
                 0L,

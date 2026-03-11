@@ -6,12 +6,14 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.mocktalkback.domain.article.entity.ArticleEntity;
+import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.dto.MyArticleItemResponse;
 
@@ -94,6 +96,13 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long>, A
     List<ArticleEntity> findByBoardIdAndNoticeTrueAndVisibilityInAndDeletedAtIsNull(
         Long boardId,
         Collection<ContentVisibility> visibilities,
+        Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"user", "board"})
+    Slice<ArticleEntity> findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+        BoardVisibility boardVisibility,
+        ContentVisibility visibility,
         Pageable pageable
     );
 

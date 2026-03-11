@@ -12,12 +12,14 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.HtmlUtils;
 
 import com.mocktalkback.domain.article.dto.ArticleBoardResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
@@ -26,6 +28,7 @@ import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
 import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
@@ -51,6 +54,7 @@ import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardFileRepository;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
+import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
 import com.mocktalkback.domain.common.policy.BoardAccessPolicy;
@@ -71,6 +75,7 @@ import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.dto.SliceResponse;
 import com.mocktalkback.global.common.util.ActivityPointPolicy;
 import com.mocktalkback.global.common.util.ReactionTypeValidator;
 import com.mocktalkback.global.common.type.SortOrder;
@@ -338,6 +343,35 @@ public class ArticleService {
         return articleRepository.findAll().stream()
             .map(articleMapper::toResponse)
             .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public SliceResponse<ArticleRecentItemResponse> findRecentPublic(int page, int size) {
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ARTICLE_SORT);
+
+        Slice<ArticleEntity> slice = articleRepository
+            .findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+                BoardVisibility.PUBLIC,
+                ContentVisibility.PUBLIC,
+                pageable
+            );
+
+        List<ArticleEntity> articles = slice.getContent();
+        Map<Long, Long> commentCounts = loadCommentCounts(articles, List.of());
+        Map<Long, ReactionCounts> reactionCounts = loadReactionCounts(articles, List.of());
+        List<ArticleRecentItemResponse> items = articles.stream()
+            .map(article -> toRecentItemResponse(article, commentCounts, reactionCounts))
+            .toList();
+
+        return new SliceResponse<>(
+            items,
+            slice.getNumber(),
+            slice.getSize(),
+            slice.hasNext(),
+            slice.hasPrevious()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -850,6 +884,8 @@ public class ArticleService {
                 article.getUser().getId(),
                 authorDisplayResolver.resolveAuthorName(article.getUser()),
                 article.getTitle(),
+                article.getCategory() != null ? article.getCategory().getId() : null,
+                article.getCategory() != null ? article.getCategory().getCategoryName() : null,
                 article.getHit(),
                 commentCounts.getOrDefault(article.getId(), 0L),
                 reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty()).likeCount(),
@@ -858,6 +894,46 @@ public class ArticleService {
                 article.getCreatedAt()
             ))
             .toList();
+    }
+
+    private ArticleRecentItemResponse toRecentItemResponse(
+        ArticleEntity article,
+        Map<Long, Long> commentCounts,
+        Map<Long, ReactionCounts> reactionCounts
+    ) {
+        ReactionCounts counts = reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty());
+        return new ArticleRecentItemResponse(
+            article.getId(),
+            article.getBoard().getId(),
+            article.getBoard().getSlug(),
+            article.getBoard().getBoardName(),
+            article.getUser().getId(),
+            authorDisplayResolver.resolveAuthorName(article.getUser()),
+            article.getTitle(),
+            buildPreviewText(article.getContent()),
+            commentCounts.getOrDefault(article.getId(), 0L),
+            counts.likeCount(),
+            article.getHit(),
+            article.getCreatedAt()
+        );
+    }
+
+    private String buildPreviewText(String html) {
+        if (html == null || html.isBlank()) {
+            return "";
+        }
+        String withoutCodeBlocks = html
+            .replaceAll("(?is)<pre\\b[^>]*>.*?</pre>", " ")
+            .replaceAll("(?is)<code\\b[^>]*>.*?</code>", " ");
+        String plainText = withoutCodeBlocks.replaceAll("(?is)<[^>]+>", " ");
+        String normalized = HtmlUtils.htmlUnescape(plainText)
+            .replace('\u00A0', ' ')
+            .replaceAll("\\s+", " ")
+            .trim();
+        if (normalized.length() <= 140) {
+            return normalized;
+        }
+        return normalized.substring(0, 139).trim() + "…";
     }
 
     private Sort resolveArticleSort(SortOrder order) {

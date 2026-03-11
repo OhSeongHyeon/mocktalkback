@@ -23,11 +23,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
+import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
@@ -69,6 +72,7 @@ import com.mocktalkback.domain.role.type.ContentVisibility;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
+import com.mocktalkback.global.common.dto.SliceResponse;
 import com.mocktalkback.global.common.type.SortOrder;
 
 @ExtendWith(MockitoExtension.class)
@@ -406,6 +410,37 @@ class ArticleServiceTest {
         );
     }
 
+    // 게시글 목록 조회는 게시글 카테고리 정보를 요약 응답에 포함해야 한다.
+    @Test
+    void getBoardArticles_maps_category_fields_in_summary_response() {
+        // Given: 카테고리가 지정된 게시글 한 건
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleCategoryEntity category = createCategory(3L, board);
+        ArticleEntity article = createArticle(10L, board, user, category);
+        Page<ArticleEntity> page = new PageImpl<>(List.of(article), PageRequest.of(0, 10), 1L);
+
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
+        when(articleRepository.findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+            eq(1L),
+            eq(3L),
+            any(),
+            any()
+        )).thenReturn(page);
+        when(commentRepository.countByArticleIds(any())).thenReturn(List.of());
+        when(articleReactionRepository.countByArticleIds(any())).thenReturn(List.of());
+
+        // When: 카테고리 필터로 게시글 목록을 조회하면
+        BoardArticleListResponse result = articleService.getBoardArticles(1L, 0, 10, SortOrder.LATEST, 3L, false);
+
+        // Then: 카테고리 ID와 이름이 함께 응답되어야 한다.
+        assertThat(result.page().items()).hasSize(1);
+        assertThat(result.page().items().get(0).categoryId()).isEqualTo(3L);
+        assertThat(result.page().items().get(0).categoryName()).isEqualTo("공지");
+    }
+
     // 게시글 목록 조회는 categoryId와 uncategorized를 동시에 사용하면 예외가 발생해야 한다.
     @Test
     void getBoardArticles_throws_when_category_and_uncategorized_used_together() {
@@ -415,6 +450,61 @@ class ArticleServiceTest {
         assertThatThrownBy(() -> articleService.getBoardArticles(1L, 0, 10, SortOrder.LATEST, 3L, true))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("categoryId와 uncategorized=true를 동시에 사용할 수 없습니다.");
+    }
+
+    // 홈 최근 공개 게시글 조회는 공개 게시글 요약 응답을 반환해야 한다.
+    @Test
+    void findRecentPublic_returns_recent_public_items() {
+        // Given: 공개 게시판의 최신 게시글 슬라이스
+        BoardEntity board = createBoard(1L);
+        ReflectionTestUtils.setField(board, "slug", "free");
+        ReflectionTestUtils.setField(board, "boardName", "자유게시판");
+        UserEntity user = createUser(2L);
+        ArticleEntity article = ArticleEntity.builder()
+            .board(board)
+            .user(user)
+            .category(null)
+            .visibility(ContentVisibility.PUBLIC)
+            .title("첫 글")
+            .content("<p>첫 줄 <strong>강조</strong></p>")
+            .contentSource("첫 줄 **강조**")
+            .contentFormat(ArticleContentFormat.HTML)
+            .notice(false)
+            .hit(12L)
+            .build();
+        ReflectionTestUtils.setField(article, "id", 100L);
+        Slice<ArticleEntity> slice = new SliceImpl<>(List.of(article), PageRequest.of(0, 8), true);
+
+        CommentRepository.CommentCountView commentCountView = org.mockito.Mockito.mock(CommentRepository.CommentCountView.class);
+        when(commentCountView.getArticleId()).thenReturn(100L);
+        when(commentCountView.getCount()).thenReturn(3L);
+
+        ArticleReactionRepository.ArticleReactionCountView reactionCountView = org.mockito.Mockito.mock(
+            ArticleReactionRepository.ArticleReactionCountView.class
+        );
+        when(reactionCountView.getArticleId()).thenReturn(100L);
+        when(reactionCountView.getReactionType()).thenReturn((short) 1);
+        when(reactionCountView.getCount()).thenReturn(7L);
+
+        when(articleRepository.findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+            eq(BoardVisibility.PUBLIC),
+            eq(ContentVisibility.PUBLIC),
+            any()
+        )).thenReturn(slice);
+        when(commentRepository.countByArticleIds(any())).thenReturn(List.of(commentCountView));
+        when(articleReactionRepository.countByArticleIds(List.of(100L))).thenReturn(List.of(reactionCountView));
+
+        // When: 홈 최근 공개 게시글을 조회하면
+        SliceResponse<ArticleRecentItemResponse> response = articleService.findRecentPublic(0, 8);
+
+        // Then: 게시판/미리보기/집계가 포함된 응답을 반환한다.
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).boardSlug()).isEqualTo("free");
+        assertThat(response.items().get(0).previewText()).isEqualTo("첫 줄 강조");
+        assertThat(response.items().get(0).commentCount()).isEqualTo(3L);
+        assertThat(response.items().get(0).likeCount()).isEqualTo(7L);
+        assertThat(response.items().get(0).hit()).isEqualTo(12L);
+        assertThat(response.hasNext()).isTrue();
     }
 
     // 반응 토글은 원자 upsert를 사용해 경합 상황에서도 일관된 결과를 반환해야 한다.

@@ -27,6 +27,12 @@ public record ArticleSearchResponse(
     @Schema(description = "제목", example = "안녕하세요")
     String title,
 
+    @Schema(description = "카테고리 ID", example = "10")
+    Long categoryId,
+
+    @Schema(description = "카테고리명", example = "공지")
+    String categoryName,
+
     @Schema(description = "조회수", example = "0")
     long hit,
 

@@ -600,6 +600,8 @@ public class SearchService {
             entity.getUser().getId(),
             authorDisplayResolver.resolveAuthorName(entity.getUser()),
             entity.getTitle(),
+            entity.getCategory() != null ? entity.getCategory().getId() : null,
+            entity.getCategory() != null ? entity.getCategory().getCategoryName() : null,
             entity.getHit(),
             commentCounts.getOrDefault(entity.getId(), 0L),
             counts.likeCount(),

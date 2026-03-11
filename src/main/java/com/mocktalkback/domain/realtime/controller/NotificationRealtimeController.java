@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -13,8 +14,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.mocktalkback.domain.realtime.dto.NotificationPresenceUpdateRequest;
+import com.mocktalkback.domain.realtime.dto.NotificationRealtimeTicketResponse;
 import com.mocktalkback.domain.realtime.service.NotificationPresenceService;
 import com.mocktalkback.domain.realtime.service.NotificationRealtimeSseService;
+import com.mocktalkback.domain.realtime.service.NotificationRealtimeTicketService;
 import com.mocktalkback.global.auth.CurrentUserService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 
@@ -36,8 +39,21 @@ import lombok.RequiredArgsConstructor;
 public class NotificationRealtimeController {
 
     private final NotificationRealtimeSseService notificationRealtimeSseService;
+    private final NotificationRealtimeTicketService notificationRealtimeTicketService;
     private final NotificationPresenceService notificationPresenceService;
     private final CurrentUserService currentUserService;
+
+    @Operation(summary = "알림 SSE ticket 발급", description = "알림 실시간 스트림 연결에 사용할 1회용 ticket을 발급합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "발급 성공"),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    @PostMapping("/ticket")
+    public ApiEnvelope<NotificationRealtimeTicketResponse> issueTicket() {
+        Long userId = currentUserService.getUserId();
+        NotificationRealtimeTicketResponse response = notificationRealtimeTicketService.issue(userId);
+        return ApiEnvelope.ok(response);
+    }
 
     @Operation(summary = "알림 실시간 이벤트 구독", description = "로그인 사용자 기준 실시간 알림 이벤트 스트림을 구독합니다.")
     @ApiResponses({
