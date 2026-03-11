@@ -69,10 +69,10 @@ public class EditorFileService {
         if (contentType.startsWith("image/")) {
             return;
         }
-        if ("video/mp4".equals(contentType) || "video/webm".equals(contentType)) {
+        if ("video/mp4".equals(contentType) || "video/webm".equals(contentType) || "video/ogg".equals(contentType)) {
             return;
         }
-        throw new IllegalArgumentException("이미지 또는 MP4/WebM 영상만 업로드할 수 있습니다.");
+        throw new IllegalArgumentException("이미지 또는 MP4/WebM/Ogg 영상만 업로드할 수 있습니다.");
     }
 
     private String resolveFileClassCode(String contentType) {
