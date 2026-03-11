@@ -1,6 +1,7 @@
 package com.mocktalkback.domain.article.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -10,4 +11,6 @@ public interface ArticleCategoryRepository extends JpaRepository<ArticleCategory
     List<ArticleCategoryEntity> findAllByBoardIdOrderByCategoryNameAsc(Long boardId);
 
     boolean existsByBoardIdAndCategoryNameIgnoreCase(Long boardId, String categoryName);
+
+    Optional<ArticleCategoryEntity> findByBoardIdAndCategoryNameIgnoreCase(Long boardId, String categoryName);
 }

@@ -27,13 +27,16 @@ class ArticleImportBundleParserTest {
                     defaults:
                       boardSlug: dev
                       visibility: MEMBERS
+                      categoryName: "기본 카테고리"
                     articles:
                       - file: posts/post-1.md
                         visibility: PUBLIC
+                        categoryName: "manifest 카테고리"
                     """,
                 "batch/posts/post-1.md", """
                     ---
                     title: "frontmatter 제목"
+                    categoryName: "frontmatter 카테고리"
                     tags:
                       - markdown
                     summary: "요약"
@@ -54,6 +57,7 @@ class ArticleImportBundleParserTest {
         assertThat(article.title()).isEqualTo("frontmatter 제목");
         assertThat(article.boardSlug()).isEqualTo("dev");
         assertThat(article.visibility()).isEqualTo("PUBLIC");
+        assertThat(article.categoryName()).isEqualTo("manifest 카테고리");
         assertThat(article.contentSource()).doesNotContain("title:");
         assertThat(article.contentSource()).contains("# 본문");
         assertThat(article.warnings()).contains("frontmatter tags는 아직 자동 반영되지 않아 무시됩니다.");

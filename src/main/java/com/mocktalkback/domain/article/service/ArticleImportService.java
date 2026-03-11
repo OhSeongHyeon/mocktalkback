@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import com.mocktalkback.domain.article.dto.ArticleImportExecuteResponse;
 import com.mocktalkback.domain.article.dto.ArticleImportPreviewItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleImportPreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
+import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
+import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.service.ArticleImportBundleParser.ArticleImportBundle;
 import com.mocktalkback.domain.article.service.ArticleImportBundleParser.ArticleImportCandidate;
 import com.mocktalkback.domain.article.type.ArticleContentFormat;
@@ -40,21 +43,23 @@ public class ArticleImportService {
     private final ArticleService articleService;
     private final BoardRepository boardRepository;
     private final BoardMemberRepository boardMemberRepository;
+    private final ArticleCategoryRepository articleCategoryRepository;
     private final UserRepository userRepository;
     private final BoardAccessPolicy boardAccessPolicy;
     private final CurrentUserService currentUserService;
 
     @Transactional(readOnly = true)
-    public ArticleImportPreviewResponse preview(MultipartFile file) {
+    public ArticleImportPreviewResponse preview(MultipartFile file, boolean autoCreateMissingCategories) {
         ArticleImportBundle bundle = articleImportBundleParser.parse(file);
         UserEntity actor = getCurrentUser();
-        List<PreparedImportArticle> articles = prepareArticles(bundle, actor);
+        List<PreparedImportArticle> articles = prepareArticles(bundle, actor, autoCreateMissingCategories);
         int executableCount = (int) articles.stream().filter(PreparedImportArticle::executable).count();
         List<ArticleImportPreviewItemResponse> items = articles.stream()
             .map(article -> new ArticleImportPreviewItemResponse(
                 article.filePath(),
                 article.title(),
                 article.boardSlug(),
+                article.categoryName(),
                 article.visibility(),
                 article.executable(),
                 article.warnings(),
@@ -70,10 +75,10 @@ public class ArticleImportService {
         );
     }
 
-    public ArticleImportExecuteResponse execute(MultipartFile file) {
+    public ArticleImportExecuteResponse execute(MultipartFile file, boolean autoCreateMissingCategories) {
         ArticleImportBundle bundle = articleImportBundleParser.parse(file);
         UserEntity actor = getCurrentUser();
-        List<PreparedImportArticle> articles = prepareArticles(bundle, actor);
+        List<PreparedImportArticle> articles = prepareArticles(bundle, actor, autoCreateMissingCategories);
 
         List<ArticleImportExecuteItemResponse> items = new ArrayList<>();
         int successCount = 0;
@@ -82,13 +87,17 @@ public class ArticleImportService {
             List<String> errors = new ArrayList<>(article.errors());
             Long createdArticleId = null;
             boolean created = false;
+            Long categoryId = article.categoryId();
 
             if (article.executable()) {
                 try {
+                    if (categoryId == null && autoCreateMissingCategories && article.boardId() != null && article.categoryName() != null) {
+                        categoryId = ensureCategory(article.boardId(), article.categoryName());
+                    }
                     ArticleResponse response = articleService.create(new ArticleCreateRequest(
                         article.boardId(),
                         actor.getId(),
-                        null,
+                        categoryId,
                         article.visibilityEnum(),
                         article.title(),
                         article.contentSource(),
@@ -108,6 +117,7 @@ public class ArticleImportService {
                 article.filePath(),
                 article.title(),
                 article.boardSlug(),
+                article.categoryName(),
                 article.visibility(),
                 created,
                 createdArticleId,
@@ -119,7 +129,11 @@ public class ArticleImportService {
         return new ArticleImportExecuteResponse(items.size(), successCount, items.size() - successCount, items);
     }
 
-    private List<PreparedImportArticle> prepareArticles(ArticleImportBundle bundle, UserEntity actor) {
+    private List<PreparedImportArticle> prepareArticles(
+        ArticleImportBundle bundle,
+        UserEntity actor,
+        boolean autoCreateMissingCategories
+    ) {
         List<PreparedImportArticle> prepared = new ArrayList<>();
         for (ArticleImportCandidate candidate : bundle.articles()) {
             List<String> warnings = new ArrayList<>(candidate.warnings());
@@ -138,8 +152,10 @@ public class ArticleImportService {
             }
 
             String boardSlug = normalizeText(candidate.boardSlug());
+            String categoryName = normalizeText(candidate.categoryName());
             BoardEntity board = null;
             BoardMemberEntity member = null;
+            ArticleCategoryEntity category = null;
             if (boardSlug == null) {
                 errors.add("대상 게시판 slug가 없습니다.");
             } else {
@@ -157,6 +173,18 @@ public class ArticleImportService {
                             boardAccessPolicy.requireCanWrite(board, actor, member);
                         } catch (AccessDeniedException exception) {
                             errors.add(exception.getMessage());
+                        }
+
+                        if (categoryName != null) {
+                            category = articleCategoryRepository.findByBoardIdAndCategoryNameIgnoreCase(board.getId(), categoryName)
+                                .orElse(null);
+                            if (category == null) {
+                                if (autoCreateMissingCategories) {
+                                    warnings.add("게시판 카테고리가 없어 실행 시 자동 생성합니다: " + categoryName);
+                                } else {
+                                    errors.add("게시판 카테고리를 찾을 수 없습니다: " + categoryName);
+                                }
+                            }
                         }
                     }
                 }
@@ -184,9 +212,11 @@ public class ArticleImportService {
                 candidate.filePath(),
                 title,
                 boardSlug,
+                categoryName,
                 visibilityName != null ? visibilityName.toUpperCase() : null,
                 contentSource,
                 board != null ? board.getId() : null,
+                category != null ? category.getId() : null,
                 visibility,
                 warnings,
                 errors,
@@ -194,6 +224,31 @@ public class ArticleImportService {
             ));
         }
         return prepared;
+    }
+
+    private Long ensureCategory(Long boardId, String categoryName) {
+        ArticleCategoryEntity existing = articleCategoryRepository.findByBoardIdAndCategoryNameIgnoreCase(boardId, categoryName)
+            .orElse(null);
+        if (existing != null) {
+            return existing.getId();
+        }
+
+        BoardEntity board = boardRepository.findByIdAndDeletedAtIsNull(boardId)
+            .orElseThrow(() -> new IllegalArgumentException("board not found: " + boardId));
+
+        try {
+            ArticleCategoryEntity created = articleCategoryRepository.save(
+                ArticleCategoryEntity.builder()
+                    .board(board)
+                    .categoryName(categoryName)
+                    .build()
+            );
+            return created.getId();
+        } catch (DataIntegrityViolationException exception) {
+            return articleCategoryRepository.findByBoardIdAndCategoryNameIgnoreCase(boardId, categoryName)
+                .map(ArticleCategoryEntity::getId)
+                .orElseThrow(() -> exception);
+        }
     }
 
     private UserEntity getCurrentUser() {
@@ -224,9 +279,11 @@ public class ArticleImportService {
         String filePath,
         String title,
         String boardSlug,
+        String categoryName,
         String visibility,
         String contentSource,
         Long boardId,
+        Long categoryId,
         ContentVisibility visibilityEnum,
         List<String> warnings,
         List<String> errors,

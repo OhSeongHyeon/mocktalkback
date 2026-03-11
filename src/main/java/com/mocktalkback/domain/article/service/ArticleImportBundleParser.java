@@ -60,6 +60,7 @@ public class ArticleImportBundleParser {
                     null,
                     null,
                     null,
+                    null,
                     "",
                     List.of(),
                     List.of("articles[" + index + "] 항목 형식이 올바르지 않습니다.")
@@ -79,6 +80,7 @@ public class ArticleImportBundleParser {
                     normalizeText(resolveString(item, "title")),
                     normalizeText(resolveString(item, "boardSlug", "board_slug", "board-slug")),
                     normalizeText(resolveString(item, "visibility")),
+                    normalizeText(resolveString(item, "categoryName", "category_name", "category-name", "category")),
                     "",
                     warnings,
                     errors
@@ -98,6 +100,7 @@ public class ArticleImportBundleParser {
                     normalizeText(resolveString(item, "title")),
                     normalizeText(resolveString(item, "boardSlug", "board_slug", "board-slug")),
                     normalizeText(resolveString(item, "visibility")),
+                    normalizeText(resolveString(item, "categoryName", "category_name", "category-name", "category")),
                     "",
                     warnings,
                     errors
@@ -125,6 +128,11 @@ public class ArticleImportBundleParser {
                 resolveString(defaults, "visibility"),
                 "PUBLIC"
             );
+            String categoryName = firstNonBlank(
+                resolveString(item, "categoryName", "category_name", "category-name", "category"),
+                frontmatter.metadata().categoryName(),
+                resolveString(defaults, "categoryName", "category_name", "category-name", "category")
+            );
 
             if (!frontmatter.metadata().tags().isEmpty()) {
                 warnings.add("frontmatter tags는 아직 자동 반영되지 않아 무시됩니다.");
@@ -138,6 +146,7 @@ public class ArticleImportBundleParser {
                 normalizeText(title),
                 normalizeText(boardSlug),
                 normalizeText(visibility),
+                normalizeText(categoryName),
                 frontmatter.content(),
                 warnings,
                 errors
@@ -256,6 +265,7 @@ public class ArticleImportBundleParser {
             resolveStringList(metadataMap, "tags"),
             normalizeText(resolveString(metadataMap, "boardSlug", "board_slug", "board-slug")),
             normalizeText(resolveString(metadataMap, "visibility")),
+            normalizeText(resolveString(metadataMap, "categoryName", "category_name", "category-name", "category")),
             normalizeText(resolveString(metadataMap, "summary"))
         );
         return new FrontmatterResult(markdownBody, metadata, List.of(), List.of());
@@ -423,6 +433,7 @@ public class ArticleImportBundleParser {
         String title,
         String boardSlug,
         String visibility,
+        String categoryName,
         String contentSource,
         List<String> warnings,
         List<String> errors
@@ -442,10 +453,11 @@ public class ArticleImportBundleParser {
         List<String> tags,
         String boardSlug,
         String visibility,
+        String categoryName,
         String summary
     ) {
         private static ArticleFrontmatterMetadata empty() {
-            return new ArticleFrontmatterMetadata(null, List.of(), null, null, null);
+            return new ArticleFrontmatterMetadata(null, List.of(), null, null, null, null);
         }
     }
 }

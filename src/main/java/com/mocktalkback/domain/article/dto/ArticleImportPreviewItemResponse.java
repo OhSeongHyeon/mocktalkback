@@ -15,6 +15,9 @@ public record ArticleImportPreviewItemResponse(
     @Schema(description = "대상 게시판 slug", example = "dev")
     String boardSlug,
 
+    @Schema(description = "대상 게시판 카테고리명", example = "백엔드")
+    String categoryName,
+
     @Schema(description = "공개 범위", example = "PUBLIC")
     String visibility,
 

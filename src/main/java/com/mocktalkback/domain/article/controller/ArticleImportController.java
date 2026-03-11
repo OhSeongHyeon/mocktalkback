@@ -5,6 +5,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -38,8 +39,11 @@ public class ArticleImportController {
         @ApiResponse(responseCode = "401", description = "인증 필요"),
         @ApiResponse(responseCode = "403", description = "권한 없음")
     })
-    public ApiEnvelope<ArticleImportPreviewResponse> preview(@RequestPart("file") MultipartFile file) {
-        return ApiEnvelope.ok(articleImportService.preview(file));
+    public ApiEnvelope<ArticleImportPreviewResponse> preview(
+        @RequestPart("file") MultipartFile file,
+        @RequestParam(name = "autoCreateMissingCategories", defaultValue = "true") boolean autoCreateMissingCategories
+    ) {
+        return ApiEnvelope.ok(articleImportService.preview(file, autoCreateMissingCategories));
     }
 
     @PostMapping(value = "/execute", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -50,7 +54,10 @@ public class ArticleImportController {
         @ApiResponse(responseCode = "401", description = "인증 필요"),
         @ApiResponse(responseCode = "403", description = "권한 없음")
     })
-    public ApiEnvelope<ArticleImportExecuteResponse> execute(@RequestPart("file") MultipartFile file) {
-        return ApiEnvelope.ok(articleImportService.execute(file));
+    public ApiEnvelope<ArticleImportExecuteResponse> execute(
+        @RequestPart("file") MultipartFile file,
+        @RequestParam(name = "autoCreateMissingCategories", defaultValue = "true") boolean autoCreateMissingCategories
+    ) {
+        return ApiEnvelope.ok(articleImportService.execute(file, autoCreateMissingCategories));
     }
 }
