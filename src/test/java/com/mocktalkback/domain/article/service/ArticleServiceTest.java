@@ -410,6 +410,37 @@ class ArticleServiceTest {
         );
     }
 
+    // 게시글 목록 조회는 게시글 카테고리 정보를 요약 응답에 포함해야 한다.
+    @Test
+    void getBoardArticles_maps_category_fields_in_summary_response() {
+        // Given: 카테고리가 지정된 게시글 한 건
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleCategoryEntity category = createCategory(3L, board);
+        ArticleEntity article = createArticle(10L, board, user, category);
+        Page<ArticleEntity> page = new PageImpl<>(List.of(article), PageRequest.of(0, 10), 1L);
+
+        when(boardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(board));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleCategoryRepository.findById(3L)).thenReturn(Optional.of(category));
+        when(articleRepository.findByBoardIdAndCategoryIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
+            eq(1L),
+            eq(3L),
+            any(),
+            any()
+        )).thenReturn(page);
+        when(commentRepository.countByArticleIds(any())).thenReturn(List.of());
+        when(articleReactionRepository.countByArticleIds(any())).thenReturn(List.of());
+
+        // When: 카테고리 필터로 게시글 목록을 조회하면
+        BoardArticleListResponse result = articleService.getBoardArticles(1L, 0, 10, SortOrder.LATEST, 3L, false);
+
+        // Then: 카테고리 ID와 이름이 함께 응답되어야 한다.
+        assertThat(result.page().items()).hasSize(1);
+        assertThat(result.page().items().get(0).categoryId()).isEqualTo(3L);
+        assertThat(result.page().items().get(0).categoryName()).isEqualTo("공지");
+    }
+
     // 게시글 목록 조회는 categoryId와 uncategorized를 동시에 사용하면 예외가 발생해야 한다.
     @Test
     void getBoardArticles_throws_when_category_and_uncategorized_used_together() {

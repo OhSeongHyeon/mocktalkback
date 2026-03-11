@@ -884,6 +884,8 @@ public class ArticleService {
                 article.getUser().getId(),
                 authorDisplayResolver.resolveAuthorName(article.getUser()),
                 article.getTitle(),
+                article.getCategory() != null ? article.getCategory().getId() : null,
+                article.getCategory() != null ? article.getCategory().getCategoryName() : null,
                 article.getHit(),
                 commentCounts.getOrDefault(article.getId(), 0L),
                 reactionCounts.getOrDefault(article.getId(), ReactionCounts.empty()).likeCount(),
