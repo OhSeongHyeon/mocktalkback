@@ -7,11 +7,13 @@ public record RealtimeRedisProperties(
     boolean fallbackEnabled,
     String notificationChannel,
     String boardChannel,
+    Duration notificationTicketTtl,
     Duration presenceTtl,
     int presenceMaxSessions
 ) {
     private static final String DEFAULT_NOTIFICATION_CHANNEL = "realtime:notification:events";
     private static final String DEFAULT_BOARD_CHANNEL = "realtime:board:events";
+    private static final Duration DEFAULT_NOTIFICATION_TICKET_TTL = Duration.ofSeconds(30);
     private static final Duration DEFAULT_PRESENCE_TTL = Duration.ofSeconds(45);
     private static final int DEFAULT_PRESENCE_MAX_SESSIONS = 8;
 
@@ -21,6 +23,7 @@ public record RealtimeRedisProperties(
             true,
             DEFAULT_NOTIFICATION_CHANNEL,
             DEFAULT_BOARD_CHANNEL,
+            DEFAULT_NOTIFICATION_TICKET_TTL,
             DEFAULT_PRESENCE_TTL,
             DEFAULT_PRESENCE_MAX_SESSIONS
         );
