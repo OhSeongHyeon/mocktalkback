@@ -60,6 +60,7 @@ public class RedisConfig {
         @Value("${app.realtime.redis.fallback-enabled:true}") boolean fallbackEnabled,
         @Value("${app.realtime.redis.channels.notification:realtime:notification:events}") String notificationChannel,
         @Value("${app.realtime.redis.channels.board:realtime:board:events}") String boardChannel,
+        @Value("${app.realtime.notification-ticket.ttl-seconds:30}") long notificationTicketTtlSeconds,
         @Value("${app.realtime.presence.ttl-seconds:45}") long presenceTtlSeconds,
         @Value("${app.realtime.presence.max-sessions:8}") int presenceMaxSessions
     ) {
@@ -68,6 +69,7 @@ public class RedisConfig {
             fallbackEnabled,
             notificationChannel,
             boardChannel,
+            Duration.ofSeconds(notificationTicketTtlSeconds),
             Duration.ofSeconds(presenceTtlSeconds),
             presenceMaxSessions
         );

@@ -94,6 +94,8 @@ app:
       channels:
         notification: ${REALTIME_REDIS_NOTIFICATION_CHANNEL:realtime:notification:events}
         board: ${REALTIME_REDIS_BOARD_CHANNEL:realtime:board:events}
+    notification-ticket:
+      ttl-seconds: ${REALTIME_NOTIFICATION_TICKET_TTL_SECONDS:30}
     presence:
       ttl-seconds: ${REALTIME_PRESENCE_TTL_SECONDS:45}
       max-sessions: ${REALTIME_PRESENCE_MAX_SESSIONS:8}

@@ -17,9 +17,11 @@ import com.mocktalkback.global.auth.jwt.JwtAccessDeniedHandler;
 import com.mocktalkback.global.auth.jwt.JwtAuthEntryPoint;
 import com.mocktalkback.global.auth.jwt.JwtAuthFilter;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
+import com.mocktalkback.global.auth.realtime.NotificationRealtimeTicketAuthFilter;
 import com.mocktalkback.global.auth.oauth2.CustomOAuth2UserService;
 import com.mocktalkback.global.auth.oauth2.OAuth2LoginFailureHandler;
 import com.mocktalkback.global.auth.oauth2.OAuth2LoginSuccessHandler;
+import com.mocktalkback.domain.realtime.service.NotificationRealtimeTicketService;
 
 import jakarta.servlet.DispatcherType;
 
@@ -36,6 +38,13 @@ public class SecurityConfig {
     @Bean
     public JwtAuthFilter jwtAuthFilter(JwtTokenProvider jwtTokenProvider) {
         return new JwtAuthFilter(jwtTokenProvider);
+    }
+
+    @Bean
+    public NotificationRealtimeTicketAuthFilter notificationRealtimeTicketAuthFilter(
+        NotificationRealtimeTicketService notificationRealtimeTicketService
+    ) {
+        return new NotificationRealtimeTicketAuthFilter(notificationRealtimeTicketService);
     }
 
     @Bean
@@ -79,6 +88,7 @@ public class SecurityConfig {
     public SecurityFilterChain apiFilterChain(
             HttpSecurity http,
             JwtAuthFilter jwtAuthFilter,
+            NotificationRealtimeTicketAuthFilter notificationRealtimeTicketAuthFilter,
             OriginAllowlistFilter originAllowlistFilter,
             JwtAuthEntryPoint jwtAuthEntryPoint,
             JwtAccessDeniedHandler jwtAccessDeniedHandler
@@ -118,7 +128,8 @@ public class SecurityConfig {
 
         http
                 .addFilterBefore(originAllowlistFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(jwtAuthFilter, OriginAllowlistFilter.class);
+                .addFilterAfter(jwtAuthFilter, OriginAllowlistFilter.class)
+                .addFilterAfter(notificationRealtimeTicketAuthFilter, JwtAuthFilter.class);
 
         return http.build();
     }
