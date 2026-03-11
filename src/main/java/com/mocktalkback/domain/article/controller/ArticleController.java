@@ -28,6 +28,7 @@ import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkItemResponse;
 import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
 import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
@@ -37,6 +38,7 @@ import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.dto.SliceResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -95,6 +97,20 @@ public class ArticleController {
             response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         }
         return ApiEnvelope.ok(detail);
+    }
+
+    @GetMapping("/articles/recent")
+    @Operation(summary = "홈 최근 공개 게시글 조회", description = "홈 화면에 노출할 최근 공개 게시글을 슬라이스로 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class)))
+    })
+    public ApiEnvelope<SliceResponse<ArticleRecentItemResponse>> findRecentPublic(
+        @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @Parameter(description = "페이지 크기(최대 50)", example = "8")
+        @RequestParam(name = "size", defaultValue = "8") int size
+    ) {
+        return ApiEnvelope.ok(articleService.findRecentPublic(page, size));
     }
 
     @GetMapping("/articles/{id}/editor")
