@@ -190,3 +190,4 @@ GEMINI.md
 uploads/
 perf/k6/results/*
 !perf/k6/results/.gitkeep
+!perf/k6/results/README.md
