@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mocktalkback.domain.realtime.service.NotificationRealtimeTicketService;
 import com.mocktalkback.domain.user.dto.AccessTokenResult;
 import com.mocktalkback.domain.user.dto.OAuth2CodeRequest;
 import com.mocktalkback.domain.user.service.AuthService;
@@ -66,6 +67,9 @@ class SocialAuthControllerTest {
 
     @MockitoBean
     private OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+
+    @MockitoBean
+    private NotificationRealtimeTicketService notificationRealtimeTicketService;
 
     @Test
     void oauth2_callback_returns_access_token() throws Exception {
