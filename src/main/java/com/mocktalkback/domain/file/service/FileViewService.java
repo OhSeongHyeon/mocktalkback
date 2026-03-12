@@ -23,27 +23,36 @@ public class FileViewService {
     private final FileVariantRepository fileVariantRepository;
     private final FileStorage fileStorage;
     private final FileAccessDecisionService fileAccessDecisionService;
+    private final FileViewTicketService fileViewTicketService;
 
     public String resolveViewLocation(Long fileId, String variantParam) {
+        return resolveViewLocation(fileId, variantParam, null);
+    }
+
+    public String resolveViewLocation(Long fileId, String variantParam, String ticket) {
         FileEntity file = fileRepository.findByIdAndDeletedAtIsNull(fileId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다."));
 
-        FileAccessDecision accessDecision = fileAccessDecisionService.decide(file);
-        if (!accessDecision.allowed()) {
+        FileDeliveryMode deliveryMode = fileAccessDecisionService.resolveDeliveryMode(file);
+        if (deliveryMode == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
+        }
+
+        if (deliveryMode == FileDeliveryMode.PROTECTED) {
+            fileViewTicketService.consume(fileId, ticket);
         }
 
         FileVariantCode variantCode = resolveVariantCode(variantParam);
         if (variantCode == null || !isImage(file.getMimeType())) {
-            return resolveDeliveryUrl(file.getStorageKey(), accessDecision.deliveryMode());
+            return resolveDeliveryUrl(file.getStorageKey(), deliveryMode);
         }
 
         Optional<FileVariantEntity> variant = fileVariantRepository
             .findByFileIdAndVariantCodeAndDeletedAtIsNull(fileId, variantCode);
         if (variant.isPresent()) {
-            return resolveDeliveryUrl(variant.get().getStorageKey(), accessDecision.deliveryMode());
+            return resolveDeliveryUrl(variant.get().getStorageKey(), deliveryMode);
         }
-        return resolveDeliveryUrl(file.getStorageKey(), accessDecision.deliveryMode());
+        return resolveDeliveryUrl(file.getStorageKey(), deliveryMode);
     }
 
     private FileVariantCode resolveVariantCode(String variantParam) {

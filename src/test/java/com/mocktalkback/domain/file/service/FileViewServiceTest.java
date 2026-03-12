@@ -36,6 +36,9 @@ class FileViewServiceTest {
     @Mock
     private FileAccessDecisionService fileAccessDecisionService;
 
+    @Mock
+    private FileViewTicketService fileViewTicketService;
+
     // variant=original 요청은 원본 파일 URL로 조회되어야 한다.
     @Test
     void resolveViewLocation_returns_original_when_variant_is_original() {
@@ -44,20 +47,22 @@ class FileViewServiceTest {
             fileRepository,
             fileVariantRepository,
             fileStorage,
-            fileAccessDecisionService
+            fileAccessDecisionService,
+            fileViewTicketService
         );
         FileEntity fileEntity = createImageFileEntity("uploads/article_content_image/1/original.png");
         when(fileRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(fileEntity));
-        when(fileAccessDecisionService.decide(fileEntity)).thenReturn(FileAccessDecision.protectedAccess());
+        when(fileAccessDecisionService.resolveDeliveryMode(fileEntity)).thenReturn(FileDeliveryMode.PROTECTED);
         when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/1/original.png"))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/1/original.png");
 
         // when: 보기 URL을 해석하면
-        String location = fileViewService.resolveViewLocation(1L, "original");
+        String location = fileViewService.resolveViewLocation(1L, "original", "valid-ticket");
 
         // then: 원본 URL을 반환하고 변환본 조회는 수행하지 않는다.
         assertThat(location).isEqualTo("https://files.mocktalk.test/uploads/article_content_image/1/original.png");
         verify(fileVariantRepository, never()).findByFileIdAndVariantCodeAndDeletedAtIsNull(1L, FileVariantCode.ORIGINAL_SIZE);
+        verify(fileViewTicketService).consume(1L, "valid-ticket");
     }
 
     // variant=original_size 요청은 ORIGINAL_SIZE 변환본을 우선 사용해야 한다.
@@ -68,7 +73,8 @@ class FileViewServiceTest {
             fileRepository,
             fileVariantRepository,
             fileStorage,
-            fileAccessDecisionService
+            fileAccessDecisionService,
+            fileViewTicketService
         );
         FileEntity fileEntity = createImageFileEntity("uploads/article_content_image/10/original.png");
         FileVariantEntity variantEntity = FileVariantEntity.builder()
@@ -82,18 +88,45 @@ class FileViewServiceTest {
             .build();
 
         when(fileRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(fileEntity));
-        when(fileAccessDecisionService.decide(fileEntity)).thenReturn(FileAccessDecision.protectedAccess());
+        when(fileAccessDecisionService.resolveDeliveryMode(fileEntity)).thenReturn(FileDeliveryMode.PROTECTED);
         when(fileVariantRepository.findByFileIdAndVariantCodeAndDeletedAtIsNull(10L, FileVariantCode.ORIGINAL_SIZE))
             .thenReturn(Optional.of(variantEntity));
         when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/10/variants/original_original_size.webp"))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/10/variants/original_original_size.webp");
 
         // when: 보기 URL을 해석하면
-        String location = fileViewService.resolveViewLocation(10L, "original_size");
+        String location = fileViewService.resolveViewLocation(10L, "original_size", "valid-ticket");
 
         // then: ORIGINAL_SIZE 변환본 URL을 반환한다.
         assertThat(location).isEqualTo("https://files.mocktalk.test/uploads/article_content_image/10/variants/original_original_size.webp");
         verify(fileVariantRepository).findByFileIdAndVariantCodeAndDeletedAtIsNull(10L, FileVariantCode.ORIGINAL_SIZE);
+        verify(fileViewTicketService).consume(10L, "valid-ticket");
+    }
+
+    // 공개 파일 조회는 ticket 없이도 기존 공개 전달 경로를 사용해야 한다.
+    @Test
+    void resolveViewLocation_does_not_consume_ticket_for_public_file() {
+        // given: 공개 전달 모드의 게시판 이미지 파일이 있다.
+        FileViewService fileViewService = new FileViewService(
+            fileRepository,
+            fileVariantRepository,
+            fileStorage,
+            fileAccessDecisionService,
+            fileViewTicketService
+        );
+        FileEntity fileEntity = createImageFileEntity("uploads/board_image/10/original.png");
+
+        when(fileRepository.findByIdAndDeletedAtIsNull(21L)).thenReturn(Optional.of(fileEntity));
+        when(fileAccessDecisionService.resolveDeliveryMode(fileEntity)).thenReturn(FileDeliveryMode.PUBLIC);
+        when(fileStorage.resolveViewUrl("uploads/board_image/10/original.png"))
+            .thenReturn("https://cdn.mocktalk.test/uploads/board_image/10/original.png");
+
+        // when: 공개 파일 보기 URL을 해석하면
+        String location = fileViewService.resolveViewLocation(21L, null, null);
+
+        // then: 공개 조회 URL을 반환하고 ticket 소비는 수행하지 않는다.
+        assertThat(location).isEqualTo("https://cdn.mocktalk.test/uploads/board_image/10/original.png");
+        verify(fileViewTicketService, never()).consume(21L, null);
     }
 
     private FileEntity createImageFileEntity(String storageKey) {

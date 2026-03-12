@@ -70,6 +70,11 @@ public class FileAccessDecisionService {
             return FileAccessDecision.deny();
         }
 
+        FileDeliveryMode deliveryMode = resolveDeliveryMode(file);
+        if (deliveryMode == null) {
+            return FileAccessDecision.deny();
+        }
+
         Optional<Long> optionalUserId = currentUserService.getOptionalUserId();
         UserEntity currentUser = optionalUserId.flatMap(userRepository::findByIdWithRoleAndDeletedAtIsNull).orElse(null);
 
@@ -84,10 +89,32 @@ public class FileAccessDecisionService {
         if (FileClassCode.BOARD_IMAGE.equals(fileClassCode)) {
             return decideBoardImage(file, currentUser);
         }
-        if (ALWAYS_PUBLIC_FILE_CLASSES.contains(fileClassCode)) {
+        if (deliveryMode == FileDeliveryMode.PUBLIC) {
             return FileAccessDecision.publicAccess();
         }
         return FileAccessDecision.deny();
+    }
+
+    public FileDeliveryMode resolveDeliveryMode(FileEntity file) {
+        if (file == null || file.getId() == null || file.getFileClass() == null || file.isDeleted()) {
+            return null;
+        }
+
+        if (file.isTemporary()) {
+            return FileDeliveryMode.PROTECTED;
+        }
+
+        String fileClassCode = file.getFileClass().getCode();
+        if (isArticleProtectedClass(fileClassCode)) {
+            return hasAccessibleArticleBinding(file) ? FileDeliveryMode.PROTECTED : null;
+        }
+        if (FileClassCode.BOARD_IMAGE.equals(fileClassCode)) {
+            return resolveBoardImageDeliveryMode(file);
+        }
+        if (ALWAYS_PUBLIC_FILE_CLASSES.contains(fileClassCode)) {
+            return FileDeliveryMode.PUBLIC;
+        }
+        return null;
     }
 
     private FileAccessDecision decideTemporaryFile(FileEntity file, Long currentUserId) {
@@ -127,6 +154,25 @@ public class FileAccessDecisionService {
         return FileAccessDecision.deny();
     }
 
+    private boolean hasAccessibleArticleBinding(FileEntity file) {
+        List<ArticleFileEntity> mappings = articleFileRepository.findAllByFileId(file.getId());
+        if (mappings.isEmpty()) {
+            return false;
+        }
+        for (ArticleFileEntity mapping : mappings) {
+            ArticleEntity article = mapping.getArticle();
+            if (article == null || article.isDeleted()) {
+                continue;
+            }
+            BoardEntity board = article.getBoard();
+            if (board == null || board.isDeleted()) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
     private FileAccessDecision decideBoardImage(FileEntity file, UserEntity currentUser) {
         List<BoardFileEntity> mappings = boardFileRepository.findAllByFileId(file.getId());
         if (mappings.isEmpty()) {
@@ -147,6 +193,24 @@ public class FileAccessDecisionService {
             return FileAccessDecision.protectedAccess();
         }
         return FileAccessDecision.deny();
+    }
+
+    private FileDeliveryMode resolveBoardImageDeliveryMode(FileEntity file) {
+        List<BoardFileEntity> mappings = boardFileRepository.findAllByFileId(file.getId());
+        if (mappings.isEmpty()) {
+            return null;
+        }
+        for (BoardFileEntity mapping : mappings) {
+            BoardEntity board = mapping.getBoard();
+            if (board == null || board.isDeleted()) {
+                continue;
+            }
+            if (board.getVisibility() == BoardVisibility.PUBLIC) {
+                return FileDeliveryMode.PUBLIC;
+            }
+            return FileDeliveryMode.PROTECTED;
+        }
+        return null;
     }
 
     private BoardMemberEntity resolveBoardMember(UserEntity currentUser, Long boardId) {
