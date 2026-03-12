@@ -2,7 +2,6 @@ package com.mocktalkback.domain.file.service;
 
 import java.time.Duration;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -11,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.mocktalkback.domain.file.dto.FileViewTicketResponse;
 import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.repository.FileRepository;
+import com.mocktalkback.global.auth.ticket.TicketIdGenerator;
 import com.mocktalkback.infra.storage.ObjectStorageProperties;
 
 @Service
@@ -24,17 +24,20 @@ public class FileViewTicketService {
     private final FileAccessDecisionService fileAccessDecisionService;
     private final FileViewTicketStore fileViewTicketStore;
     private final ObjectStorageProperties objectStorageProperties;
+    private final TicketIdGenerator ticketIdGenerator;
 
     public FileViewTicketService(
         FileRepository fileRepository,
         FileAccessDecisionService fileAccessDecisionService,
         FileViewTicketStore fileViewTicketStore,
-        ObjectStorageProperties objectStorageProperties
+        ObjectStorageProperties objectStorageProperties,
+        TicketIdGenerator ticketIdGenerator
     ) {
         this.fileRepository = fileRepository;
         this.fileAccessDecisionService = fileAccessDecisionService;
         this.fileViewTicketStore = fileViewTicketStore;
         this.objectStorageProperties = objectStorageProperties;
+        this.ticketIdGenerator = ticketIdGenerator;
     }
 
     public FileViewTicketResponse issue(Long fileId, String variantParam) {
@@ -85,7 +88,7 @@ public class FileViewTicketService {
     }
 
     private String buildTicket() {
-        return TICKET_PREFIX + UUID.randomUUID().toString().replace("-", "");
+        return ticketIdGenerator.generate(TICKET_PREFIX);
     }
 
     private String buildViewUrl(Long fileId, String variantParam, String ticket) {

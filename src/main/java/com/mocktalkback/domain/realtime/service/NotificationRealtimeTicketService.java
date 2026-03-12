@@ -1,12 +1,12 @@
 package com.mocktalkback.domain.realtime.service;
 
 import java.time.Duration;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import com.mocktalkback.domain.realtime.config.RealtimeRedisProperties;
 import com.mocktalkback.domain.realtime.dto.NotificationRealtimeTicketResponse;
+import com.mocktalkback.global.auth.ticket.TicketIdGenerator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,6 +18,7 @@ public class NotificationRealtimeTicketService {
 
     private final NotificationRealtimeTicketStore notificationRealtimeTicketStore;
     private final RealtimeRedisProperties realtimeRedisProperties;
+    private final TicketIdGenerator ticketIdGenerator;
 
     public NotificationRealtimeTicketResponse issue(Long userId) {
         if (!realtimeRedisProperties.enabled()) {
@@ -52,6 +53,6 @@ public class NotificationRealtimeTicketService {
     }
 
     private String buildTicket() {
-        return TICKET_PREFIX + UUID.randomUUID().toString().replace("-", "");
+        return ticketIdGenerator.generate(TICKET_PREFIX);
     }
 }

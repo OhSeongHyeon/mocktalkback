@@ -21,6 +21,7 @@ import com.mocktalkback.domain.file.entity.FileEntity;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
+import com.mocktalkback.global.auth.ticket.TicketIdGenerator;
 import com.mocktalkback.infra.storage.ObjectStorageProperties;
 
 class FileViewTicketServiceTest {
@@ -32,18 +33,21 @@ class FileViewTicketServiceTest {
         FileRepository fileRepository = mock(FileRepository.class);
         FileAccessDecisionService accessDecisionService = mock(FileAccessDecisionService.class);
         FileViewTicketStore fileViewTicketStore = mock(FileViewTicketStore.class);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
         ObjectStorageProperties properties = new ObjectStorageProperties();
         properties.setProtectedViewExpireSeconds(120L);
         FileViewTicketService service = new FileViewTicketService(
             fileRepository,
             accessDecisionService,
             fileViewTicketStore,
-            properties
+            properties,
+            ticketIdGenerator
         );
         FileEntity file = createFileEntity(31L, FileClassCode.ARTICLE_CONTENT_IMAGE);
 
         when(fileRepository.findByIdAndDeletedAtIsNull(31L)).thenReturn(Optional.of(file));
         when(accessDecisionService.decide(file)).thenReturn(FileAccessDecision.protectedAccess());
+        when(ticketIdGenerator.generate("fv_")).thenReturn("fv_ticket_test");
 
         // when: 보호 파일 보기 ticket을 발급하면
         FileViewTicketResponse response = service.issue(31L, "medium");
@@ -53,9 +57,8 @@ class FileViewTicketServiceTest {
         assertThat(response.expiresInSec()).isEqualTo(120L);
         assertThat(response.viewUrl()).startsWith("/api/files/31/view?");
         assertThat(response.viewUrl()).contains("variant=medium");
-        assertThat(response.viewUrl()).contains("ticket=fv_");
-        String issuedTicket = response.viewUrl().substring(response.viewUrl().indexOf("ticket=") + "ticket=".length());
-        verify(fileViewTicketStore).save(eq(issuedTicket), eq(31L), eq(Duration.ofSeconds(120L)));
+        assertThat(response.viewUrl()).contains("ticket=fv_ticket_test");
+        verify(fileViewTicketStore).save(eq("fv_ticket_test"), eq(31L), eq(Duration.ofSeconds(120L)));
     }
 
     // 공개 파일 ticket 발급은 Redis 저장 없이 기존 보기 URL을 반환해야 한다.
@@ -65,12 +68,14 @@ class FileViewTicketServiceTest {
         FileRepository fileRepository = mock(FileRepository.class);
         FileAccessDecisionService accessDecisionService = mock(FileAccessDecisionService.class);
         FileViewTicketStore fileViewTicketStore = mock(FileViewTicketStore.class);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
         ObjectStorageProperties properties = new ObjectStorageProperties();
         FileViewTicketService service = new FileViewTicketService(
             fileRepository,
             accessDecisionService,
             fileViewTicketStore,
-            properties
+            properties,
+            ticketIdGenerator
         );
         FileEntity file = createFileEntity(44L, FileClassCode.BOARD_IMAGE);
 
@@ -94,12 +99,14 @@ class FileViewTicketServiceTest {
         FileRepository fileRepository = mock(FileRepository.class);
         FileAccessDecisionService accessDecisionService = mock(FileAccessDecisionService.class);
         FileViewTicketStore fileViewTicketStore = mock(FileViewTicketStore.class);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
         ObjectStorageProperties properties = new ObjectStorageProperties();
         FileViewTicketService service = new FileViewTicketService(
             fileRepository,
             accessDecisionService,
             fileViewTicketStore,
-            properties
+            properties,
+            ticketIdGenerator
         );
         when(fileViewTicketStore.find("valid-ticket")).thenReturn(Optional.of(
             new FileViewTicketStore.FileViewTicketState(99L, Duration.ofSeconds(120L))
@@ -118,12 +125,14 @@ class FileViewTicketServiceTest {
         FileRepository fileRepository = mock(FileRepository.class);
         FileAccessDecisionService accessDecisionService = mock(FileAccessDecisionService.class);
         FileViewTicketStore fileViewTicketStore = mock(FileViewTicketStore.class);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
         ObjectStorageProperties properties = new ObjectStorageProperties();
         FileViewTicketService service = new FileViewTicketService(
             fileRepository,
             accessDecisionService,
             fileViewTicketStore,
-            properties
+            properties,
+            ticketIdGenerator
         );
         when(fileViewTicketStore.find("valid-ticket")).thenReturn(Optional.of(
             new FileViewTicketStore.FileViewTicketState(31L, Duration.ofSeconds(87L))

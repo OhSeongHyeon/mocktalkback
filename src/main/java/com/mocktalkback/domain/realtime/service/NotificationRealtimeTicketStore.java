@@ -5,15 +5,19 @@ import java.time.Duration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.mocktalkback.global.auth.ticket.TicketChannel;
+import com.mocktalkback.global.auth.ticket.TicketRedisKeyBuilder;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationRealtimeTicketStore {
 
-    private static final String TICKET_KEY_PREFIX = "realtime:notification:ticket:";
+    private static final TicketChannel TICKET_CHANNEL = TicketChannel.REALTIME_CONNECT;
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final TicketRedisKeyBuilder ticketRedisKeyBuilder;
 
     public void save(String ticket, Long userId, Duration ttl) {
         stringRedisTemplate.opsForValue().set(key(ticket), String.valueOf(userId), ttl);
@@ -28,6 +32,6 @@ public class NotificationRealtimeTicketStore {
     }
 
     private String key(String ticket) {
-        return TICKET_KEY_PREFIX + ticket;
+        return ticketRedisKeyBuilder.build(TICKET_CHANNEL, ticket);
     }
 }

@@ -7,15 +7,19 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import com.mocktalkback.global.auth.ticket.TicketChannel;
+import com.mocktalkback.global.auth.ticket.TicketRedisKeyBuilder;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class FileViewTicketStore {
 
-    private static final String TICKET_KEY_PREFIX = "file:view:ticket:";
+    private static final TicketChannel TICKET_CHANNEL = TicketChannel.RESOURCE_VIEW;
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final TicketRedisKeyBuilder ticketRedisKeyBuilder;
 
     public void save(String ticket, Long fileId, Duration ttl) {
         stringRedisTemplate.opsForValue().set(key(ticket), String.valueOf(fileId), ttl);
@@ -39,7 +43,7 @@ public class FileViewTicketStore {
     }
 
     private String key(String ticket) {
-        return TICKET_KEY_PREFIX + ticket;
+        return ticketRedisKeyBuilder.build(TICKET_CHANNEL, ticket);
     }
 
     public record FileViewTicketState(
