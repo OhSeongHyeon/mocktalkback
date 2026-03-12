@@ -120,7 +120,7 @@ public class ObjectStorageFileStorageService implements FileStorage {
         String normalizedKey = normalizeKey(storageKey);
         int expireSeconds = normalizeProtectedViewExpireSeconds(properties.getProtectedViewExpireSeconds());
         try {
-            return presignClient.getPresignedObjectUrl(
+            String rawUrl = presignClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET)
                     .bucket(properties.getBucket())
@@ -128,6 +128,7 @@ public class ObjectStorageFileStorageService implements FileStorage {
                     .expiry(expireSeconds)
                     .build()
             );
+            return toProxyUrl(rawUrl);
         } catch (Exception ex) {
             throw new IllegalStateException("보호 파일 조회 URL 생성에 실패했습니다.");
         }

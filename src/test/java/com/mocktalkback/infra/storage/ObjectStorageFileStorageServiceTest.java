@@ -28,8 +28,8 @@ class ObjectStorageFileStorageServiceTest {
         // when: 보호 파일 조회 URL을 해석하면
         String location = service.resolveProtectedViewUrl("uploads/article_content_image/7/2026/03/12/file.png");
 
-        // then: 공개 CDN URL이 아니라 presigned URL을 반환하고 보호 TTL을 사용한다.
-        assertThat(location).startsWith("https://presign.mocktalk.test/mocktalk/uploads/article_content_image/7/2026/03/12/file.png");
+        // then: 공개 CDN URL이 아니라 /storage 프록시 기반 presigned URL을 반환하고 보호 TTL을 사용한다.
+        assertThat(location).startsWith("/storage/mocktalk/uploads/article_content_image/7/2026/03/12/file.png");
         assertThat(location).contains("X-Amz-Expires=120");
         assertThat(location).doesNotStartWith("https://cdn.mocktalk.test/");
     }
