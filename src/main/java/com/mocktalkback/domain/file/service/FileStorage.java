@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.file.service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
@@ -24,6 +25,20 @@ public interface FileStorage {
      * 파일 조회용 URL을 반환합니다.
      */
     String resolveViewUrl(String storageKey);
+
+    /**
+     * 접근 제어가 필요한 파일 조회용 URL을 반환합니다.
+     */
+    default String resolveProtectedViewUrl(String storageKey) {
+        return resolveViewUrl(storageKey);
+    }
+
+    /**
+     * 접근 제어가 필요한 파일 조회용 URL을 지정된 최대 TTL 이내로 반환합니다.
+     */
+    default String resolveProtectedViewUrl(String storageKey, Duration maxTtl) {
+        return resolveProtectedViewUrl(storageKey);
+    }
 
     /**
      * 파일 다운로드용 URL을 반환합니다.

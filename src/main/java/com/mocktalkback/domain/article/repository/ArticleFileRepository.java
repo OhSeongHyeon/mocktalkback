@@ -12,6 +12,9 @@ public interface ArticleFileRepository extends JpaRepository<ArticleFileEntity, 
     @EntityGraph(attributePaths = {"file"})
     List<ArticleFileEntity> findAllByArticleIdOrderByCreatedAtAsc(Long articleId);
 
+    @EntityGraph(attributePaths = {"article", "article.board"})
+    List<ArticleFileEntity> findAllByFileId(Long fileId);
+
     @EntityGraph(attributePaths = {"file"})
     Optional<ArticleFileEntity> findByArticleIdAndFileId(Long articleId, Long fileId);
 
