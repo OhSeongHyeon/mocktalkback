@@ -47,7 +47,7 @@ class FileViewServiceTest {
             fileAccessDecisionService
         );
         FileEntity fileEntity = createImageFileEntity("uploads/article_content_image/1/original.png");
-        when(fileRepository.findById(1L)).thenReturn(Optional.of(fileEntity));
+        when(fileRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(fileEntity));
         when(fileAccessDecisionService.decide(fileEntity)).thenReturn(FileAccessDecision.protectedAccess());
         when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/1/original.png"))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/1/original.png");
@@ -81,7 +81,7 @@ class FileViewServiceTest {
             .height(1080)
             .build();
 
-        when(fileRepository.findById(10L)).thenReturn(Optional.of(fileEntity));
+        when(fileRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(fileEntity));
         when(fileAccessDecisionService.decide(fileEntity)).thenReturn(FileAccessDecision.protectedAccess());
         when(fileVariantRepository.findByFileIdAndVariantCodeAndDeletedAtIsNull(10L, FileVariantCode.ORIGINAL_SIZE))
             .thenReturn(Optional.of(variantEntity));

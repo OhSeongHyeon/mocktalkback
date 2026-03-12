@@ -25,8 +25,7 @@ public class FileViewService {
     private final FileAccessDecisionService fileAccessDecisionService;
 
     public String resolveViewLocation(Long fileId, String variantParam) {
-        FileEntity file = fileRepository.findById(fileId)
-            .filter(entity -> !entity.isDeleted())
+        FileEntity file = fileRepository.findByIdAndDeletedAtIsNull(fileId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다."));
 
         FileAccessDecision accessDecision = fileAccessDecisionService.decide(file);
