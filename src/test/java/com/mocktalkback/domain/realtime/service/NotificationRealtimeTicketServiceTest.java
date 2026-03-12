@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import com.mocktalkback.domain.realtime.config.RealtimeRedisProperties;
 import com.mocktalkback.domain.realtime.dto.NotificationRealtimeTicketResponse;
+import com.mocktalkback.global.auth.ticket.TicketIdGenerator;
 
 class NotificationRealtimeTicketServiceTest {
 
@@ -31,13 +32,16 @@ class NotificationRealtimeTicketServiceTest {
             Duration.ofSeconds(45),
             8
         );
-        NotificationRealtimeTicketService service = new NotificationRealtimeTicketService(ticketStore, properties);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
+        when(ticketIdGenerator.generate("rt_ntf_")).thenReturn("rt_ntf_test_ticket");
+        NotificationRealtimeTicketService service =
+            new NotificationRealtimeTicketService(ticketStore, properties, ticketIdGenerator);
 
         // When: ticket 발급
         NotificationRealtimeTicketResponse response = service.issue(15L);
 
         // Then: 저장소에 TTL과 함께 저장되고 응답 값도 채워짐
-        assertThat(response.ticket()).startsWith("rt_ntf_");
+        assertThat(response.ticket()).isEqualTo("rt_ntf_test_ticket");
         assertThat(response.expiresInSec()).isEqualTo(30L);
         verify(ticketStore).save(eq(response.ticket()), eq(15L), eq(Duration.ofSeconds(30)));
     }
@@ -48,8 +52,9 @@ class NotificationRealtimeTicketServiceTest {
         // Given: ticket 저장소와 서비스
         NotificationRealtimeTicketStore ticketStore = mock(NotificationRealtimeTicketStore.class);
         when(ticketStore.consume("valid-ticket")).thenReturn(101L);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
         NotificationRealtimeTicketService service =
-            new NotificationRealtimeTicketService(ticketStore, RealtimeRedisProperties.defaults());
+            new NotificationRealtimeTicketService(ticketStore, RealtimeRedisProperties.defaults(), ticketIdGenerator);
 
         // When: ticket 소비
         Long userId = service.consume("valid-ticket");
@@ -64,8 +69,9 @@ class NotificationRealtimeTicketServiceTest {
         // Given: ticket 저장소와 서비스
         NotificationRealtimeTicketStore ticketStore = mock(NotificationRealtimeTicketStore.class);
         when(ticketStore.consume(any())).thenReturn(null);
+        TicketIdGenerator ticketIdGenerator = mock(TicketIdGenerator.class);
         NotificationRealtimeTicketService service =
-            new NotificationRealtimeTicketService(ticketStore, RealtimeRedisProperties.defaults());
+            new NotificationRealtimeTicketService(ticketStore, RealtimeRedisProperties.defaults(), ticketIdGenerator);
 
         // When & Then: 잘못된 ticket 소비는 예외가 발생함
         assertThatThrownBy(() -> service.consume("missing-ticket"))

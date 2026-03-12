@@ -183,7 +183,7 @@ out/
 
 ### other ###
 .env
-.env.dev
+# .env.dev
 .env.prod
 AGENTS.md
 GEMINI.md

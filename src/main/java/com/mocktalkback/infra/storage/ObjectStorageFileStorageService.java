@@ -3,6 +3,7 @@ package com.mocktalkback.infra.storage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
@@ -26,6 +27,7 @@ import io.minio.http.Method;
 public class ObjectStorageFileStorageService implements FileStorage {
 
     private static final int DEFAULT_PRESIGN_EXPIRE_SECONDS = 300;
+    private static final int DEFAULT_PROTECTED_VIEW_EXPIRE_SECONDS = 120;
     private static final int MAX_PRESIGN_EXPIRE_SECONDS = 604800;
 
     private final ObjectStorageProperties properties;
@@ -115,6 +117,30 @@ public class ObjectStorageFileStorageService implements FileStorage {
     }
 
     @Override
+    public String resolveProtectedViewUrl(String storageKey) {
+        return resolveProtectedViewUrl(storageKey, null);
+    }
+
+    @Override
+    public String resolveProtectedViewUrl(String storageKey, Duration maxTtl) {
+        String normalizedKey = normalizeKey(storageKey);
+        int expireSeconds = resolveProtectedViewExpireSeconds(maxTtl);
+        try {
+            String rawUrl = presignClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .expiry(expireSeconds)
+                    .build()
+            );
+            return toProxyUrl(rawUrl);
+        } catch (Exception ex) {
+            throw new IllegalStateException("보호 파일 조회 URL 생성에 실패했습니다.");
+        }
+    }
+
+    @Override
     public String resolveDownloadUrl(String storageKey, String fileName, String mimeType) {
         String normalizedKey = normalizeKey(storageKey);
         int expireSeconds = normalizePresignExpireSeconds(properties.getPresignExpireSeconds());
@@ -185,6 +211,32 @@ public class ObjectStorageFileStorageService implements FileStorage {
             return MAX_PRESIGN_EXPIRE_SECONDS;
         }
         return (int) expireSeconds;
+    }
+
+    private int normalizeProtectedViewExpireSeconds(long expireSeconds) {
+        if (expireSeconds <= 0L) {
+            return DEFAULT_PROTECTED_VIEW_EXPIRE_SECONDS;
+        }
+        if (expireSeconds > MAX_PRESIGN_EXPIRE_SECONDS) {
+            return MAX_PRESIGN_EXPIRE_SECONDS;
+        }
+        return (int) expireSeconds;
+    }
+
+    private int resolveProtectedViewExpireSeconds(Duration maxTtl) {
+        int configuredExpireSeconds = normalizeProtectedViewExpireSeconds(properties.getProtectedViewExpireSeconds());
+        if (maxTtl == null) {
+            return configuredExpireSeconds;
+        }
+
+        long remainingSeconds = maxTtl.toSeconds();
+        if (remainingSeconds <= 0L && !maxTtl.isZero() && !maxTtl.isNegative()) {
+            remainingSeconds = 1L;
+        }
+        if (remainingSeconds <= 0L) {
+            return 1;
+        }
+        return (int) Math.min(configuredExpireSeconds, remainingSeconds);
     }
 
     private Map<String, String> resolveUploadHeaders(String mimeType) {

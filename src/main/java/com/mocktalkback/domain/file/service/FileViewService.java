@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.file.service;
 
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -22,23 +23,38 @@ public class FileViewService {
     private final FileRepository fileRepository;
     private final FileVariantRepository fileVariantRepository;
     private final FileStorage fileStorage;
+    private final FileAccessDecisionService fileAccessDecisionService;
+    private final FileViewTicketService fileViewTicketService;
 
     public String resolveViewLocation(Long fileId, String variantParam) {
-        FileEntity file = fileRepository.findById(fileId)
-            .filter(entity -> !entity.isDeleted())
+        return resolveViewLocation(fileId, variantParam, null);
+    }
+
+    public String resolveViewLocation(Long fileId, String variantParam, String ticket) {
+        FileEntity file = fileRepository.findByIdAndDeletedAtIsNull(fileId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다."));
+
+        FileDeliveryMode deliveryMode = fileAccessDecisionService.resolveDeliveryMode(file);
+        if (deliveryMode == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
+        }
+
+        Duration ticketRemainingTtl = null;
+        if (deliveryMode == FileDeliveryMode.PROTECTED) {
+            ticketRemainingTtl = fileViewTicketService.validate(fileId, ticket);
+        }
 
         FileVariantCode variantCode = resolveVariantCode(variantParam);
         if (variantCode == null || !isImage(file.getMimeType())) {
-            return fileStorage.resolveViewUrl(file.getStorageKey());
+            return resolveDeliveryUrl(file.getStorageKey(), deliveryMode, ticketRemainingTtl);
         }
 
         Optional<FileVariantEntity> variant = fileVariantRepository
             .findByFileIdAndVariantCodeAndDeletedAtIsNull(fileId, variantCode);
         if (variant.isPresent()) {
-            return fileStorage.resolveViewUrl(variant.get().getStorageKey());
+            return resolveDeliveryUrl(variant.get().getStorageKey(), deliveryMode, ticketRemainingTtl);
         }
-        return fileStorage.resolveViewUrl(file.getStorageKey());
+        return resolveDeliveryUrl(file.getStorageKey(), deliveryMode, ticketRemainingTtl);
     }
 
     private FileVariantCode resolveVariantCode(String variantParam) {
@@ -58,6 +74,13 @@ public class FileViewService {
 
     private boolean isImage(String mimeType) {
         return mimeType != null && mimeType.startsWith("image/");
+    }
+
+    private String resolveDeliveryUrl(String storageKey, FileDeliveryMode deliveryMode, Duration ticketRemainingTtl) {
+        if (deliveryMode == FileDeliveryMode.PROTECTED) {
+            return fileStorage.resolveProtectedViewUrl(storageKey, ticketRemainingTtl);
+        }
+        return fileStorage.resolveViewUrl(storageKey);
     }
 
 }

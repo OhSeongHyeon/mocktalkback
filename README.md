@@ -145,6 +145,7 @@ docker compose -f docker-compose.minio.yml up -d
 | `OBJECT_STORAGE_PUBLIC_BASE_URL` | 퍼블릭 조회 URL 베이스(선택) |
 | `OBJECT_STORAGE_PRESIGN_ENDPOINT` | Presigned URL 생성 기준 엔드포인트(선택) |
 | `OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS` | Presigned URL 만료(초) |
+| `OBJECT_STORAGE_PROTECTED_VIEW_EXPIRE_SECONDS` | 보호 파일 조회용 Presigned URL 만료(초) |
 | `OBJECT_STORAGE_UPLOAD_PROXY_PREFIX` | Presigned 업로드 URL 프록시 prefix(기본 `/storage`) |
 | `UPLOAD_SESSION_TTL_SECONDS` | Presigned 업로드 세션 만료(초) |
 | `UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS` | 업로드 세션 만료 후 고아 정리 유예 시간(초) |
