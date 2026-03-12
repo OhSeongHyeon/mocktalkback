@@ -30,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
+import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
@@ -131,6 +132,9 @@ class ArticleServiceTest {
 
     @Mock
     private ArticleContentService articleContentService;
+
+    @Mock
+    private ArticleHitService articleHitService;
 
     @Mock
     private SanctionGuard sanctionGuard;
@@ -338,6 +342,53 @@ class ArticleServiceTest {
         // Then: 카테고리 응답 확인
         assertThat(result).hasSize(1);
         assertThat(result.get(0).categoryName()).isEqualTo("공지");
+    }
+
+    // 게시글 상세 조회는 조회수 증가 요청 시 원자 조회수 서비스를 사용해야 한다.
+    @Test
+    void findDetailById_uses_article_hit_service_when_increase_requested() {
+        // Given: 공개 게시판의 게시글과 증가된 조회수 값
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user, null);
+        ReflectionTestUtils.setField(article, "hit", 7L);
+
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleHitService.increaseAndGet(10L)).thenReturn(8L);
+        when(commentRepository.countByArticleIds(List.of(10L))).thenReturn(List.of());
+        when(articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(10L)).thenReturn(List.of());
+        when(boardFileRepository.findAllByBoardIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        // When: 상세 조회에서 조회수 증가를 요청하면
+        ArticleDetailResponse response = articleService.findDetailById(10L, true);
+
+        // Then: 원자 조회수 서비스의 최신 값을 응답에 반영해야 한다.
+        assertThat(response.hit()).isEqualTo(8L);
+        verify(articleHitService).increaseAndGet(10L);
+    }
+
+    // 게시글 상세 조회는 조회수 증가 요청이 없으면 기존 hit 값을 그대로 반환해야 한다.
+    @Test
+    void findDetailById_returns_current_hit_when_increase_not_requested() {
+        // Given: 공개 게시판의 게시글과 현재 조회수
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user, null);
+        ReflectionTestUtils.setField(article, "hit", 7L);
+
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(commentRepository.countByArticleIds(List.of(10L))).thenReturn(List.of());
+        when(articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(10L)).thenReturn(List.of());
+        when(boardFileRepository.findAllByBoardIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        // When: 상세 조회에서 조회수 증가를 요청하지 않으면
+        ArticleDetailResponse response = articleService.findDetailById(10L, false);
+
+        // Then: 현재 조회수만 반환하고 증가 서비스는 호출하지 않아야 한다.
+        assertThat(response.hit()).isEqualTo(7L);
+        verify(articleHitService, never()).increaseAndGet(anyLong());
     }
 
     // 게시글 목록 조회는 카테고리 필터가 있으면 고정글을 제외하고 카테고리 기준으로 조회해야 한다.

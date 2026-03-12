@@ -112,6 +112,7 @@ public class ArticleService {
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final ArticleContentService articleContentService;
+    private final ArticleHitService articleHitService;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final BoardAccessPolicy boardAccessPolicy;
     private final SanctionGuard sanctionGuard;
@@ -187,8 +188,9 @@ public class ArticleService {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
 
+        long hit = article.getHit();
         if (increaseHit) {
-            article.increaseHit();
+            hit = articleHitService.increaseAndGet(article.getId());
         }
 
         long commentCount = getCommentCount(article.getId());
@@ -214,7 +216,7 @@ public class ArticleService {
             article.getVisibility(),
             article.getTitle(),
             article.getContent(),
-            article.getHit(),
+            hit,
             commentCount,
             reactionCounts.likeCount(),
             reactionCounts.dislikeCount(),
