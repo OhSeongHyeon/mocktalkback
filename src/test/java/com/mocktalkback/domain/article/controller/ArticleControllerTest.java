@@ -142,15 +142,18 @@ class ArticleControllerTest {
             FIXED_TIME,
             List.of()
         );
-        when(articleService.findDetailById(10L, true)).thenReturn(response);
+        when(articleService.findDetailById(10L, "203.0.113.10", "MockBrowser/1.0")).thenReturn(response);
 
         // When: 게시글 조회 API 호출
-        ResultActions result = mockMvc.perform(get("/api/articles/10"));
+        ResultActions result = mockMvc.perform(get("/api/articles/10")
+            .header("X-Forwarded-For", "203.0.113.10")
+            .header("User-Agent", "MockBrowser/1.0"));
 
         // Then: 응답 데이터 확인
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.id").value(10L));
+            .andExpect(jsonPath("$.data.id").value(10L))
+            .andExpect(header().doesNotExist("Set-Cookie"));
     }
 
     // 게시글 수정용 조회 API는 작성 원본과 포맷을 반환해야 한다.

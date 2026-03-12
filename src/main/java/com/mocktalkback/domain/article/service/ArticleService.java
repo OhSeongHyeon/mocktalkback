@@ -112,7 +112,7 @@ public class ArticleService {
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final ArticleContentService articleContentService;
-    private final ArticleHitService articleHitService;
+    private final ArticleViewService articleViewService;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final BoardAccessPolicy boardAccessPolicy;
     private final SanctionGuard sanctionGuard;
@@ -168,7 +168,7 @@ public class ArticleService {
     }
 
     @Transactional
-    public ArticleDetailResponse findDetailById(Long id, boolean increaseHit) {
+    public ArticleDetailResponse findDetailById(Long id, String clientIp, String userAgent) {
         ArticleEntity article = articleRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
 
@@ -188,10 +188,7 @@ public class ArticleService {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
 
-        long hit = article.getHit();
-        if (increaseHit) {
-            hit = articleHitService.increaseAndGet(article.getId());
-        }
+        long hit = articleViewService.increaseHitIfEligible(article.getId(), article.getHit(), clientIp, userAgent);
 
         long commentCount = getCommentCount(article.getId());
         ReactionCounts reactionCounts = getReactionCounts(article.getId());
