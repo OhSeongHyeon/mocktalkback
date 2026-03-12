@@ -8,6 +8,7 @@ import {
   selectAccessToken,
   setupAuth,
 } from './lib/k6-auth.js';
+import { createSummaryHandler } from './lib/k6-summary.js';
 
 const API_BASE_URL = resolveApiBaseUrl();
 const ARTICLE_ID = Number(__ENV.K6_ARTICLE_ID || 1);
@@ -17,27 +18,15 @@ export const article_trending_failures = new Rate('article_trending_failures');
 export const article_trending_requests = new Counter('article_trending_requests');
 
 export const options = {
-  scenarios: {
-    article_event_mix: {
-      executor: 'constant-vus',
-      exec: 'articleEventMixScenario',
-      vus: Number(__ENV.K6_VUS_ARTICLE_TREND_EVENT_MIX || 3),
-      duration: __ENV.K6_DURATION_ARTICLE_TREND_EVENT_MIX || '30s',
-    },
-    article_trending_read: {
-      executor: 'constant-vus',
-      exec: 'articleTrendingReadScenario',
-      vus: Number(__ENV.K6_VUS_ARTICLE_TREND_READ || 2),
-      duration: __ENV.K6_DURATION_ARTICLE_TREND_READ || '30s',
-      startTime: __ENV.K6_START_ARTICLE_TREND_READ || '5s',
-    },
-  },
+  scenarios: buildScenarios(),
   thresholds: {
     http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(95)<800', 'p(99)<1200'],
     article_trending_failures: ['rate==0'],
   },
 };
+
+export const handleSummary = createSummaryHandler('article-trending');
 
 export function setup() {
   // Given: 혼합 이벤트 시나리오가 활성화되어 있으면 로그인 정보가 준비되어 있다.
@@ -252,4 +241,37 @@ function validateEventMixCapacity(poolSize) {
       `혼합 이벤트 시나리오용 계정 수가 부족합니다. required=${eventMixVus}, actual=${poolSize}`
     );
   }
+}
+
+function buildScenarios() {
+  const scenarios = {};
+  addConstantVusScenario(
+    scenarios,
+    'article_event_mix',
+    'articleEventMixScenario',
+    Number(__ENV.K6_VUS_ARTICLE_TREND_EVENT_MIX || 3),
+    __ENV.K6_DURATION_ARTICLE_TREND_EVENT_MIX || '30s'
+  );
+  addConstantVusScenario(
+    scenarios,
+    'article_trending_read',
+    'articleTrendingReadScenario',
+    Number(__ENV.K6_VUS_ARTICLE_TREND_READ || 2),
+    __ENV.K6_DURATION_ARTICLE_TREND_READ || '30s',
+    __ENV.K6_START_ARTICLE_TREND_READ || '5s'
+  );
+  return scenarios;
+}
+
+function addConstantVusScenario(scenarios, name, execName, vus, duration, startTime) {
+  if (vus <= 0) {
+    return;
+  }
+  scenarios[name] = {
+    executor: 'constant-vus',
+    exec: execName,
+    vus,
+    duration,
+    ...(startTime ? { startTime } : {}),
+  };
 }

@@ -188,4 +188,5 @@ out/
 AGENTS.md
 GEMINI.md
 uploads/
-
+perf/k6/results/*
+!perf/k6/results/.gitkeep

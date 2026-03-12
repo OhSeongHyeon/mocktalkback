@@ -7,6 +7,7 @@ import {
   selectAccessToken,
   setupAuth,
 } from './lib/k6-auth.js';
+import { createSummaryHandler } from './lib/k6-summary.js';
 
 const API_BASE_URL = resolveApiBaseUrl();
 const SEARCH_QUERY = __ENV.K6_SEARCH_QUERY || '공지';
@@ -44,6 +45,8 @@ export const options = {
     search_failures: ['rate==0'],
   },
 };
+
+export const handleSummary = createSummaryHandler('search-unit');
 
 export function setup() {
   // Given: 단일 사용자 또는 다중 사용자 로그인 정보가 환경변수에 준비되어 있다.

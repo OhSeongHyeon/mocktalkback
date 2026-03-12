@@ -8,6 +8,7 @@ import {
   selectAccessToken,
   setupAuth,
 } from './lib/k6-auth.js';
+import { createSummaryHandler } from './lib/k6-summary.js';
 
 const API_BASE_URL = resolveApiBaseUrl();
 const ARTICLE_ID = Number(__ENV.K6_ARTICLE_ID || 1);
@@ -45,6 +46,8 @@ export const options = {
     comment_failures: ['rate==0'],
   },
 };
+
+export const handleSummary = createSummaryHandler('comment-unit');
 
 export function setup() {
   // Given: 단일 사용자 또는 다중 사용자 로그인 정보가 환경변수에 준비되어 있다.
