@@ -33,14 +33,23 @@ class FileViewServiceTest {
     @Mock
     private FileStorage fileStorage;
 
+    @Mock
+    private FileAccessDecisionService fileAccessDecisionService;
+
     // variant=original 요청은 원본 파일 URL로 조회되어야 한다.
     @Test
     void resolveViewLocation_returns_original_when_variant_is_original() {
         // given: 이미지 원본 파일과 variant=original 요청
-        FileViewService fileViewService = new FileViewService(fileRepository, fileVariantRepository, fileStorage);
+        FileViewService fileViewService = new FileViewService(
+            fileRepository,
+            fileVariantRepository,
+            fileStorage,
+            fileAccessDecisionService
+        );
         FileEntity fileEntity = createImageFileEntity("uploads/article_content_image/1/original.png");
         when(fileRepository.findById(1L)).thenReturn(Optional.of(fileEntity));
-        when(fileStorage.resolveViewUrl("uploads/article_content_image/1/original.png"))
+        when(fileAccessDecisionService.decide(fileEntity)).thenReturn(FileAccessDecision.protectedAccess());
+        when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/1/original.png"))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/1/original.png");
 
         // when: 보기 URL을 해석하면
@@ -55,7 +64,12 @@ class FileViewServiceTest {
     @Test
     void resolveViewLocation_returns_original_size_variant_when_exists() {
         // given: 이미지 원본과 ORIGINAL_SIZE 변환본이 존재한다.
-        FileViewService fileViewService = new FileViewService(fileRepository, fileVariantRepository, fileStorage);
+        FileViewService fileViewService = new FileViewService(
+            fileRepository,
+            fileVariantRepository,
+            fileStorage,
+            fileAccessDecisionService
+        );
         FileEntity fileEntity = createImageFileEntity("uploads/article_content_image/10/original.png");
         FileVariantEntity variantEntity = FileVariantEntity.builder()
             .file(fileEntity)
@@ -68,9 +82,10 @@ class FileViewServiceTest {
             .build();
 
         when(fileRepository.findById(10L)).thenReturn(Optional.of(fileEntity));
+        when(fileAccessDecisionService.decide(fileEntity)).thenReturn(FileAccessDecision.protectedAccess());
         when(fileVariantRepository.findByFileIdAndVariantCodeAndDeletedAtIsNull(10L, FileVariantCode.ORIGINAL_SIZE))
             .thenReturn(Optional.of(variantEntity));
-        when(fileStorage.resolveViewUrl("uploads/article_content_image/10/variants/original_original_size.webp"))
+        when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/10/variants/original_original_size.webp"))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/10/variants/original_original_size.webp");
 
         // when: 보기 URL을 해석하면

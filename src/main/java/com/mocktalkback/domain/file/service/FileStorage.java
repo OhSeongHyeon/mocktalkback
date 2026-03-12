@@ -26,6 +26,13 @@ public interface FileStorage {
     String resolveViewUrl(String storageKey);
 
     /**
+     * 접근 제어가 필요한 파일 조회용 URL을 반환합니다.
+     */
+    default String resolveProtectedViewUrl(String storageKey) {
+        return resolveViewUrl(storageKey);
+    }
+
+    /**
      * 파일 다운로드용 URL을 반환합니다.
      */
     String resolveDownloadUrl(String storageKey, String fileName, String mimeType);

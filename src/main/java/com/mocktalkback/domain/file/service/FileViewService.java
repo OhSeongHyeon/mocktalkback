@@ -22,23 +22,29 @@ public class FileViewService {
     private final FileRepository fileRepository;
     private final FileVariantRepository fileVariantRepository;
     private final FileStorage fileStorage;
+    private final FileAccessDecisionService fileAccessDecisionService;
 
     public String resolveViewLocation(Long fileId, String variantParam) {
         FileEntity file = fileRepository.findById(fileId)
             .filter(entity -> !entity.isDeleted())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다."));
 
+        FileAccessDecision accessDecision = fileAccessDecisionService.decide(file);
+        if (!accessDecision.allowed()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
+        }
+
         FileVariantCode variantCode = resolveVariantCode(variantParam);
         if (variantCode == null || !isImage(file.getMimeType())) {
-            return fileStorage.resolveViewUrl(file.getStorageKey());
+            return resolveDeliveryUrl(file.getStorageKey(), accessDecision.deliveryMode());
         }
 
         Optional<FileVariantEntity> variant = fileVariantRepository
             .findByFileIdAndVariantCodeAndDeletedAtIsNull(fileId, variantCode);
         if (variant.isPresent()) {
-            return fileStorage.resolveViewUrl(variant.get().getStorageKey());
+            return resolveDeliveryUrl(variant.get().getStorageKey(), accessDecision.deliveryMode());
         }
-        return fileStorage.resolveViewUrl(file.getStorageKey());
+        return resolveDeliveryUrl(file.getStorageKey(), accessDecision.deliveryMode());
     }
 
     private FileVariantCode resolveVariantCode(String variantParam) {
@@ -58,6 +64,13 @@ public class FileViewService {
 
     private boolean isImage(String mimeType) {
         return mimeType != null && mimeType.startsWith("image/");
+    }
+
+    private String resolveDeliveryUrl(String storageKey, FileDeliveryMode deliveryMode) {
+        if (deliveryMode == FileDeliveryMode.PROTECTED) {
+            return fileStorage.resolveProtectedViewUrl(storageKey);
+        }
+        return fileStorage.resolveViewUrl(storageKey);
     }
 
 }
