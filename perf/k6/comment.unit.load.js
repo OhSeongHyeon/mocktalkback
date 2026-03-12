@@ -4,9 +4,9 @@ import { Counter, Rate } from 'k6/metrics';
 import {
   authJsonParams,
   authParams,
-  loginAndGetAccessToken,
-  requireLoginEnv,
   resolveApiBaseUrl,
+  selectAccessToken,
+  setupAuth,
 } from './lib/k6-auth.js';
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -47,20 +47,19 @@ export const options = {
 };
 
 export function setup() {
-  // Given: 테스트 사용자 로그인 정보를 환경변수로 받는다.
-  const { loginId, password } = requireLoginEnv();
-  // When: 로그인 API를 호출해 AccessToken을 발급받는다.
-  const accessToken = loginAndGetAccessToken(API_BASE_URL, loginId, password);
-  // Then: 이후 시나리오에서 재사용할 인증 토큰을 반환한다.
-  return { accessToken };
+  // Given: 단일 사용자 또는 다중 사용자 로그인 정보가 환경변수에 준비되어 있다.
+  // When: 로그인 API를 호출해 테스트용 AccessToken 풀을 발급받는다.
+  // Then: 각 VU는 자신의 순서에 맞는 토큰을 재사용한다.
+  return setupAuth(API_BASE_URL);
 }
 
 export function commentListReadScenario(data) {
   // Given: 대상 게시글 ID와 인증 토큰이 준비되어 있다.
+  const accessToken = selectAccessToken(data);
   // When: 댓글 트리 조회 API를 호출한다.
   const response = http.get(
     `${API_BASE_URL}/articles/${ARTICLE_ID}/comments?page=0&size=20`,
-    authParams(data.accessToken)
+    authParams(accessToken)
   );
   comment_requests.add(1);
 
@@ -83,10 +82,11 @@ export function commentListReadScenario(data) {
 
 export function commentSnapshotReadScenario(data) {
   // Given: 대상 게시글 ID와 인증 토큰이 준비되어 있다.
+  const accessToken = selectAccessToken(data);
   // When: 댓글 스냅샷 API를 호출한다.
   const response = http.get(
     `${API_BASE_URL}/articles/${ARTICLE_ID}/comments/snapshot?page=0&size=20`,
-    authParams(data.accessToken)
+    authParams(accessToken)
   );
   comment_requests.add(1);
 
@@ -109,13 +109,14 @@ export function commentSnapshotReadScenario(data) {
 
 export function commentReactionToggleScenario(data) {
   // Given: 대상 댓글 반응 토글 요청값(-1 또는 1)을 준비한다.
+  const accessToken = selectAccessToken(data);
   const reactionType = Math.random() < 0.5 ? 1 : -1;
 
   // When: 댓글 반응 토글 API를 호출한다.
   const response = http.post(
     `${API_BASE_URL}/comments/${COMMENT_ID}/reactions`,
     JSON.stringify({ reactionType }),
-    authJsonParams(data.accessToken)
+    authJsonParams(accessToken)
   );
   comment_requests.add(1);
 
