@@ -29,10 +29,12 @@ import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
+import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkDeleteRequest;
 import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
+import com.mocktalkback.domain.article.type.ArticleTrendingWindow;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.global.common.dto.SliceResponse;
@@ -66,6 +68,20 @@ public class ArticleController {
     })
     public ApiEnvelope<ArticleResponse> create(@RequestBody @Valid ArticleCreateRequest request) {
         return ApiEnvelope.ok(articleService.create(request));
+    }
+
+    @GetMapping("/articles/trending")
+    @Operation(summary = "공개 인기 게시글 조회", description = "일간/주간 기준의 공개 인기 게시글을 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class)))
+    })
+    public ApiEnvelope<List<ArticleTrendingItemResponse>> findTrendingPublic(
+        @Parameter(description = "집계 윈도우", example = "DAY")
+        @RequestParam(name = "window", defaultValue = "DAY") ArticleTrendingWindow window,
+        @Parameter(description = "최대 개수(최대 50)", example = "10")
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return ApiEnvelope.ok(articleService.findTrendingPublic(window, limit));
     }
 
     @GetMapping("/articles/{id}")

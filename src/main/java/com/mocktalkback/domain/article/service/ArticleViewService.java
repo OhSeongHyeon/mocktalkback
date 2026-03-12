@@ -18,6 +18,7 @@ public class ArticleViewService {
     private final ArticleHitService articleHitService;
     private final ArticleViewDedupeStore articleViewDedupeStore;
     private final ArticleViewerKeyService articleViewerKeyService;
+    private final ArticleTrendingService articleTrendingService;
     private final CurrentUserService currentUserService;
 
     @Value("${app.article.view.dedupe-ttl-seconds:86400}")
@@ -37,7 +38,9 @@ public class ArticleViewService {
             return currentHit;
         }
 
-        return articleHitService.increaseAndGet(articleId);
+        long updatedHit = articleHitService.increaseAndGet(articleId);
+        articleTrendingService.recordView(articleId);
+        return updatedHit;
     }
 
     private Duration resolveDedupeTtl() {

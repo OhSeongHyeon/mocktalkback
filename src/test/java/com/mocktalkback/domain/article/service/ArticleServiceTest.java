@@ -137,6 +137,9 @@ class ArticleServiceTest {
     private ArticleViewService articleViewService;
 
     @Mock
+    private ArticleTrendingService articleTrendingService;
+
+    @Mock
     private SanctionGuard sanctionGuard;
 
     @Mock
@@ -587,6 +590,7 @@ class ArticleServiceTest {
         assertThat(response.likeCount()).isEqualTo(5L);
         assertThat(response.dislikeCount()).isEqualTo(2L);
         verify(articleReactionRepository).upsertToggleReaction(2L, 10L, (short) 1);
+        verify(articleTrendingService).recordArticleReactionChanged(10L, (short) 0, (short) 1);
     }
 
     // 첨부파일 다운로드 URL 조회는 접근 가능한 게시글의 첨부파일 URL을 반환해야 한다.

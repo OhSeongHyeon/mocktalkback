@@ -70,6 +70,9 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long>, A
     @EntityGraph(attributePaths = {"user", "board"})
     Optional<ArticleEntity> findByIdAndDeletedAtIsNull(Long id);
 
+    @EntityGraph(attributePaths = {"user", "board"})
+    List<ArticleEntity> findAllByIdInAndDeletedAtIsNull(Collection<Long> ids);
+
     @EntityGraph(attributePaths = {"user"})
     Page<ArticleEntity> findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
         Long boardId,

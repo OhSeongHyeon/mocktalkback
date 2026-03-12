@@ -32,6 +32,9 @@ class ArticleViewServiceTest {
     private ArticleViewerKeyService articleViewerKeyService;
 
     @Mock
+    private ArticleTrendingService articleTrendingService;
+
+    @Mock
     private CurrentUserService currentUserService;
 
     @InjectMocks
@@ -53,6 +56,7 @@ class ArticleViewServiceTest {
         // Then: 원자 조회수 증가 결과를 반환해야 한다.
         assertThat(hit).isEqualTo(8L);
         verify(articleHitService).increaseAndGet(10L);
+        verify(articleTrendingService).recordView(10L);
     }
 
     // 중복 조회는 조회수 증가 없이 현재 hit 값을 그대로 반환해야 한다.
