@@ -11,6 +11,13 @@
 - `perf/k6/article.unit.load.js`
   - 게시글 상세 조회
   - 게시글 반응 토글
+- `perf/k6/article.view.load.js`
+  - 동일 로그인 사용자 반복 조회
+  - 다중 로그인 사용자 fan-out
+  - 익명 사용자 dedupe(IP/User-Agent 조합)
+- `perf/k6/article.trending.load.js`
+  - 조회/반응/북마크/댓글 혼합 쓰기
+  - 공개 인기글 조회 API 동시 호출
 - `perf/k6/comment.unit.load.js`
   - 댓글 목록 조회
   - 댓글 스냅샷 조회
@@ -29,11 +36,17 @@
 - 테스트 계정 준비
   - `K6_LOGIN_ID`
   - `K6_PASSWORD`
+  - 다중 사용자 시나리오 필요 시 `K6_LOGIN_USERS`
+    - 형식: `login1:password1,login2:password2`
 - 테스트 대상 데이터 준비
   - `K6_ARTICLE_ID`
   - `K6_COMMENT_ID`
 - 필요 시 검색어 준비
   - `K6_SEARCH_QUERY`
+- 위험 시나리오 실행 전 점검
+  - `tb_articles.hit` 사전 값 기록
+  - Redis 상태 확인
+  - 테스트 계정 수가 fan-out VU 수보다 많은지 확인
 
 ## 4) 실행 예시
 
@@ -92,6 +105,33 @@ k6 run perf/k6/integration.load.js \
 k6 run perf/k6/integration.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_ID=seed_user -e K6_PASSWORD=123123123 -e K6_ARTICLE_ID=1 -e K6_COMMENT_ID=1 -e K6_SEARCH_QUERY=공지
 ```
 
+### 4.5 조회수 dedupe 테스트
+```bash
+k6 run perf/k6/article.view.load.js \
+  -e BASE_URL=http://localhost:8082 \
+  -e K6_LOGIN_ID=seed_user \
+  -e K6_PASSWORD=123123123 \
+  -e K6_LOGIN_USERS=user1:pw1,user2:pw2,user3:pw3,user4:pw4,user5:pw5 \
+  -e K6_ARTICLE_ID=1
+```
+
+```bash
+k6 run perf/k6/article.view.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_ID=seed_user -e K6_PASSWORD=123123123 -e K6_LOGIN_USERS=user1:pw1,user2:pw2,user3:pw3,user4:pw4,user5:pw5 -e K6_ARTICLE_ID=1
+```
+
+### 4.6 트렌딩 혼합 부하 테스트
+```bash
+k6 run perf/k6/article.trending.load.js \
+  -e BASE_URL=http://localhost:8082 \
+  -e K6_LOGIN_USERS=user1:pw1,user2:pw2,user3:pw3 \
+  -e K6_ARTICLE_ID=1 \
+  -e K6_TREND_LIMIT=10
+```
+
+```bash
+k6 run perf/k6/article.trending.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_USERS=user1:pw1,user2:pw2,user3:pw3 -e K6_ARTICLE_ID=1 -e K6_TREND_LIMIT=10
+```
+
 ## 5) 기본 임계치
 
 - `http_req_failed < 1%`
@@ -123,10 +163,17 @@ k6 run perf/k6/integration.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN
   - `BASE_URL` (기본값: `http://localhost:8082`)
   - `K6_LOGIN_ID` (필수)
   - `K6_PASSWORD` (필수)
+  - `K6_LOGIN_USERS` (다중 사용자 시나리오용, 선택)
 - 도메인 대상
   - `K6_ARTICLE_ID` (기본값: `1`)
   - `K6_COMMENT_ID` (기본값: `1`)
   - `K6_SEARCH_QUERY` (기본값: `공지`)
+  - `K6_TREND_LIMIT` (기본값: `10`)
+- 익명 시나리오
+  - `K6_ANON_IP_FIXED`
+  - `K6_ANON_USER_AGENT_FIXED`
+  - `K6_ANON_IP_PREFIX`
+  - `K6_ANON_USER_AGENT_PREFIX`
 
 ## 9) 결과 해석 포인트
 
@@ -137,6 +184,12 @@ k6 run perf/k6/integration.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN
   - DB CPU/IO, 커넥션 풀, 외부 네트워크 지연 확인
 - `*_failures > 0`:
   - 응답 구조/카운트 음수/엔벨로프 실패 케이스 우선 점검
+- dedupe 검증:
+  - 동일 사용자/동일 익명 시나리오 실행 전후 `hit` 증가량이 `1` 인지 확인
+  - fan-out 시나리오 실행 전후 `hit` 증가량이 고유 사용자 수와 일치하는지 확인
+- Redis 장애 검증:
+  - 경고 로그 발생 여부 확인
+  - 상세 조회는 성공하지만 `hit` 과 트렌딩 반영이 생략되는지 확인
 
 ## 10) 운영 안전 모드 프리셋(리눅스)
 
@@ -175,6 +228,8 @@ k6 run perf/k6/integration.load.js
 ### 10.3 실행 예시(단위)
 ```bash
 k6 run perf/k6/article.unit.load.js
+k6 run perf/k6/article.view.load.js
+k6 run perf/k6/article.trending.load.js
 k6 run perf/k6/comment.unit.load.js
 k6 run perf/k6/search.unit.load.js
 ```
@@ -220,6 +275,17 @@ k6 run perf/k6/integration.load.js
 ### 11.3 실행 예시(단위)
 ```powershell
 k6 run perf/k6/article.unit.load.js
+k6 run perf/k6/article.view.load.js
+k6 run perf/k6/article.trending.load.js
 k6 run perf/k6/comment.unit.load.js
 k6 run perf/k6/search.unit.load.js
 ```
+
+## 12) Redis 장애 시나리오 실행 메모
+
+- `article.view.load.js` 또는 `article.trending.load.js` 를 실행한 상태에서 스테이징 Redis 연결을 의도적으로 중단한다.
+- 기대 결과
+  - 상세 조회와 인기글 조회 API는 계속 응답한다.
+  - 조회수 증가와 트렌딩 점수 적재는 생략될 수 있다.
+  - 서버에는 경고 로그가 남아야 한다.
+- 운영 환경에서는 수행하지 않는다.
