@@ -3,6 +3,7 @@ package com.mocktalkback.infra.storage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
@@ -117,8 +118,13 @@ public class ObjectStorageFileStorageService implements FileStorage {
 
     @Override
     public String resolveProtectedViewUrl(String storageKey) {
+        return resolveProtectedViewUrl(storageKey, null);
+    }
+
+    @Override
+    public String resolveProtectedViewUrl(String storageKey, Duration maxTtl) {
         String normalizedKey = normalizeKey(storageKey);
-        int expireSeconds = normalizeProtectedViewExpireSeconds(properties.getProtectedViewExpireSeconds());
+        int expireSeconds = resolveProtectedViewExpireSeconds(maxTtl);
         try {
             String rawUrl = presignClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
@@ -215,6 +221,22 @@ public class ObjectStorageFileStorageService implements FileStorage {
             return MAX_PRESIGN_EXPIRE_SECONDS;
         }
         return (int) expireSeconds;
+    }
+
+    private int resolveProtectedViewExpireSeconds(Duration maxTtl) {
+        int configuredExpireSeconds = normalizeProtectedViewExpireSeconds(properties.getProtectedViewExpireSeconds());
+        if (maxTtl == null) {
+            return configuredExpireSeconds;
+        }
+
+        long remainingSeconds = maxTtl.toSeconds();
+        if (remainingSeconds <= 0L && !maxTtl.isZero() && !maxTtl.isNegative()) {
+            remainingSeconds = 1L;
+        }
+        if (remainingSeconds <= 0L) {
+            return 1;
+        }
+        return (int) Math.min(configuredExpireSeconds, remainingSeconds);
     }
 
     private Map<String, String> resolveUploadHeaders(String mimeType) {

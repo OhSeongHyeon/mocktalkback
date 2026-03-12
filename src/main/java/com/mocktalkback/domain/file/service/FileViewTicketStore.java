@@ -1,6 +1,8 @@
 package com.mocktalkback.domain.file.service;
 
 import java.time.Duration;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -19,15 +21,30 @@ public class FileViewTicketStore {
         stringRedisTemplate.opsForValue().set(key(ticket), String.valueOf(fileId), ttl);
     }
 
-    public Long consume(String ticket) {
-        String storedFileId = stringRedisTemplate.opsForValue().getAndDelete(key(ticket));
+    public Optional<FileViewTicketState> find(String ticket) {
+        String redisKey = key(ticket);
+        String storedFileId = stringRedisTemplate.opsForValue().get(redisKey);
         if (storedFileId == null || storedFileId.isBlank()) {
-            return null;
+            return Optional.empty();
         }
-        return Long.valueOf(storedFileId);
+        Long expireMillis = stringRedisTemplate.getExpire(redisKey, TimeUnit.MILLISECONDS);
+        if (expireMillis == null || expireMillis <= 0L) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new FileViewTicketState(
+            Long.valueOf(storedFileId),
+            Duration.ofMillis(expireMillis)
+        ));
     }
 
     private String key(String ticket) {
         return TICKET_KEY_PREFIX + ticket;
+    }
+
+    public record FileViewTicketState(
+        Long fileId,
+        Duration remainingTtl
+    ) {
     }
 }

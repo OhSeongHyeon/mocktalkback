@@ -31,7 +31,7 @@ public class FileViewController {
     private final FileViewTicketService fileViewTicketService;
 
     @PostMapping("/files/{fileId:\\d+}/view-ticket")
-    @Operation(summary = "파일 보기 ticket 발급", description = "보호 파일은 1회용 ticket을 포함한 보기 URL을 발급하고, 공개 파일은 기존 보기 URL을 반환합니다.")
+    @Operation(summary = "파일 보기 ticket 발급", description = "보호 파일은 짧은 TTL 동안 재사용 가능한 ticket을 포함한 보기 URL을 발급하고, 공개 파일은 기존 보기 URL을 반환합니다.")
     public ApiEnvelope<FileViewTicketResponse> issueViewTicket(
         @PathVariable("fileId") Long fileId,
         @RequestParam(name = "variant", required = false) String variant

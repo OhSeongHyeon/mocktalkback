@@ -1,6 +1,7 @@
 package com.mocktalkback.domain.file.service;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -17,7 +18,7 @@ public class FileViewTicketService {
 
     private static final String TICKET_PREFIX = "fv_";
     private static final long DEFAULT_PROTECTED_VIEW_EXPIRE_SECONDS = 120L;
-    private static final long DEFAULT_TICKET_TTL_SECONDS = 30L;
+    private static final long MAX_TICKET_TTL_SECONDS = 604800L;
 
     private final FileRepository fileRepository;
     private final FileAccessDecisionService fileAccessDecisionService;
@@ -55,15 +56,21 @@ public class FileViewTicketService {
         return new FileViewTicketResponse(buildViewUrl(fileId, variantParam, ticket), ticketTtl.toSeconds(), true);
     }
 
-    public void consume(Long fileId, String ticket) {
+    public Duration validate(Long fileId, String ticket) {
         if (ticket == null || ticket.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
         }
 
-        Long storedFileId = fileViewTicketStore.consume(ticket);
-        if (storedFileId == null || !storedFileId.equals(fileId)) {
+        Optional<FileViewTicketStore.FileViewTicketState> ticketState = fileViewTicketStore.find(ticket);
+        if (ticketState.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
         }
+
+        FileViewTicketStore.FileViewTicketState state = ticketState.get();
+        if (!state.fileId().equals(fileId) || state.remainingTtl().isZero() || state.remainingTtl().isNegative()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
+        }
+        return state.remainingTtl();
     }
 
     private Duration resolveTicketTtl() {
@@ -71,11 +78,10 @@ public class FileViewTicketService {
         if (protectedViewExpireSeconds <= 0L) {
             protectedViewExpireSeconds = DEFAULT_PROTECTED_VIEW_EXPIRE_SECONDS;
         }
-        long ticketTtlSeconds = Math.min(DEFAULT_TICKET_TTL_SECONDS, protectedViewExpireSeconds);
-        if (ticketTtlSeconds <= 0L) {
-            ticketTtlSeconds = DEFAULT_TICKET_TTL_SECONDS;
+        if (protectedViewExpireSeconds > MAX_TICKET_TTL_SECONDS) {
+            protectedViewExpireSeconds = MAX_TICKET_TTL_SECONDS;
         }
-        return Duration.ofSeconds(ticketTtlSeconds);
+        return Duration.ofSeconds(protectedViewExpireSeconds);
     }
 
     private String buildTicket() {

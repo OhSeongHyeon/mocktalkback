@@ -1,5 +1,6 @@
 package com.mocktalkback.domain.file.service;
 
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -38,21 +39,22 @@ public class FileViewService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일이 존재하지 않습니다.");
         }
 
+        Duration ticketRemainingTtl = null;
         if (deliveryMode == FileDeliveryMode.PROTECTED) {
-            fileViewTicketService.consume(fileId, ticket);
+            ticketRemainingTtl = fileViewTicketService.validate(fileId, ticket);
         }
 
         FileVariantCode variantCode = resolveVariantCode(variantParam);
         if (variantCode == null || !isImage(file.getMimeType())) {
-            return resolveDeliveryUrl(file.getStorageKey(), deliveryMode);
+            return resolveDeliveryUrl(file.getStorageKey(), deliveryMode, ticketRemainingTtl);
         }
 
         Optional<FileVariantEntity> variant = fileVariantRepository
             .findByFileIdAndVariantCodeAndDeletedAtIsNull(fileId, variantCode);
         if (variant.isPresent()) {
-            return resolveDeliveryUrl(variant.get().getStorageKey(), deliveryMode);
+            return resolveDeliveryUrl(variant.get().getStorageKey(), deliveryMode, ticketRemainingTtl);
         }
-        return resolveDeliveryUrl(file.getStorageKey(), deliveryMode);
+        return resolveDeliveryUrl(file.getStorageKey(), deliveryMode, ticketRemainingTtl);
     }
 
     private FileVariantCode resolveVariantCode(String variantParam) {
@@ -74,9 +76,9 @@ public class FileViewService {
         return mimeType != null && mimeType.startsWith("image/");
     }
 
-    private String resolveDeliveryUrl(String storageKey, FileDeliveryMode deliveryMode) {
+    private String resolveDeliveryUrl(String storageKey, FileDeliveryMode deliveryMode, Duration ticketRemainingTtl) {
         if (deliveryMode == FileDeliveryMode.PROTECTED) {
-            return fileStorage.resolveProtectedViewUrl(storageKey);
+            return fileStorage.resolveProtectedViewUrl(storageKey, ticketRemainingTtl);
         }
         return fileStorage.resolveViewUrl(storageKey);
     }

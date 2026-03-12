@@ -5,6 +5,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,8 @@ class FileViewServiceTest {
         FileEntity fileEntity = createImageFileEntity("uploads/article_content_image/1/original.png");
         when(fileRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(fileEntity));
         when(fileAccessDecisionService.resolveDeliveryMode(fileEntity)).thenReturn(FileDeliveryMode.PROTECTED);
-        when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/1/original.png"))
+        when(fileViewTicketService.validate(1L, "valid-ticket")).thenReturn(Duration.ofSeconds(90L));
+        when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/1/original.png", Duration.ofSeconds(90L)))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/1/original.png");
 
         // when: 보기 URL을 해석하면
@@ -62,7 +64,7 @@ class FileViewServiceTest {
         // then: 원본 URL을 반환하고 변환본 조회는 수행하지 않는다.
         assertThat(location).isEqualTo("https://files.mocktalk.test/uploads/article_content_image/1/original.png");
         verify(fileVariantRepository, never()).findByFileIdAndVariantCodeAndDeletedAtIsNull(1L, FileVariantCode.ORIGINAL_SIZE);
-        verify(fileViewTicketService).consume(1L, "valid-ticket");
+        verify(fileViewTicketService).validate(1L, "valid-ticket");
     }
 
     // variant=original_size 요청은 ORIGINAL_SIZE 변환본을 우선 사용해야 한다.
@@ -89,9 +91,10 @@ class FileViewServiceTest {
 
         when(fileRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(fileEntity));
         when(fileAccessDecisionService.resolveDeliveryMode(fileEntity)).thenReturn(FileDeliveryMode.PROTECTED);
+        when(fileViewTicketService.validate(10L, "valid-ticket")).thenReturn(Duration.ofSeconds(75L));
         when(fileVariantRepository.findByFileIdAndVariantCodeAndDeletedAtIsNull(10L, FileVariantCode.ORIGINAL_SIZE))
             .thenReturn(Optional.of(variantEntity));
-        when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/10/variants/original_original_size.webp"))
+        when(fileStorage.resolveProtectedViewUrl("uploads/article_content_image/10/variants/original_original_size.webp", Duration.ofSeconds(75L)))
             .thenReturn("https://files.mocktalk.test/uploads/article_content_image/10/variants/original_original_size.webp");
 
         // when: 보기 URL을 해석하면
@@ -100,7 +103,7 @@ class FileViewServiceTest {
         // then: ORIGINAL_SIZE 변환본 URL을 반환한다.
         assertThat(location).isEqualTo("https://files.mocktalk.test/uploads/article_content_image/10/variants/original_original_size.webp");
         verify(fileVariantRepository).findByFileIdAndVariantCodeAndDeletedAtIsNull(10L, FileVariantCode.ORIGINAL_SIZE);
-        verify(fileViewTicketService).consume(10L, "valid-ticket");
+        verify(fileViewTicketService).validate(10L, "valid-ticket");
     }
 
     // 공개 파일 조회는 ticket 없이도 기존 공개 전달 경로를 사용해야 한다.
@@ -126,7 +129,7 @@ class FileViewServiceTest {
 
         // then: 공개 조회 URL을 반환하고 ticket 소비는 수행하지 않는다.
         assertThat(location).isEqualTo("https://cdn.mocktalk.test/uploads/board_image/10/original.png");
-        verify(fileViewTicketService, never()).consume(21L, null);
+        verify(fileViewTicketService, never()).validate(21L, null);
     }
 
     private FileEntity createImageFileEntity(String storageKey) {

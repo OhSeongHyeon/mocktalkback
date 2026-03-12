@@ -25,7 +25,7 @@ import com.mocktalkback.infra.storage.ObjectStorageProperties;
 
 class FileViewTicketServiceTest {
 
-    // 보호 파일 ticket 발급은 보호 조회 TTL 기준으로 1회용 ticket을 저장해야 한다.
+    // 보호 파일 ticket 발급은 보호 조회 TTL 기준으로 재사용 가능한 ticket을 저장해야 한다.
     @Test
     void issue_saves_ticket_for_protected_file() {
         // given: 보호 파일과 ticket 저장소가 있다.
@@ -50,12 +50,12 @@ class FileViewTicketServiceTest {
 
         // then: ticket이 저장되고 ticket 포함 viewUrl을 반환한다.
         assertThat(response.protectedFile()).isTrue();
-        assertThat(response.expiresInSec()).isEqualTo(30L);
+        assertThat(response.expiresInSec()).isEqualTo(120L);
         assertThat(response.viewUrl()).startsWith("/api/files/31/view?");
         assertThat(response.viewUrl()).contains("variant=medium");
         assertThat(response.viewUrl()).contains("ticket=fv_");
         String issuedTicket = response.viewUrl().substring(response.viewUrl().indexOf("ticket=") + "ticket=".length());
-        verify(fileViewTicketStore).save(eq(issuedTicket), eq(31L), eq(Duration.ofSeconds(30L)));
+        verify(fileViewTicketStore).save(eq(issuedTicket), eq(31L), eq(Duration.ofSeconds(120L)));
     }
 
     // 공개 파일 ticket 발급은 Redis 저장 없이 기존 보기 URL을 반환해야 한다.
@@ -87,9 +87,9 @@ class FileViewTicketServiceTest {
         verify(fileViewTicketStore, never()).save(org.mockito.ArgumentMatchers.anyString(), eq(44L), org.mockito.ArgumentMatchers.any());
     }
 
-    // ticket 소비 시 파일 식별자가 다르면 조회를 허용하면 안 된다.
+    // ticket 검증 시 파일 식별자가 다르면 조회를 허용하면 안 된다.
     @Test
-    void consume_throws_when_ticket_file_id_does_not_match() {
+    void validate_throws_when_ticket_file_id_does_not_match() {
         // given: 다른 파일 식별자가 저장된 ticket이 있다.
         FileRepository fileRepository = mock(FileRepository.class);
         FileAccessDecisionService accessDecisionService = mock(FileAccessDecisionService.class);
@@ -101,12 +101,39 @@ class FileViewTicketServiceTest {
             fileViewTicketStore,
             properties
         );
-        when(fileViewTicketStore.consume("valid-ticket")).thenReturn(99L);
+        when(fileViewTicketStore.find("valid-ticket")).thenReturn(Optional.of(
+            new FileViewTicketStore.FileViewTicketState(99L, Duration.ofSeconds(120L))
+        ));
 
         // when & then: 다른 파일의 ticket이면 404 예외가 발생한다.
-        assertThatThrownBy(() -> service.consume(31L, "valid-ticket"))
+        assertThatThrownBy(() -> service.validate(31L, "valid-ticket"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("404 NOT_FOUND");
+    }
+
+    // 보호 파일 ticket 검증은 남은 TTL을 반환해야 한다.
+    @Test
+    void validate_returns_remaining_ttl_for_matching_ticket() {
+        // given: 같은 파일에 연결된 유효한 ticket이 있다.
+        FileRepository fileRepository = mock(FileRepository.class);
+        FileAccessDecisionService accessDecisionService = mock(FileAccessDecisionService.class);
+        FileViewTicketStore fileViewTicketStore = mock(FileViewTicketStore.class);
+        ObjectStorageProperties properties = new ObjectStorageProperties();
+        FileViewTicketService service = new FileViewTicketService(
+            fileRepository,
+            accessDecisionService,
+            fileViewTicketStore,
+            properties
+        );
+        when(fileViewTicketStore.find("valid-ticket")).thenReturn(Optional.of(
+            new FileViewTicketStore.FileViewTicketState(31L, Duration.ofSeconds(87L))
+        ));
+
+        // when: ticket을 검증하면
+        Duration remainingTtl = service.validate(31L, "valid-ticket");
+
+        // then: 남은 TTL을 그대로 반환한다.
+        assertThat(remainingTtl).isEqualTo(Duration.ofSeconds(87L));
     }
 
     private FileEntity createFileEntity(Long id, String fileClassCode) {
