@@ -56,10 +56,68 @@ jobs:
           cd "$DEPLOY_PATH"
           export BACKEND_IMAGE="$BACKEND_IMAGE"
 
+          print_diagnostics() {
+            echo "=== deploy diagnostics begin ==="
+            df -h || true
+            df -i || true
+            docker system df || true
+            docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}' || true
+            docker images --digests --format 'table {{.Repository}}\t{{.Tag}}\t{{.Digest}}\t{{.Size}}' | head -n 20 || true
+            echo "=== deploy diagnostics end ==="
+          }
+
+          restart_docker_daemon() {
+            if command -v sudo >/dev/null 2>&1; then
+              sudo systemctl restart docker || true
+              return
+            fi
+            if command -v systemctl >/dev/null 2>&1; then
+              systemctl restart docker || true
+              return
+            fi
+            echo "docker daemon restart skipped: sudo/systemctl not available"
+          }
+
+          pull_with_retry() {
+            local service="\$1"
+
+            if docker compose -f docker-compose.oci-deploy.yml pull "\$service"; then
+              return 0
+            fi
+
+            echo "initial pull failed for service=\$service"
+            print_diagnostics
+            docker image prune -af || true
+            restart_docker_daemon
+            sleep 3
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            docker network create mocktalk-internal >/dev/null 2>&1 || true
+
+            if docker compose -f docker-compose.oci-deploy.yml pull "\$service"; then
+              return 0
+            fi
+
+            echo "retry pull failed for service=\$service"
+            print_diagnostics
+            return 1
+          }
+
+          up_backend() {
+            if docker compose -f docker-compose.oci-deploy.yml up -d --no-build backend; then
+              return 0
+            fi
+
+            echo "docker compose up failed for backend"
+            print_diagnostics
+            docker compose -f docker-compose.oci-deploy.yml ps || true
+            docker logs --tail 200 mocktalk-back || true
+            return 1
+          }
+
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
           docker network create mocktalk-internal >/dev/null 2>&1 || true
-          docker compose -f docker-compose.oci-deploy.yml pull backend
-          docker compose -f docker-compose.oci-deploy.yml up -d --no-build backend
+          pull_with_retry backend
+          up_backend
 
           CODE=""
           for i in {1..150}; do
@@ -73,6 +131,8 @@ jobs:
 
           if [ "\$CODE" != "200" ]; then
             echo "health check failed: status=\$CODE"
+            print_diagnostics
+            docker compose -f docker-compose.oci-deploy.yml ps || true
             docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
             docker logs --tail 200 mocktalk-back || true
             exit 1
