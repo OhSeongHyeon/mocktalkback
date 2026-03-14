@@ -89,11 +89,6 @@ spring:
     # baseline-version: 1
 
 app:
-  redis:
-    client:
-      command-timeout-ms: ${APP_REDIS_COMMAND_TIMEOUT_MS:500}
-      connect-timeout-ms: ${APP_REDIS_CONNECT_TIMEOUT_MS:1000}
-      shutdown-timeout-ms: ${APP_REDIS_SHUTDOWN_TIMEOUT_MS:100}
   article:
     view:
       dedupe-ttl-seconds: ${ARTICLE_VIEW_DEDUPE_TTL_SECONDS:86400}
