@@ -6,15 +6,48 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.mocktalkback.domain.comment.entity.CommentEntity;
+import com.mocktalkback.domain.user.dto.MyCommentItemResponse;
 
-public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
+public interface CommentRepository extends JpaRepository<CommentEntity, Long>, CommentRepositoryCustom {
     Page<CommentEntity> findByUserId(Long userId, Pageable pageable);
+
+    @Query("""
+        select new com.mocktalkback.domain.user.dto.MyCommentItemResponse(
+            c.id,
+            u.id,
+            a.id,
+            a.title,
+            b.id,
+            b.slug,
+            b.boardName,
+            case
+                when u.displayName is null or trim(u.displayName) = '' then u.userName
+                else u.displayName
+            end,
+            p.id,
+            r.id,
+            c.depth,
+            c.content,
+            c.createdAt,
+            c.updatedAt,
+            c.deletedAt
+        )
+        from CommentEntity c
+        join c.user u
+        join c.article a
+        join a.board b
+        left join c.parentComment p
+        left join c.rootComment r
+        where c.user.id = :userId
+          and c.deletedAt is null
+          and a.deletedAt is null
+        """)
+    Page<MyCommentItemResponse> findMyCommentItems(@Param("userId") Long userId, Pageable pageable);
 
     Optional<CommentEntity> findByIdAndDeletedAtIsNull(Long id);
 
@@ -46,41 +79,6 @@ public interface CommentRepository extends JpaRepository<CommentEntity, Long> {
         where c.id in :commentIds
         """)
     List<CommentArticleView> findArticleIdsByCommentIds(@Param("commentIds") Collection<Long> commentIds);
-
-    @EntityGraph(attributePaths = {"user", "article"})
-    @Query("""
-        select c
-        from CommentEntity c
-        join c.article a
-        join c.user u
-        where a.board.id = :boardId
-          and c.deletedAt is null
-          and (:authorId is null or u.id = :authorId)
-          and (
-            :reported is null
-            or (:reported = true and exists (
-              select 1
-              from ReportEntity r
-              where r.board.id = :boardId
-                and r.targetType = :targetType
-                and r.targetId = c.id
-            ))
-            or (:reported = false and not exists (
-              select 1
-              from ReportEntity r
-              where r.board.id = :boardId
-                and r.targetType = :targetType
-                and r.targetId = c.id
-            ))
-          )
-        """)
-    Page<CommentEntity> findAdminBoardComments(
-        @Param("boardId") Long boardId,
-        @Param("authorId") Long authorId,
-        @Param("reported") Boolean reported,
-        @Param("targetType") com.mocktalkback.domain.moderation.type.ReportTargetType targetType,
-        Pageable pageable
-    );
 
     interface CommentCountView {
         Long getArticleId();

@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.owasp.html.AttributePolicy;
+import org.owasp.html.CssSchema;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,15 @@ public class HtmlSanitizer {
         "https://www.youtube.com/embed",
         "https://www.youtube-nocookie.com/embed"
     );
+    private static final CssSchema SAFE_EDITOR_STYLE_SCHEMA = CssSchema.withProperties(List.of(
+        "background-color",
+        "color",
+        "font-family",
+        "font-size",
+        "height",
+        "text-align",
+        "width"
+    ));
 
     private final HtmlSanitizerProperties properties;
     private PolicyFactory policy;
@@ -83,10 +93,11 @@ public class HtmlSanitizer {
         return new HtmlPolicyBuilder()
             .allowElements(
                 "p", "br", "strong", "em", "b", "i", "u", "s", "blockquote", "code", "pre",
+                "mark", "sup", "sub",
                 "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
                 "div", "span", "figure", "figcaption",
                 "table", "thead", "tbody", "tfoot", "tr", "th", "td",
-                "a", "img", "video", "source", "iframe"
+                "a", "img", "video", "source", "iframe", "label", "input"
             )
             .allowAttributes("href").matching(linkHrefPolicy).onElements("a")
             .allowAttributes("title", "target", "rel").onElements("a")
@@ -96,11 +107,18 @@ public class HtmlSanitizer {
             .allowAttributes("controls", "width", "height").onElements("video")
             .allowAttributes("poster").matching(mediaSrcPolicy).onElements("video")
             .allowAttributes("type").onElements("source")
+            .allowAttributes("type", "checked", "disabled").onElements("input")
             .allowAttributes("width", "height", "allow", "allowfullscreen", "frameborder", "title")
             .onElements("iframe")
-            .allowAttributes("class", "data-id", "data-label", "data-type").onElements("span")
+            .allowAttributes("class").globally()
+            .allowAttributes("data-id", "data-label", "data-type").onElements("span")
+            .allowAttributes("data-type", "data-checked").onElements("ul", "li", "div")
+            .allowAttributes("data-type", "data-align", "data-original-width", "data-original-height").onElements("figure")
+            .allowAttributes("data-align", "data-width", "data-height", "data-caption", "data-original-width", "data-original-height")
+            .onElements("img")
             .allowAttributes("data-youtube-video").onElements("div")
             .allowAttributes("colspan", "rowspan").onElements("th", "td")
+            .allowStyling(SAFE_EDITOR_STYLE_SCHEMA)
             .allowUrlProtocols("http", "https")
             .toFactory();
     }

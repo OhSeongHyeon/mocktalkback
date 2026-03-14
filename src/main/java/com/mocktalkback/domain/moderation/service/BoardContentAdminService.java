@@ -10,7 +10,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,17 +17,15 @@ import org.springframework.web.server.ResponseStatusException;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.board.entity.BoardEntity;
-import com.mocktalkback.domain.board.entity.BoardMemberEntity;
-import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
-import com.mocktalkback.domain.board.type.BoardRole;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.moderation.dto.BoardAdminArticleItemResponse;
 import com.mocktalkback.domain.moderation.dto.BoardAdminCommentItemResponse;
+import com.mocktalkback.domain.moderation.policy.BoardAdminPermissionGuard;
 import com.mocktalkback.domain.moderation.type.ReportTargetType;
 import com.mocktalkback.domain.moderation.repository.ReportRepository;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -47,9 +44,10 @@ public class BoardContentAdminService {
     private final CommentRepository commentRepository;
     private final ReportRepository reportRepository;
     private final BoardRepository boardRepository;
-    private final BoardMemberRepository boardMemberRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
+    private final PageNormalizer pageNormalizer;
+    private final BoardAdminPermissionGuard boardAdminPermissionGuard;
 
     @Transactional(readOnly = true)
     public PageResponse<BoardAdminArticleItemResponse> findArticles(
@@ -62,7 +60,7 @@ public class BoardContentAdminService {
     ) {
         BoardEntity board = getBoard(boardId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, board);
+        boardAdminPermissionGuard.requireBoardAdmin(actor, board);
 
         Pageable pageable = toPageable(page, size);
         Page<ArticleEntity> result = articleRepository.findAdminBoardArticles(
@@ -93,7 +91,7 @@ public class BoardContentAdminService {
     ) {
         BoardEntity board = getBoard(boardId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, board);
+        boardAdminPermissionGuard.requireBoardAdmin(actor, board);
 
         Pageable pageable = toPageable(page, size);
         Page<CommentEntity> result = commentRepository.findAdminBoardComments(
@@ -121,7 +119,7 @@ public class BoardContentAdminService {
     public BoardAdminArticleItemResponse updateNotice(Long boardId, Long articleId, boolean notice) {
         ArticleEntity article = getArticle(articleId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, article.getBoard());
+        boardAdminPermissionGuard.requireBoardAdmin(actor, article.getBoard());
         ensureSameBoard(boardId, article.getBoard());
 
         article.changeNotice(notice);
@@ -137,7 +135,7 @@ public class BoardContentAdminService {
     public void deleteArticle(Long boardId, Long articleId) {
         ArticleEntity article = getArticle(articleId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, article.getBoard());
+        boardAdminPermissionGuard.requireBoardAdmin(actor, article.getBoard());
         ensureSameBoard(boardId, article.getBoard());
 
         if (!article.isDeleted()) {
@@ -150,7 +148,7 @@ public class BoardContentAdminService {
         CommentEntity comment = getComment(commentId);
         UserEntity actor = getCurrentUser();
         BoardEntity board = comment.getArticle().getBoard();
-        requireBoardAdmin(actor, board);
+        boardAdminPermissionGuard.requireBoardAdmin(actor, board);
         ensureSameBoard(boardId, board);
 
         if (!comment.isDeleted()) {
@@ -189,21 +187,6 @@ public class BoardContentAdminService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
     }
 
-    private void requireBoardAdmin(UserEntity actor, BoardEntity board) {
-        if (RoleNames.ADMIN.equals(actor.getRole().getRoleName())) {
-            return;
-        }
-        BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(actor.getId(), board.getId())
-            .orElse(null);
-        if (member == null) {
-            throw new AccessDeniedException("게시판 관리자 권한이 없습니다.");
-        }
-        BoardRole role = member.getBoardRole();
-        if (role != BoardRole.OWNER && role != BoardRole.MODERATOR) {
-            throw new AccessDeniedException("게시판 관리자 권한이 없습니다.");
-        }
-    }
-
     private void ensureSameBoard(Long boardId, BoardEntity board) {
         if (!board.getId().equals(boardId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "게시판 콘텐츠가 아닙니다.");
@@ -211,13 +194,9 @@ public class BoardContentAdminService {
     }
 
     private Pageable toPageable(int page, int size) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        int normalizedPage = pageNormalizer.normalizePage(page);
+        int normalizedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
+        return PageRequest.of(normalizedPage, normalizedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     private String truncate(String value, int limit) {

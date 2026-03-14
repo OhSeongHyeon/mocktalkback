@@ -152,6 +152,53 @@ class ImageOptimizationServiceTest {
         assertThat(saved.getFileSize()).isEqualTo(bytesCaptor.getValue().length);
     }
 
+    // ORIGINAL_SIZE 변환본은 원본 해상도를 그대로 유지해야 한다.
+    @Test
+    void createVariantsAsync_keeps_original_dimension_for_original_size() throws IOException {
+        ImageIO.scanForPlugins();
+        Assumptions.assumeTrue(ImageIO.getImageWritersByFormatName("webp").hasNext());
+
+        // Given: 원본 이미지와 ORIGINAL_SIZE 규격
+        byte[] originalBytes = createPngBytes(640, 360);
+        String originalStorageKey = "uploads/article_content_image/2/2026/02/08/sample.png";
+
+        FileClassEntity fileClass = FileClassEntity.builder()
+            .code(FileClassCode.ARTICLE_CONTENT_IMAGE)
+            .name("게시글 본문 이미지")
+            .description("테스트용")
+            .mediaKind(MediaKind.IMAGE)
+            .build();
+
+        FileEntity file = FileEntity.builder()
+            .fileClass(fileClass)
+            .fileName("sample.png")
+            .storageKey(originalStorageKey)
+            .fileSize((long) originalBytes.length)
+            .mimeType("image/png")
+            .metadataPreserved(false)
+            .build();
+        ReflectionTestUtils.setField(file, "id", 20L);
+
+        when(fileRepository.findById(20L)).thenReturn(Optional.of(file));
+        when(fileStorage.read(originalStorageKey)).thenReturn(originalBytes);
+        when(variantPolicy.resolve(FileClassCode.ARTICLE_CONTENT_IMAGE))
+            .thenReturn(List.of(new VariantSpec(FileVariantCode.ORIGINAL_SIZE, 0)));
+        when(fileVariantRepository.findByFileIdAndVariantCodeAndDeletedAtIsNull(20L, FileVariantCode.ORIGINAL_SIZE))
+            .thenReturn(Optional.empty());
+
+        ArgumentCaptor<FileVariantEntity> variantCaptor = ArgumentCaptor.forClass(FileVariantEntity.class);
+        when(fileVariantRepository.save(variantCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When: 변환본 생성을 수행하면
+        imageOptimizationService.createVariantsAsync(20L);
+
+        // Then: ORIGINAL_SIZE 변환본은 원본 해상도를 유지한다.
+        FileVariantEntity saved = variantCaptor.getValue();
+        assertThat(saved.getVariantCode()).isEqualTo(FileVariantCode.ORIGINAL_SIZE);
+        assertThat(saved.getWidth()).isEqualTo(640);
+        assertThat(saved.getHeight()).isEqualTo(360);
+    }
+
     private byte[] createPngBytes(int width, int height) throws IOException {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, new Color(10, 20, 30).getRGB());

@@ -11,7 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.util.StringUtils;
 
@@ -33,11 +32,11 @@ import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
-import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
 import com.mocktalkback.domain.file.type.MediaKind;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.moderation.dto.AdminBoardCreateRequest;
 import com.mocktalkback.domain.moderation.dto.AdminBoardUpdateRequest;
 import com.mocktalkback.domain.moderation.type.AdminBoardSortBy;
@@ -59,12 +58,12 @@ public class AdminBoardService {
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
     private final FileVariantRepository fileVariantRepository;
-    private final FileStorage fileStorage;
     private final ImageOptimizationService imageOptimizationService;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
     private final BoardMapper boardMapper;
     private final FileMapper fileMapper;
+    private final PageNormalizer pageNormalizer;
 
     @Transactional(readOnly = true)
     public PageResponse<BoardResponse> findBoards(
@@ -124,11 +123,9 @@ public class AdminBoardService {
     }
 
     @Transactional
-    public BoardResponse uploadBoardImage(Long boardId, MultipartFile boardImage, boolean preserveMetadata) {
+    public BoardResponse completeBoardImageUpload(Long boardId, StoredFile storedFile, boolean preserveMetadata) {
         BoardEntity board = getBoard(boardId);
-        UserEntity actor = getCurrentUser();
 
-        StoredFile storedFile = fileStorage.store(FileClassCode.BOARD_IMAGE, boardImage, actor.getId());
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getBoardImageClass();
@@ -248,16 +245,12 @@ public class AdminBoardService {
     }
 
     private Pageable toPageable(int page, int size, boolean sortAsc, AdminBoardSortBy sortBy) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
+        int normalizedPage = pageNormalizer.normalizePage(page);
+        int normalizedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         String sortField = sortBy == AdminBoardSortBy.UPDATED_AT ? "updatedAt" : "createdAt";
         Sort sort = sortAsc
             ? Sort.by(Sort.Order.asc(sortField), Sort.Order.asc("id"))
             : Sort.by(Sort.Order.desc(sortField), Sort.Order.desc("id"));
-        return PageRequest.of(page, size, sort);
+        return PageRequest.of(normalizedPage, normalizedSize, sort);
     }
 }

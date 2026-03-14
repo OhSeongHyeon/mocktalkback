@@ -73,6 +73,8 @@ class SearchControllerTest {
                 3L,
                 "관리자",
                 "테스트 글",
+                5L,
+                "업데이트",
                 0,
                 0,
                 0,
@@ -132,6 +134,7 @@ class SearchControllerTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.boards.items[0].slug").value("notice"))
             .andExpect(jsonPath("$.data.articles.items[0].title").value("테스트 글"))
+            .andExpect(jsonPath("$.data.articles.items[0].categoryName").value("업데이트"))
             .andExpect(jsonPath("$.data.comments.items[0].content").value("댓글 내용"))
             .andExpect(jsonPath("$.data.users.items[0].handle").value("admin"));
     }
@@ -149,6 +152,8 @@ class SearchControllerTest {
                 3L,
                 "관리자",
                 "공지 제목",
+                9L,
+                "공지",
                 0,
                 0,
                 0,

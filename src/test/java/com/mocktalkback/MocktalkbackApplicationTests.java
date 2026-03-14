@@ -7,13 +7,13 @@ import org.springframework.test.context.TestPropertySource;
 
 @ActiveProfiles("test")
 @SpringBootTest
-@TestPropertySource(properties = "DEV_SERVER_PORT=0")
+@TestPropertySource(properties = "SERVER_PORT=0")
 class MocktalkbackApplicationTests {
 
     /**
         .\gradlew clean build --refresh-dependencies
         .\gradlew test
-        h2 디비 파서 해야됨, 개발디비에 붙이려면 flyway 지랄남
+        h2 디비 파서 해야됨, 개발디비에 붙이면 flyway 오류발생
      */
 	// @org.junit.jupiter.api.Test void contextLoads() {}
 

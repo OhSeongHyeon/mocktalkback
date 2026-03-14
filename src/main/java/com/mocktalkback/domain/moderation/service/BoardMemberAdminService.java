@@ -8,7 +8,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,8 +17,9 @@ import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.repository.BoardRepository;
 import com.mocktalkback.domain.board.type.BoardRole;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.moderation.dto.BoardMemberListItemResponse;
-import com.mocktalkback.domain.role.type.RoleNames;
+import com.mocktalkback.domain.moderation.policy.BoardAdminPermissionGuard;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -37,6 +37,8 @@ public class BoardMemberAdminService {
     private final BoardRepository boardRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
+    private final PageNormalizer pageNormalizer;
+    private final BoardAdminPermissionGuard boardAdminPermissionGuard;
 
     @Transactional(readOnly = true)
     public PageResponse<BoardMemberListItemResponse> findMembers(
@@ -47,7 +49,7 @@ public class BoardMemberAdminService {
     ) {
         BoardEntity board = getBoard(boardId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, board);
+        boardAdminPermissionGuard.requireBoardAdmin(actor, board);
 
         List<BoardRole> roles = status == null ? Arrays.asList(BoardRole.values()) : List.of(status);
         Pageable pageable = toPageable(page, size);
@@ -60,7 +62,7 @@ public class BoardMemberAdminService {
     public BoardMemberListItemResponse approve(Long boardId, Long memberId) {
         BoardMemberEntity member = getBoardMember(boardId, memberId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, member.getBoard());
+        boardAdminPermissionGuard.requireBoardAdmin(actor, member.getBoard());
 
         if (member.getBoardRole() != BoardRole.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "승인 대기 상태가 아닙니다.");
@@ -73,7 +75,7 @@ public class BoardMemberAdminService {
     public void reject(Long boardId, Long memberId) {
         BoardMemberEntity member = getBoardMember(boardId, memberId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, member.getBoard());
+        boardAdminPermissionGuard.requireBoardAdmin(actor, member.getBoard());
 
         if (member.getBoardRole() != BoardRole.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "승인 대기 상태가 아닙니다.");
@@ -85,8 +87,8 @@ public class BoardMemberAdminService {
     public BoardMemberListItemResponse changeRole(Long boardId, Long memberId, BoardRole targetRole) {
         BoardMemberEntity member = getBoardMember(boardId, memberId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, member.getBoard());
-        ensureNotOwner(member, actor);
+        boardAdminPermissionGuard.requireBoardAdmin(actor, member.getBoard());
+        boardAdminPermissionGuard.ensureOwnerEditable(member, actor);
 
         if (targetRole != BoardRole.MEMBER && targetRole != BoardRole.MODERATOR) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "변경할 역할이 올바르지 않습니다.");
@@ -102,8 +104,8 @@ public class BoardMemberAdminService {
     public BoardMemberListItemResponse changeStatus(Long boardId, Long memberId, BoardRole targetRole) {
         BoardMemberEntity member = getBoardMember(boardId, memberId);
         UserEntity actor = getCurrentUser();
-        requireBoardAdmin(actor, member.getBoard());
-        ensureNotOwner(member, actor);
+        boardAdminPermissionGuard.requireBoardAdmin(actor, member.getBoard());
+        boardAdminPermissionGuard.ensureOwnerEditable(member, actor);
 
         if (targetRole == BoardRole.BANNED) {
             if (member.getBoardRole() == BoardRole.BANNED) {
@@ -146,34 +148,9 @@ public class BoardMemberAdminService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "회원을 찾을 수 없습니다."));
     }
 
-    private void requireBoardAdmin(UserEntity actor, BoardEntity board) {
-        if (RoleNames.ADMIN.equals(actor.getRole().getRoleName())) {
-            return;
-        }
-        BoardMemberEntity member = boardMemberRepository.findByUserIdAndBoardId(actor.getId(), board.getId())
-            .orElse(null);
-        if (member == null) {
-            throw new AccessDeniedException("게시판 관리자 권한이 없습니다.");
-        }
-        BoardRole role = member.getBoardRole();
-        if (role != BoardRole.OWNER && role != BoardRole.MODERATOR) {
-            throw new AccessDeniedException("게시판 관리자 권한이 없습니다.");
-        }
-    }
-
-    private void ensureNotOwner(BoardMemberEntity member, UserEntity actor) {
-        if (member.getBoardRole() == BoardRole.OWNER && !RoleNames.ADMIN.equals(actor.getRole().getRoleName())) {
-            throw new AccessDeniedException("OWNER 권한은 변경할 수 없습니다.");
-        }
-    }
-
     private Pageable toPageable(int page, int size) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        int normalizedPage = pageNormalizer.normalizePage(page);
+        int normalizedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
+        return PageRequest.of(normalizedPage, normalizedSize, Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 }

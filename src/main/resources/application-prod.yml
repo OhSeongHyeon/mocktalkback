@@ -77,14 +77,48 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    postgresql:
+      transactional-lock: false  # CREATE INDEX CONCURRENTLY 같은 비트랜잭션 DDL 정지를 방지
     baseline-on-migrate: true
     # baseline-version: 1
 
 app:
+  article:
+    view:
+      dedupe-ttl-seconds: ${ARTICLE_VIEW_DEDUPE_TTL_SECONDS:86400}
+      anon-hash-secret: ${ARTICLE_VIEW_ANON_HASH_SECRET:mocktalk-article-view-anon-secret}
   oauth2:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
     redirect-path: ${OAUTH2_REDIRECT_PATH}
     remember-me-default: ${OAUTH2_REMEMBER_ME_DEFAULT:false}
+  realtime:
+    redis:
+      enabled: ${REALTIME_REDIS_ENABLED:true}
+      fallback-enabled: ${REALTIME_REDIS_FALLBACK_ENABLED:true}
+      channels:
+        notification: ${REALTIME_REDIS_NOTIFICATION_CHANNEL:realtime:notification:events}
+        board: ${REALTIME_REDIS_BOARD_CHANNEL:realtime:board:events}
+    notification-ticket:
+      ttl-seconds: ${REALTIME_NOTIFICATION_TICKET_TTL_SECONDS:30}
+    presence:
+      ttl-seconds: ${REALTIME_PRESENCE_TTL_SECONDS:45}
+      max-sessions: ${REALTIME_PRESENCE_MAX_SESSIONS:8}
+  upload:
+    session-ttl-seconds: ${UPLOAD_SESSION_TTL_SECONDS:600}
+    orphan-cleanup-grace-seconds: ${UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS:120}
+    orphan-cleanup-interval-ms: ${UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS:300000}
+    orphan-cleanup-batch-size: ${UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE:200}
+  file:
+    temp-expire-hours: ${APP_FILE_TEMP_EXPIRE_HOURS:24}
+    temp-cleanup-interval-ms: ${APP_FILE_TEMP_CLEANUP_INTERVAL_MS:3600000}
+    delete-retry:
+      enabled: ${STORAGE_DELETE_RETRY_ENABLED:true}
+      interval-ms: ${STORAGE_DELETE_RETRY_INTERVAL_MS:30000}
+      batch-size: ${STORAGE_DELETE_RETRY_BATCH_SIZE:200}
+      initial-delay-seconds: ${STORAGE_DELETE_RETRY_INITIAL_DELAY_SEC:30}
+      max-delay-seconds: ${STORAGE_DELETE_RETRY_MAX_DELAY_SEC:3600}
+      max-attempts: ${STORAGE_DELETE_RETRY_MAX_ATTEMPTS:10}
+      dlq-retention-seconds: ${STORAGE_DELETE_DLQ_RETENTION_SEC:2592000}
   object-storage:
     endpoint: ${OBJECT_STORAGE_ENDPOINT}
     region: ${OBJECT_STORAGE_REGION}
@@ -96,6 +130,8 @@ app:
     public-base-url: ${OBJECT_STORAGE_PUBLIC_BASE_URL:}
     presign-endpoint: ${OBJECT_STORAGE_PRESIGN_ENDPOINT:}
     presign-expire-seconds: ${OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS:300}
+    protected-view-expire-seconds: ${OBJECT_STORAGE_PROTECTED_VIEW_EXPIRE_SECONDS:120}
+    upload-proxy-prefix: ${OBJECT_STORAGE_UPLOAD_PROXY_PREFIX:/storage}
   sanitize:
     allowed-file-origins: ${HTML_ALLOWED_FILE_ORIGINS}
     allowed-iframe-prefixes: ${HTML_ALLOWED_IFRAME_PREFIXES}
@@ -109,4 +145,3 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
-

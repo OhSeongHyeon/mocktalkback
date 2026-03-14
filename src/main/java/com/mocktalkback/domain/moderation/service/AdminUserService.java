@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.moderation.dto.AdminUserListItemResponse;
 import com.mocktalkback.domain.moderation.type.AdminUserStatus;
 import com.mocktalkback.domain.role.entity.RoleEntity;
@@ -26,6 +27,7 @@ public class AdminUserService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final PageNormalizer pageNormalizer;
 
     @Transactional(readOnly = true)
     public PageResponse<AdminUserListItemResponse> search(
@@ -34,8 +36,8 @@ public class AdminUserService {
         int page,
         int size
     ) {
-        int normalizedPage = normalizePage(page);
-        int normalizedSize = normalizeSize(size);
+        int normalizedPage = pageNormalizer.normalizePage(page);
+        int normalizedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         String normalizedKeyword = StringUtils.hasText(keyword) ? keyword.trim().toLowerCase() : null;
         Pageable pageable = PageRequest.of(
             normalizedPage,
@@ -76,17 +78,4 @@ public class AdminUserService {
             .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
     }
 
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
-    }
 }

@@ -11,4 +11,14 @@ services:
     ports:
       - "127.0.0.1:8082:8082"
       - "127.0.0.1:8083:8083"
+    # 프론트와 내부 통신할 공통 네트워크에 backend 별칭으로 연결한다.
+    networks:
+      mocktalk-internal:
+        aliases:
+          - backend
     restart: unless-stopped
+
+networks:
+  # OCI 서버에 외부 네트워크를 미리 생성해 사용한다.
+  mocktalk-internal:
+    external: true

@@ -10,19 +10,23 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.mocktalkback.domain.realtime.config.RealtimeRedisProperties;
 import com.mocktalkback.domain.realtime.dto.RealtimeEventResponse;
 import com.mocktalkback.domain.realtime.type.RealtimeEventType;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class BoardRealtimeSseService {
 
     private static final long EMITTER_TIMEOUT_MILLIS = 30L * 60L * 1000L;
 
-    private final ConcurrentHashMap<Long, ConcurrentHashMap<String, SseEmitter>> boardEmitters;
-
-    public BoardRealtimeSseService() {
-        this.boardEmitters = new ConcurrentHashMap<>();
-    }
+    private final RealtimeRedisPublisher realtimeRedisPublisher;
+    private final RealtimeRedisProperties realtimeRedisProperties;
+    private final ConcurrentHashMap<Long, ConcurrentHashMap<String, SseEmitter>> boardEmitters = new ConcurrentHashMap<>();
 
     public SseEmitter subscribe(Long boardId, String lastEventId) {
         String emitterId = UUID.randomUUID().toString();
@@ -40,7 +44,16 @@ public class BoardRealtimeSseService {
         connectPayload.put("emitterId", emitterId);
         connectPayload.put("lastEventId", lastEventId);
 
-        publishToEmitter(emitterId, emitter, boardId, RealtimeEventType.CONNECTED, connectPayload, true);
+        publishToEmitter(
+            emitterId,
+            emitter,
+            boardId,
+            RealtimeEventType.CONNECTED,
+            connectPayload,
+            UUID.randomUUID().toString(),
+            Instant.now(),
+            true
+        );
         return emitter;
     }
 
@@ -53,13 +66,47 @@ public class BoardRealtimeSseService {
     }
 
     public void publish(Long boardId, RealtimeEventType type, Object data) {
+        String eventId = UUID.randomUUID().toString();
+        Instant occurredAt = Instant.now();
+        if (tryPublishRedis(boardId, type, data, eventId, occurredAt)) {
+            return;
+        }
+        publishLocal(boardId, type, data, eventId, occurredAt);
+    }
+
+    void publishFromRedis(
+        Long boardId,
+        RealtimeEventType type,
+        Object data,
+        String eventId,
+        Instant occurredAt
+    ) {
+        publishLocal(boardId, type, data, eventId, occurredAt);
+    }
+
+    private void publishLocal(
+        Long boardId,
+        RealtimeEventType type,
+        Object data,
+        String eventId,
+        Instant occurredAt
+    ) {
         ConcurrentHashMap<String, SseEmitter> emitters = boardEmitters.get(boardId);
         if (emitters == null || emitters.isEmpty()) {
             return;
         }
 
         for (Map.Entry<String, SseEmitter> entry : emitters.entrySet()) {
-            publishToEmitter(entry.getKey(), entry.getValue(), boardId, type, data, false);
+            publishToEmitter(
+                entry.getKey(),
+                entry.getValue(),
+                boardId,
+                type,
+                data,
+                eventId,
+                occurredAt,
+                false
+            );
         }
     }
 
@@ -67,7 +114,13 @@ public class BoardRealtimeSseService {
     @Scheduled(fixedDelay = 25_000L)
     public void publishHeartbeat() {
         for (Long boardId : boardEmitters.keySet()) {
-            publish(boardId, RealtimeEventType.HEARTBEAT, null);
+            publishLocal(
+                boardId,
+                RealtimeEventType.HEARTBEAT,
+                null,
+                UUID.randomUUID().toString(),
+                Instant.now()
+            );
         }
     }
 
@@ -77,13 +130,15 @@ public class BoardRealtimeSseService {
             Long boardId,
             RealtimeEventType type,
             Object data,
+            String eventId,
+            Instant occurredAt,
             boolean removeOnFailure
     ) {
         RealtimeEventResponse event = new RealtimeEventResponse(
-                UUID.randomUUID().toString(),
+                eventId == null ? UUID.randomUUID().toString() : eventId,
                 boardId,
                 type,
-                Instant.now(),
+                occurredAt == null ? Instant.now() : occurredAt,
                 data
         );
 
@@ -95,6 +150,28 @@ public class BoardRealtimeSseService {
         } catch (Exception ex) {
             safeComplete(emitter, removeOnFailure, ex);
             removeEmitter(boardId, emitterId);
+        }
+    }
+
+    private boolean tryPublishRedis(
+        Long boardId,
+        RealtimeEventType type,
+        Object data,
+        String eventId,
+        Instant occurredAt
+    ) {
+        if (!realtimeRedisProperties.enabled()) {
+            return false;
+        }
+        try {
+            realtimeRedisPublisher.publishBoard(boardId, type, data, eventId, occurredAt);
+            return true;
+        } catch (Exception ex) {
+            if (!realtimeRedisProperties.fallbackEnabled()) {
+                throw new IllegalStateException("게시판 SSE Redis 발행에 실패했습니다.", ex);
+            }
+            log.warn("게시판 SSE Redis 발행 실패로 로컬 fallback 경로를 사용합니다. boardId={}", boardId, ex);
+            return false;
         }
     }
 

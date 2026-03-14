@@ -10,16 +10,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
-import com.mocktalkback.domain.article.dto.ArticleResponse;
-import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.article.mapper.ArticleMapper;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
-import com.mocktalkback.domain.comment.dto.CommentResponse;
-import com.mocktalkback.domain.comment.entity.CommentEntity;
-import com.mocktalkback.domain.comment.mapper.CommentMapper;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
 import com.mocktalkback.domain.file.dto.FileResponse;
 import com.mocktalkback.domain.file.entity.FileClassEntity;
 import com.mocktalkback.domain.file.entity.FileEntity;
@@ -28,7 +22,6 @@ import com.mocktalkback.domain.file.mapper.FileMapper;
 import com.mocktalkback.domain.file.repository.FileClassRepository;
 import com.mocktalkback.domain.file.repository.FileRepository;
 import com.mocktalkback.domain.file.repository.FileVariantRepository;
-import com.mocktalkback.domain.file.service.FileStorage;
 import com.mocktalkback.domain.file.service.FileStorage.StoredFile;
 import com.mocktalkback.domain.file.service.ImageOptimizationService;
 import com.mocktalkback.domain.file.type.FileClassCode;
@@ -37,6 +30,8 @@ import com.mocktalkback.domain.user.dto.UserProfileResponse;
 import com.mocktalkback.domain.user.dto.UserProfileUpdateRequest;
 import com.mocktalkback.domain.user.dto.UserDeleteRequest;
 import com.mocktalkback.domain.user.dto.UserMentionResponse;
+import com.mocktalkback.domain.user.dto.MyArticleItemResponse;
+import com.mocktalkback.domain.user.dto.MyCommentItemResponse;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.entity.UserFileEntity;
 import com.mocktalkback.domain.user.repository.UserFileRepository;
@@ -65,13 +60,11 @@ public class UserService {
     private final FileRepository fileRepository;
     private final FileClassRepository fileClassRepository;
     private final FileVariantRepository fileVariantRepository;
-    private final ArticleMapper articleMapper;
-    private final CommentMapper commentMapper;
     private final FileMapper fileMapper;
-    private final FileStorage fileStorage;
     private final ImageOptimizationService imageOptimizationService;
     private final CurrentUserService currentUserService;
     private final PasswordEncoder passwordEncoder;
+    private final PageNormalizer pageNormalizer;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getMyProfile() {
@@ -120,11 +113,14 @@ public class UserService {
             updatePassword(user, password);
         }
 
-        MultipartFile profileImage = request.getProfileImage();
-        if (profileImage != null && !profileImage.isEmpty()) {
-            updateProfileImage(user, profileImage, request.isPreserveMetadata());
-        }
+        return getMyProfile();
+    }
 
+    @Transactional
+    public UserProfileResponse completeProfileImageUpload(StoredFile storedFile, boolean preserveMetadata) {
+        Long userId = currentUserService.getUserId();
+        UserEntity user = getUser(userId);
+        updateProfileImage(user, storedFile, preserveMetadata);
         return getMyProfile();
     }
 
@@ -140,21 +136,19 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<ArticleResponse> getMyArticles(int page, int size) {
+    public PageResponse<MyArticleItemResponse> getMyArticles(int page, int size) {
         Pageable pageable = createPageable(page, size);
         Long userId = currentUserService.getUserId();
-        Page<ArticleEntity> result = articleRepository.findByUserId(userId, pageable);
-        Page<ArticleResponse> mapped = result.map(articleMapper::toResponse);
-        return PageResponse.from(mapped);
+        Page<MyArticleItemResponse> result = articleRepository.findMyArticleItems(userId, pageable);
+        return PageResponse.from(result);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<CommentResponse> getMyComments(int page, int size) {
+    public PageResponse<MyCommentItemResponse> getMyComments(int page, int size) {
         Pageable pageable = createPageable(page, size);
         Long userId = currentUserService.getUserId();
-        Page<CommentEntity> result = commentRepository.findByUserId(userId, pageable);
-        Page<CommentResponse> mapped = result.map(commentMapper::toResponse);
-        return PageResponse.from(mapped);
+        Page<MyCommentItemResponse> result = commentRepository.findMyCommentItems(userId, pageable);
+        return PageResponse.from(result);
     }
 
     @Transactional(readOnly = true)
@@ -179,12 +173,7 @@ public class UserService {
             .toList();
     }
 
-    private void updateProfileImage(UserEntity user, MultipartFile profileImage, boolean preserveMetadata) {
-        StoredFile storedFile = fileStorage.store(
-            FileClassCode.PROFILE_IMAGE,
-            profileImage,
-            user.getId()
-        );
+    private void updateProfileImage(UserEntity user, StoredFile storedFile, boolean preserveMetadata) {
         ImageOptimizationService.OriginalFileResult processed = imageOptimizationService
             .processOriginal(storedFile, preserveMetadata);
         FileClassEntity fileClass = getProfileImageClass();
@@ -258,23 +247,9 @@ public class UserService {
     }
 
     private Pageable createPageable(int page, int size) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         return PageRequest.of(resolvedPage, resolvedSize, MY_CONTENT_SORT);
-    }
-
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
     }
 
     private int normalizeMentionSize(int size) {

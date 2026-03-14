@@ -1,13 +1,13 @@
 package com.mocktalkback.domain.article.controller;
 
-import java.time.Duration;
+import java.net.URI;
 import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,17 +20,25 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
 import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
+import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkStatusResponse;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkItemResponse;
+import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
+import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
+import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkDeleteRequest;
 import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
+import com.mocktalkback.domain.article.type.ArticleTrendingWindow;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
+import com.mocktalkback.global.common.dto.SliceResponse;
+import com.mocktalkback.global.common.util.RequestMetadataResolver;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -50,8 +58,6 @@ public class ArticleController {
 
     private final ArticleService articleService;
     private final ArticleBookmarkService articleBookmarkService;
-    private static final String VIEW_COOKIE_PREFIX = "article_viewed_";
-    private static final Duration VIEW_COOKIE_TTL = Duration.ofHours(24);
 
     @PostMapping("/articles")
     @Operation(summary = "게시글 작성", description = "게시글을 작성합니다.")
@@ -64,6 +70,20 @@ public class ArticleController {
         return ApiEnvelope.ok(articleService.create(request));
     }
 
+    @GetMapping("/articles/trending")
+    @Operation(summary = "공개 인기 게시글 조회", description = "일간/주간 기준의 공개 인기 게시글을 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class)))
+    })
+    public ApiEnvelope<List<ArticleTrendingItemResponse>> findTrendingPublic(
+        @Parameter(description = "집계 윈도우", example = "DAY")
+        @RequestParam(name = "window", defaultValue = "DAY") ArticleTrendingWindow window,
+        @Parameter(description = "최대 개수(최대 50)", example = "10")
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return ApiEnvelope.ok(articleService.findTrendingPublic(window, limit));
+    }
+
     @GetMapping("/articles/{id}")
     @Operation(summary = "게시글 상세 조회", description = "게시글 상세 정보를 조회합니다.")
     @ApiResponses({
@@ -73,22 +93,66 @@ public class ArticleController {
     })
     public ApiEnvelope<ArticleDetailResponse> findById(
         @PathVariable("id") Long id,
-        HttpServletRequest request,
-        HttpServletResponse response
+        HttpServletRequest request
     ) {
-        String cookieName = VIEW_COOKIE_PREFIX + id;
-        boolean shouldIncrease = shouldIncreaseHit(request, cookieName);
-        ArticleDetailResponse detail = articleService.findDetailById(id, shouldIncrease);
-        if (shouldIncrease) {
-            ResponseCookie cookie = ResponseCookie.from(cookieName, "1")
-                .path("/")
-                .httpOnly(true)
-                .sameSite("Lax")
-                .maxAge(VIEW_COOKIE_TTL)
-                .build();
-            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        }
+        String clientIp = RequestMetadataResolver.resolveClientIp(request);
+        String userAgent = RequestMetadataResolver.resolveUserAgent(request);
+        ArticleDetailResponse detail = articleService.findDetailById(id, clientIp, userAgent);
         return ApiEnvelope.ok(detail);
+    }
+
+    @GetMapping("/articles/recent")
+    @Operation(summary = "홈 최근 공개 게시글 조회", description = "홈 화면에 노출할 최근 공개 게시글을 슬라이스로 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class)))
+    })
+    public ApiEnvelope<SliceResponse<ArticleRecentItemResponse>> findRecentPublic(
+        @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
+        @RequestParam(name = "page", defaultValue = "0") int page,
+        @Parameter(description = "페이지 크기(최대 50)", example = "8")
+        @RequestParam(name = "size", defaultValue = "8") int size
+    ) {
+        return ApiEnvelope.ok(articleService.findRecentPublic(page, size));
+    }
+
+    @GetMapping("/articles/{id}/editor")
+    @Operation(summary = "게시글 수정용 조회", description = "게시글 수정 화면에서 사용할 작성 원본과 포맷을 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "401", description = "인증 필요"),
+        @ApiResponse(responseCode = "403", description = "권한 없음"),
+        @ApiResponse(responseCode = "404", description = "게시글 없음")
+    })
+    public ApiEnvelope<ArticleEditorDetailResponse> findEditorById(@PathVariable("id") Long id) {
+        return ApiEnvelope.ok(articleService.findEditorDetailById(id));
+    }
+
+    @PostMapping("/articles/preview")
+    @Operation(summary = "게시글 미리보기", description = "작성 원본과 포맷을 받아 저장 전 미리보기 HTML을 반환합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "미리보기 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class))),
+        @ApiResponse(responseCode = "400", description = "요청 값 오류"),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    public ApiEnvelope<ArticlePreviewResponse> preview(@RequestBody @Valid ArticlePreviewRequest request) {
+        return ApiEnvelope.ok(articleService.preview(request));
+    }
+
+    @GetMapping("/articles/{id}/attachments/{fileId}/download")
+    @Operation(summary = "게시글 첨부파일 다운로드 URL 조회", description = "게시글 접근 권한을 확인한 뒤 첨부파일 원본 URL로 리다이렉트합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "302", description = "리다이렉트 성공"),
+        @ApiResponse(responseCode = "403", description = "권한 없음"),
+        @ApiResponse(responseCode = "404", description = "게시글 또는 첨부파일 없음")
+    })
+    public ResponseEntity<Void> downloadAttachment(
+        @PathVariable("id") Long id,
+        @PathVariable("fileId") Long fileId
+    ) {
+        String location = articleService.resolveAttachmentDownloadLocation(id, fileId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setLocation(URI.create(location));
+        return new ResponseEntity<>(headers, HttpStatus.FOUND);
     }
 
     @GetMapping("/articles")
@@ -197,17 +261,5 @@ public class ArticleController {
     public ApiEnvelope<Void> delete(@PathVariable("id") Long id) {
         articleService.delete(id);
         return ApiEnvelope.ok();
-    }
-
-    private boolean shouldIncreaseHit(HttpServletRequest request, String cookieName) {
-        if (request.getCookies() == null) {
-            return true;
-        }
-        for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
-            if (cookieName.equals(cookie.getName())) {
-                return false;
-            }
-        }
-        return true;
     }
 }

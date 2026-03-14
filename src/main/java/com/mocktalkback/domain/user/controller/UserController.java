@@ -2,22 +2,20 @@ package com.mocktalkback.domain.user.controller;
 
 import java.util.List;
 
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.mocktalkback.domain.article.dto.ArticleResponse;
-import com.mocktalkback.domain.comment.dto.CommentResponse;
 import com.mocktalkback.domain.user.dto.UserDeleteRequest;
 import com.mocktalkback.domain.user.dto.UserMentionResponse;
 import com.mocktalkback.domain.user.dto.UserProfileResponse;
 import com.mocktalkback.domain.user.dto.UserProfileUpdateRequest;
+import com.mocktalkback.domain.user.dto.MyArticleItemResponse;
+import com.mocktalkback.domain.user.dto.MyCommentItemResponse;
 import com.mocktalkback.domain.user.service.UserService;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
@@ -54,8 +52,8 @@ public class UserController {
         return ApiEnvelope.ok(userService.getMyProfile());
     }
 
-    @PutMapping(value = "/users/me", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "내 프로필 수정", description = "이름/이메일/닉네임/핸들, 비밀번호 및 프로필 이미지를 수정합니다.")
+    @PutMapping("/users/me")
+    @Operation(summary = "내 프로필 수정", description = "이름/이메일/닉네임/핸들 및 비밀번호를 수정합니다.")
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
@@ -66,7 +64,7 @@ public class UserController {
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
     public ApiEnvelope<UserProfileResponse> updateMyProfile(
-        @ModelAttribute @Valid UserProfileUpdateRequest request
+        @RequestBody @Valid UserProfileUpdateRequest request
     ) {
         return ApiEnvelope.ok(userService.updateMyProfile(request));
     }
@@ -96,7 +94,7 @@ public class UserController {
         @ApiResponse(responseCode = "400", description = "요청 값 오류"),
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
-    public ApiEnvelope<PageResponse<ArticleResponse>> getMyArticles(
+    public ApiEnvelope<PageResponse<MyArticleItemResponse>> getMyArticles(
         @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
         @RequestParam(name = "page", defaultValue = "0") int page,
         @Parameter(description = "페이지 크기(최대 50)", example = "10")
@@ -116,7 +114,7 @@ public class UserController {
         @ApiResponse(responseCode = "400", description = "요청 값 오류"),
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
-    public ApiEnvelope<PageResponse<CommentResponse>> getMyComments(
+    public ApiEnvelope<PageResponse<MyCommentItemResponse>> getMyComments(
         @Parameter(description = "페이지 번호(0부터 시작)", example = "0")
         @RequestParam(name = "page", defaultValue = "0") int page,
         @Parameter(description = "페이지 크기(최대 50)", example = "10")

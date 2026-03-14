@@ -3,24 +3,23 @@ package com.mocktalkback.infra.storage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
-import java.time.LocalDate;
-import java.util.Objects;
-import java.util.UUID;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.file.service.FileStorage;
-import com.mocktalkback.domain.file.service.FileStoragePathResolver;
-import com.mocktalkback.domain.file.type.FileClassCode;
 
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
 import io.minio.http.Method;
 
 @Service
@@ -28,52 +27,18 @@ import io.minio.http.Method;
 public class ObjectStorageFileStorageService implements FileStorage {
 
     private static final int DEFAULT_PRESIGN_EXPIRE_SECONDS = 300;
+    private static final int DEFAULT_PROTECTED_VIEW_EXPIRE_SECONDS = 120;
     private static final int MAX_PRESIGN_EXPIRE_SECONDS = 604800;
 
     private final ObjectStorageProperties properties;
-    private final FileStoragePathResolver pathResolver;
     private final MinioClient objectClient;
     private final MinioClient presignClient;
 
-    public ObjectStorageFileStorageService(
-        ObjectStorageProperties properties,
-        FileStoragePathResolver pathResolver
-    ) {
+    public ObjectStorageFileStorageService(ObjectStorageProperties properties) {
         this.properties = properties;
-        this.pathResolver = pathResolver;
         validateProperties(properties);
         this.objectClient = createClient(properties.getEndpoint());
         this.presignClient = createClient(resolvePresignEndpoint(properties));
-    }
-
-    @Override
-    public StoredFile store(String fileClassCode, MultipartFile file, Long ownerId) {
-        validateFile(fileClassCode, file);
-        if (ownerId == null) {
-            throw new IllegalArgumentException("파일 소유자 식별자가 비어있습니다.");
-        }
-        String originalName = cleanFileName(file);
-        String savedName = UUID.randomUUID().toString().replace("-", "") + "_" + originalName;
-        String category = pathResolver.resolveCategory(fileClassCode);
-        String storageKey = buildStorageKey(category, ownerId, savedName);
-        try (InputStream inputStream = file.getInputStream()) {
-            PutObjectArgs.Builder builder = PutObjectArgs.builder()
-                .bucket(properties.getBucket())
-                .object(storageKey)
-                .stream(inputStream, file.getSize(), -1);
-            if (StringUtils.hasText(file.getContentType())) {
-                builder.contentType(file.getContentType());
-            }
-            objectClient.putObject(builder.build());
-        } catch (Exception ex) {
-            throw new IllegalStateException("파일 저장에 실패했습니다.");
-        }
-        return new StoredFile(
-            savedName,
-            storageKey,
-            file.getSize(),
-            file.getContentType()
-        );
     }
 
     @Override
@@ -151,6 +116,93 @@ public class ObjectStorageFileStorageService implements FileStorage {
         }
     }
 
+    @Override
+    public String resolveProtectedViewUrl(String storageKey) {
+        return resolveProtectedViewUrl(storageKey, null);
+    }
+
+    @Override
+    public String resolveProtectedViewUrl(String storageKey, Duration maxTtl) {
+        String normalizedKey = normalizeKey(storageKey);
+        int expireSeconds = resolveProtectedViewExpireSeconds(maxTtl);
+        try {
+            String rawUrl = presignClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .expiry(expireSeconds)
+                    .build()
+            );
+            return toProxyUrl(rawUrl);
+        } catch (Exception ex) {
+            throw new IllegalStateException("보호 파일 조회 URL 생성에 실패했습니다.");
+        }
+    }
+
+    @Override
+    public String resolveDownloadUrl(String storageKey, String fileName, String mimeType) {
+        String normalizedKey = normalizeKey(storageKey);
+        int expireSeconds = normalizePresignExpireSeconds(properties.getPresignExpireSeconds());
+        try {
+            String rawUrl = presignClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .expiry(expireSeconds)
+                    .build()
+            );
+            return toProxyUrl(rawUrl);
+        } catch (Exception ex) {
+            throw new IllegalStateException("파일 다운로드 URL 생성에 실패했습니다.");
+        }
+    }
+
+    @Override
+    public PresignedUploadUrl createPresignedUploadUrl(String storageKey, String mimeType) {
+        String normalizedKey = normalizeKey(storageKey);
+        int expireSeconds = normalizePresignExpireSeconds(properties.getPresignExpireSeconds());
+        try {
+            String rawUrl = presignClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                    .method(Method.PUT)
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .expiry(expireSeconds)
+                    .build()
+            );
+            return new PresignedUploadUrl(
+                toProxyUrl(rawUrl),
+                "PUT",
+                resolveUploadHeaders(mimeType),
+                Instant.now().plusSeconds(expireSeconds)
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("파일 업로드 URL 생성에 실패했습니다.");
+        }
+    }
+
+    @Override
+    public StoredObjectMeta stat(String storageKey) {
+        String normalizedKey = normalizeKey(storageKey);
+        try {
+            StatObjectResponse stat = objectClient.statObject(
+                StatObjectArgs.builder()
+                    .bucket(properties.getBucket())
+                    .object(normalizedKey)
+                    .build()
+            );
+            return new StoredObjectMeta(
+                stat.size(),
+                stat.contentType(),
+                stat.etag()
+            );
+        } catch (Exception ex) {
+            throw new IllegalStateException("저장소 객체 메타 조회에 실패했습니다.");
+        }
+    }
+
     private int normalizePresignExpireSeconds(long expireSeconds) {
         if (expireSeconds <= 0L) {
             return DEFAULT_PRESIGN_EXPIRE_SECONDS;
@@ -159,6 +211,68 @@ public class ObjectStorageFileStorageService implements FileStorage {
             return MAX_PRESIGN_EXPIRE_SECONDS;
         }
         return (int) expireSeconds;
+    }
+
+    private int normalizeProtectedViewExpireSeconds(long expireSeconds) {
+        if (expireSeconds <= 0L) {
+            return DEFAULT_PROTECTED_VIEW_EXPIRE_SECONDS;
+        }
+        if (expireSeconds > MAX_PRESIGN_EXPIRE_SECONDS) {
+            return MAX_PRESIGN_EXPIRE_SECONDS;
+        }
+        return (int) expireSeconds;
+    }
+
+    private int resolveProtectedViewExpireSeconds(Duration maxTtl) {
+        int configuredExpireSeconds = normalizeProtectedViewExpireSeconds(properties.getProtectedViewExpireSeconds());
+        if (maxTtl == null) {
+            return configuredExpireSeconds;
+        }
+
+        long remainingSeconds = maxTtl.toSeconds();
+        if (remainingSeconds <= 0L && !maxTtl.isZero() && !maxTtl.isNegative()) {
+            remainingSeconds = 1L;
+        }
+        if (remainingSeconds <= 0L) {
+            return 1;
+        }
+        return (int) Math.min(configuredExpireSeconds, remainingSeconds);
+    }
+
+    private Map<String, String> resolveUploadHeaders(String mimeType) {
+        if (!StringUtils.hasText(mimeType)) {
+            return Map.of();
+        }
+        return Map.of("Content-Type", mimeType);
+    }
+
+    private String toProxyUrl(String rawUrl) {
+        URI uri = URI.create(rawUrl);
+        String path = uri.getRawPath();
+        if (!StringUtils.hasText(path)) {
+            throw new IllegalStateException("Presigned URL 경로가 비어있습니다.");
+        }
+        String prefix = normalizeUploadProxyPrefix(properties.getUploadProxyPrefix());
+        String query = uri.getRawQuery();
+        if (!StringUtils.hasText(query)) {
+            return prefix + path;
+        }
+        return prefix + path + "?" + query;
+    }
+
+    private String normalizeUploadProxyPrefix(String rawPrefix) {
+        if (!StringUtils.hasText(rawPrefix)) {
+            return "/storage";
+        }
+        String normalized = rawPrefix.trim();
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        normalized = normalized.replaceAll("/+$", "");
+        if (!StringUtils.hasText(normalized)) {
+            return "/storage";
+        }
+        return normalized;
     }
 
     private MinioClient createClient(String endpoint) {
@@ -192,69 +306,6 @@ public class ObjectStorageFileStorageService implements FileStorage {
         if (!StringUtils.hasText(props.getSecretKey())) {
             throw new IllegalStateException("오브젝트 스토리지 secret-key 설정이 비어있습니다.");
         }
-    }
-
-    private void validateFile(String fileClassCode, MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("업로드 파일이 비어있습니다.");
-        }
-        if (FileClassCode.PROFILE_IMAGE.equals(fileClassCode)
-            || FileClassCode.BOARD_IMAGE.equals(fileClassCode)
-            || FileClassCode.ARTICLE_CONTENT_IMAGE.equals(fileClassCode)) {
-            validateImage(file);
-            return;
-        }
-        if (FileClassCode.ARTICLE_CONTENT_VIDEO.equals(fileClassCode)) {
-            validateVideo(file);
-        }
-    }
-
-    private void validateImage(MultipartFile file) {
-        String contentType = file.getContentType();
-        if (!StringUtils.hasText(contentType) || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
-        }
-    }
-
-    private void validateVideo(MultipartFile file) {
-        String contentType = file.getContentType();
-        if (!StringUtils.hasText(contentType)) {
-            throw new IllegalArgumentException("영상 파일만 업로드할 수 있습니다.");
-        }
-        if (!"video/mp4".equals(contentType) && !"video/webm".equals(contentType)) {
-            throw new IllegalArgumentException("MP4 또는 WebM 영상만 업로드할 수 있습니다.");
-        }
-    }
-
-    private String cleanFileName(MultipartFile file) {
-        String original = Objects.requireNonNullElse(file.getOriginalFilename(), "file");
-        String cleaned = StringUtils.cleanPath(original).replaceAll("[^a-zA-Z0-9._-]", "_");
-        if (!StringUtils.hasText(cleaned)) {
-            return "file";
-        }
-        return cleaned;
-    }
-
-    private String buildStorageKey(String category, Long ownerId, String savedName) {
-        LocalDate today = LocalDate.now();
-        String year = String.valueOf(today.getYear());
-        String month = String.format("%02d", today.getMonthValue());
-        String day = String.format("%02d", today.getDayOfMonth());
-        String prefix = normalizePrefix(properties.getKeyPrefix());
-        return prefix + "/" + category + "/" + ownerId + "/" + year + "/" + month + "/" + day + "/" + savedName;
-    }
-
-    private String normalizePrefix(String rawPrefix) {
-        if (!StringUtils.hasText(rawPrefix)) {
-            return "uploads";
-        }
-        String normalized = rawPrefix.trim().replace('\\', '/');
-        normalized = normalized.replaceAll("^/+", "");
-        normalized = normalized.replaceAll("/+$", "");
-        if (!StringUtils.hasText(normalized)) {
-            return "uploads";
-        }
-        return normalized;
     }
 
     private String normalizeKey(String storageKey) {

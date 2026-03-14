@@ -1,0 +1,330 @@
+erDiagram
+    tb_role {
+        BIGINT role_id PK
+        VARCHAR role_name
+        INT auth_bit
+        VARCHAR description
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_users {
+        BIGINT user_id PK
+        BIGINT role_id
+        VARCHAR login_id
+        VARCHAR email
+        VARCHAR pw_hash
+        VARCHAR user_name
+        VARCHAR display_name
+        VARCHAR handle
+        INT user_point
+        BOOLEAN is_email_verified
+        BOOLEAN is_enabled
+        BOOLEAN is_locked
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+        TSVECTOR search_vector
+    }
+
+    tb_boards {
+        BIGINT board_id PK
+        VARCHAR board_name
+        VARCHAR slug
+        TEXT description
+        VARCHAR visibility
+        VARCHAR article_write_policy
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+        TSVECTOR search_vector
+    }
+
+    tb_article_categories {
+        BIGINT article_category_id PK
+        BIGINT board_id
+        VARCHAR category_name
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_articles {
+        BIGINT article_id PK
+        BIGINT board_id
+        BIGINT user_id
+        BIGINT article_category_id
+        VARCHAR visibility
+        VARCHAR title
+        TEXT content
+        BIGINT hit
+        BOOLEAN is_notice
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+        TSVECTOR search_vector
+        BIGINT sync_version
+        TEXT author_search_text
+    }
+
+    tb_comments {
+        BIGINT comment_id PK
+        BIGINT user_id
+        BIGINT article_id
+        BIGINT parent_comment_id
+        BIGINT root_comment_id
+        INT depth
+        TEXT content
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+        TSVECTOR search_vector
+    }
+
+    tb_article_bookmarks {
+        BIGINT article_bookmark_id PK
+        BIGINT user_id
+        BIGINT article_id
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_article_reactions {
+        BIGINT article_reaction_id PK
+        BIGINT user_id
+        BIGINT article_id
+        SMALLINT reaction_type
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_comment_reactions {
+        BIGINT comment_reaction_id PK
+        BIGINT user_id
+        BIGINT comment_id
+        SMALLINT reaction_type
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_board_members {
+        BIGINT board_manager_id PK
+        BIGINT user_id
+        BIGINT board_id
+        BIGINT granted_by_user_id
+        VARCHAR board_role
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_board_subscribes {
+        BIGINT board_subscribe_id PK
+        BIGINT user_id
+        BIGINT board_id
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_notification {
+        BIGINT notification_id PK
+        BIGINT user_id
+        BIGINT sender_id
+        VARCHAR noti_type
+        VARCHAR redirect_url
+        VARCHAR reference_type
+        BIGINT reference_id
+        BOOLEAN is_read
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_file_classes {
+        BIGINT file_class_id PK
+        VARCHAR file_class_code
+        VARCHAR file_class_name
+        VARCHAR description
+        VARCHAR media_kind
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+    }
+
+    tb_files {
+        BIGINT file_id PK
+        BIGINT file_class_id
+        VARCHAR file_name
+        VARCHAR storage_key
+        BIGINT file_size
+        VARCHAR mime_type
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+        BOOLEAN metadata_preserved
+        TIMESTAMPTZ temp_expires_at
+    }
+
+    tb_file_variants {
+        BIGINT variant_id PK
+        BIGINT file_id
+        VARCHAR variant_code
+        VARCHAR storage_key
+        BIGINT file_size
+        VARCHAR mime_type
+        INTEGER width
+        INTEGER height
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TIMESTAMPTZ deleted_at
+    }
+
+    tb_article_files {
+        BIGINT article_file_id PK
+        BIGINT file_id
+        BIGINT article_id
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_comment_files {
+        BIGINT comment_file_id PK
+        BIGINT file_id
+        BIGINT comment_id
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_board_files {
+        BIGINT board_file_id PK
+        BIGINT file_id
+        BIGINT board_id
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_user_files {
+        BIGINT user_file_id PK
+        BIGINT file_id
+        BIGINT user_id
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_user_oauth_links {
+        BIGINT user_oauth_link_id PK
+        BIGINT user_id
+        VARCHAR provider
+        VARCHAR provider_id
+        VARCHAR email
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_reports {
+        BIGINT report_id PK
+        BIGINT reporter_user_id
+        BIGINT target_user_id
+        BIGINT board_id
+        VARCHAR target_type
+        BIGINT target_id
+        TEXT target_snapshot
+        VARCHAR reason_code
+        TEXT reason_detail
+        VARCHAR status
+        BIGINT processed_by
+        TIMESTAMPTZ processed_at
+        TEXT processed_note
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_sanctions {
+        BIGINT sanction_id PK
+        BIGINT user_id
+        VARCHAR scope_type
+        BIGINT board_id
+        VARCHAR sanction_type
+        TEXT reason
+        TIMESTAMPTZ starts_at
+        TIMESTAMPTZ ends_at
+        BIGINT report_id
+        BIGINT created_by
+        TIMESTAMPTZ revoked_at
+        BIGINT revoked_by
+        TEXT revoked_reason
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    tb_admin_audit_logs {
+        BIGINT admin_log_id PK
+        BIGINT actor_user_id
+        VARCHAR action_type
+        VARCHAR target_type
+        BIGINT target_id
+        BIGINT board_id
+        VARCHAR summary
+        TEXT detail_json
+        VARCHAR ip_address
+        VARCHAR user_agent
+        TIMESTAMPTZ created_at
+    }
+
+    tb_role ||--o{ tb_users : role
+
+    tb_users ||--o{ tb_articles : author
+    tb_boards ||--o{ tb_articles : board
+    tb_article_categories ||--o{ tb_articles : category
+
+    tb_users ||--o{ tb_comments : author
+    tb_articles ||--o{ tb_comments : article
+    tb_comments ||--o{ tb_comments : parent
+    tb_comments ||--o{ tb_comments : root
+
+    tb_users ||--o{ tb_board_members : member
+    tb_boards ||--o{ tb_board_members : board
+    tb_users ||--o{ tb_board_members : granted_by
+
+    tb_users ||--o{ tb_board_subscribes : subscriber
+    tb_boards ||--o{ tb_board_subscribes : board
+
+    tb_users ||--o{ tb_article_bookmarks : user
+    tb_articles ||--o{ tb_article_bookmarks : article
+
+    tb_users ||--o{ tb_article_reactions : user
+    tb_articles ||--o{ tb_article_reactions : article
+
+    tb_users ||--o{ tb_comment_reactions : user
+    tb_comments ||--o{ tb_comment_reactions : comment
+
+    tb_users ||--o{ tb_notification : receiver
+    tb_users ||--o{ tb_notification : sender
+
+    tb_file_classes ||--o{ tb_files : file_class
+    tb_files ||--o{ tb_file_variants : variant
+
+    tb_articles ||--o{ tb_article_files : article
+    tb_files ||--o{ tb_article_files : file
+
+    tb_comments ||--o{ tb_comment_files : comment
+    tb_files ||--o{ tb_comment_files : file
+
+    tb_boards ||--o{ tb_board_files : board
+    tb_files ||--o{ tb_board_files : file
+
+    tb_users ||--o{ tb_user_files : user
+    tb_files ||--o{ tb_user_files : file
+
+    tb_users ||--o{ tb_user_oauth_links : oauth
+
+    tb_users ||--o{ tb_reports : reporter
+    tb_users ||--o{ tb_reports : target_user
+    tb_users ||--o{ tb_reports : processed_by
+    tb_boards ||--o{ tb_reports : board
+
+    tb_users ||--o{ tb_sanctions : target_user
+    tb_users ||--o{ tb_sanctions : created_by
+    tb_users ||--o{ tb_sanctions : revoked_by
+    tb_boards ||--o{ tb_sanctions : board
+    tb_reports ||--o{ tb_sanctions : report
+
+    tb_users ||--o{ tb_admin_audit_logs : actor
+    tb_boards ||--o{ tb_admin_audit_logs : board

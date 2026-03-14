@@ -57,6 +57,7 @@ jobs:
           export BACKEND_IMAGE="$BACKEND_IMAGE"
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+          docker network create mocktalk-internal >/dev/null 2>&1 || true
           docker compose -f docker-compose.oci-deploy.yml pull backend
           docker compose -f docker-compose.oci-deploy.yml up -d --no-build backend
 

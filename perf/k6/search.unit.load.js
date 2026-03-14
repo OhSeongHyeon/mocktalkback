@@ -3,10 +3,11 @@ import { check, sleep } from 'k6';
 import { Counter, Rate } from 'k6/metrics';
 import {
   authParams,
-  loginAndGetAccessToken,
-  requireLoginEnv,
   resolveApiBaseUrl,
+  selectAccessToken,
+  setupAuth,
 } from './lib/k6-auth.js';
+import { createSummaryHandler } from './lib/k6-summary.js';
 
 const API_BASE_URL = resolveApiBaseUrl();
 const SEARCH_QUERY = __ENV.K6_SEARCH_QUERY || '공지';
@@ -45,21 +46,22 @@ export const options = {
   },
 };
 
+export const handleSummary = createSummaryHandler('search-unit');
+
 export function setup() {
-  // Given: 테스트 사용자 로그인 정보를 환경변수로 받는다.
-  const { loginId, password } = requireLoginEnv();
-  // When: 로그인 API를 호출해 AccessToken을 발급받는다.
-  const accessToken = loginAndGetAccessToken(API_BASE_URL, loginId, password);
-  // Then: 이후 시나리오에서 재사용할 인증 토큰을 반환한다.
-  return { accessToken };
+  // Given: 단일 사용자 또는 다중 사용자 로그인 정보가 환경변수에 준비되어 있다.
+  // When: 로그인 API를 호출해 테스트용 AccessToken 풀을 발급받는다.
+  // Then: 각 VU는 자신의 순서에 맞는 토큰을 재사용한다.
+  return setupAuth(API_BASE_URL);
 }
 
 export function searchAllScenario(data) {
   // Given: 검색어/페이지 파라미터와 인증 토큰이 준비되어 있다.
+  const accessToken = selectAccessToken(data);
   // When: 통합 검색(ALL) API를 호출한다.
   const response = http.get(
     `${API_BASE_URL}/search?q=${encodeURIComponent(SEARCH_QUERY)}&type=ALL&page=0&size=${SEARCH_PAGE_SIZE}`,
-    authParams(data.accessToken)
+    authParams(accessToken)
   );
   search_requests.add(1);
 
@@ -82,10 +84,11 @@ export function searchAllScenario(data) {
 
 export function searchArticleScenario(data) {
   // Given: 게시글 타입 검색 파라미터가 준비되어 있다.
+  const accessToken = selectAccessToken(data);
   // When: 게시글 검색 API를 호출한다.
   const response = http.get(
     `${API_BASE_URL}/search?q=${encodeURIComponent(SEARCH_QUERY)}&type=ARTICLE&page=0&size=${SEARCH_PAGE_SIZE}`,
-    authParams(data.accessToken)
+    authParams(accessToken)
   );
   search_requests.add(1);
 
@@ -108,10 +111,11 @@ export function searchArticleScenario(data) {
 
 export function searchCommentScenario(data) {
   // Given: 댓글 타입 검색 파라미터가 준비되어 있다.
+  const accessToken = selectAccessToken(data);
   // When: 댓글 검색 API를 호출한다.
   const response = http.get(
     `${API_BASE_URL}/search?q=${encodeURIComponent(SEARCH_QUERY)}&type=COMMENT&page=0&size=${SEARCH_PAGE_SIZE}`,
-    authParams(data.accessToken)
+    authParams(accessToken)
   );
   search_requests.add(1);
 

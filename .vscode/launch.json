@@ -1,14 +1,45 @@
 {
+    "version": "0.2.0",
     "configurations": [
         {
             "type": "java",
-            "name": "Spring Boot-MocktalkbackApplication<mocktalkback>",
+            "name": "Mocktalkback DEV",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "mainClass": "com.mocktalkback.MocktalkbackApplication",
             "projectName": "mocktalkback",
             "args": "",
-            "envFile": "${workspaceFolder}/.env"
+            "envFile": "${workspaceFolder}/.env.dev",
+            "env": {
+                "SPRING_PROFILES_ACTIVE": "dev"
+            }
+        },
+        {
+            "type": "java",
+            "name": "Mocktalkback PROD",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.mocktalkback.MocktalkbackApplication",
+            "projectName": "mocktalkback",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env.prod",
+            "env": {
+                "SPRING_PROFILES_ACTIVE": "prod"
+            }
+        },
+        {
+            "type": "java",
+            "name": "Mocktalkback TEST",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.mocktalkback.MocktalkbackApplication",
+            "projectName": "mocktalkback",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env.dev",
+            "env": {
+                "SPRING_PROFILES_ACTIVE": "dev,test",
+                "SERVER_PORT": "0"
+            }
         }
     ]
 }

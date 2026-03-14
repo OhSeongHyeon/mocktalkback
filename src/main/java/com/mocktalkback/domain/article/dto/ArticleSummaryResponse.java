@@ -21,6 +21,12 @@ public record ArticleSummaryResponse(
     @Schema(description = "Title", example = "Hello world")
     String title,
 
+    @Schema(description = "Article category id", example = "10")
+    Long categoryId,
+
+    @Schema(description = "Article category name", example = "공지")
+    String categoryName,
+
     @Schema(description = "Hit count", example = "0")
     long hit,
 

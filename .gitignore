@@ -147,6 +147,9 @@ HELP.md
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+#gradle cache
+.gradle-home/
+
 ### STS ###
 #.apt_generated
 #.classpath
@@ -180,8 +183,11 @@ out/
 
 ### other ###
 .env
-.env.dev
+# .env.dev
 .env.prod
 AGENTS.md
 GEMINI.md
 uploads/
+perf/k6/results/*
+!perf/k6/results/.gitkeep
+!perf/k6/results/README.md

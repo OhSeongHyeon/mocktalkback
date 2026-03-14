@@ -1,6 +1,5 @@
 package com.mocktalkback.domain.moderation.controller;
 
-import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,9 +9,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.mocktalkback.domain.board.dto.BoardResponse;
 import com.mocktalkback.domain.board.type.BoardVisibility;
@@ -74,16 +71,6 @@ public class AdminBoardController {
     public ApiEnvelope<Void> delete(@PathVariable("boardId") Long boardId) {
         adminBoardService.delete(boardId);
         return ApiEnvelope.ok();
-    }
-
-    @PostMapping(value = "/admin/boards/{boardId:\\d+}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "대표 이미지 업로드", description = "게시판 대표 이미지를 업로드합니다.")
-    public ApiEnvelope<BoardResponse> uploadImage(
-        @PathVariable("boardId") Long boardId,
-        @RequestPart("boardImage") MultipartFile boardImage,
-        @RequestParam(name = "preserveMetadata", defaultValue = "false") boolean preserveMetadata
-    ) {
-        return ApiEnvelope.ok(adminBoardService.uploadBoardImage(boardId, boardImage, preserveMetadata));
     }
 
     @DeleteMapping("/admin/boards/{boardId:\\d+}/image")

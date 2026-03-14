@@ -15,6 +15,8 @@ public class ObjectStorageProperties {
     private String publicBaseUrl;
     private String presignEndpoint;
     private long presignExpireSeconds = 300L;
+    private long protectedViewExpireSeconds = 120L;
+    private String uploadProxyPrefix = "/storage";
 
     public String getEndpoint() {
         return endpoint;
@@ -94,5 +96,21 @@ public class ObjectStorageProperties {
 
     public void setPresignExpireSeconds(long presignExpireSeconds) {
         this.presignExpireSeconds = presignExpireSeconds;
+    }
+
+    public long getProtectedViewExpireSeconds() {
+        return protectedViewExpireSeconds;
+    }
+
+    public void setProtectedViewExpireSeconds(long protectedViewExpireSeconds) {
+        this.protectedViewExpireSeconds = protectedViewExpireSeconds;
+    }
+
+    public String getUploadProxyPrefix() {
+        return uploadProxyPrefix;
+    }
+
+    public void setUploadProxyPrefix(String uploadProxyPrefix) {
+        this.uploadProxyPrefix = uploadProxyPrefix;
     }
 }

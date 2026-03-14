@@ -1,7 +1,5 @@
 package com.mocktalkback.domain.user.dto;
 
-import org.springframework.web.multipart.MultipartFile;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -38,9 +36,4 @@ public class UserProfileUpdateRequest {
     @Size(max = 64)
     private String password;
 
-    @Schema(description = "프로필 이미지 파일", type = "string", format = "binary")
-    private MultipartFile profileImage;
-
-    @Schema(description = "프로필 이미지 메타데이터 보존 여부", example = "false")
-    private boolean preserveMetadata;
 }

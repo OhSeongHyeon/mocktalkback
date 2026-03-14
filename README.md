@@ -1,6 +1,6 @@
 # Mocktalk Backend
 
-OpenAPI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
+SwaggerUI: [https://api.mocktalk.site/swagger-ui/index.html](https://api.mocktalk.site/swagger-ui/index.html)
 
 Mocktalk 커뮤니티 서비스의 백엔드 API 서버입니다.  
 Spring Boot 기반으로 인증, 게시판, 댓글/대댓글, 알림, 파일 업로드 기능을 제공합니다.
@@ -35,6 +35,10 @@ Nginx
                └─ Object Storage(MinIO/OCI)
 ```
 
+## ERD
+
+![ERD](./database/erd.svg)
+
 ## 도메인 구성
 
 `src/main/java/com/mocktalkback/domain`
@@ -42,14 +46,17 @@ Nginx
 - `article`: 게시글
 - `board`: 게시판/포럼
 - `comment`: 댓글/대댓글
+- `common`: 도메인 공통 타입/지원 모듈
 - `file`: 파일 업로드
 - `moderation`: 관리/제재
 - `notification`: 알림
+- `realtime`: 실시간 알림/연결 관리
 - `role`: 권한
 - `search`: 검색
 - `user`: 회원/인증 연계
 
-공통 모듈은 `global` 패키지(`auth`, `common`, `config`, `exception`)에 위치합니다.
+공통 모듈은 `global` 패키지(`auth`, `common`, `config`, `exception`)에 위치합니다.  
+개발 전용 지원 코드는 `dev` 패키지에 위치합니다.
 
 ## 실행 방법
 
@@ -58,21 +65,47 @@ Nginx
 - 개발: `mocktalkback/.env.dev`
 - 운영: `mocktalkback/.env.prod`
 - 기본 키 목록: `mocktalkback/.env.example`
+- 기본 `.env` 파일은 사용하지 않고, `.env.{profile}` 파일만 사용합니다.
 
-개발 프로파일(`application-dev.yml`)은 `DEV_*` 키(`DEV_DB_URL`, `DEV_REDIS_HOST` 등)를 사용합니다.
+개발/운영 프로파일 모두 동일한 키(`DB_*`, `REDIS_*`)를 사용하고 값만 다르게 관리합니다.
+Spring Boot는 `.env.*` 파일을 자동 로딩하지 않으므로, 실행 전에 IDE/쉘/Docker에서 환경변수를 주입해야 합니다.
 
 ### 2) 애플리케이션 실행
 
 Windows:
 
 ```powershell
-.\gradlew.bat bootRun --args="--spring.profiles.active=dev"
+.\scripts\dev-run.ps1
+# 또는
+.\scripts\dev-run.ps1 -EnvFile ".env.dev" -Profile "dev"
+# 실행 실패 시 창 유지
+.\scripts\dev-run.ps1 -KeepOpen
+# 탐색기 우클릭 실행 대체(창 자동 종료 방지)
+.\scripts\dev-run-open.cmd
 ```
 
 macOS/Linux:
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=dev'
+./scripts/dev-run.sh
+# 또는
+./scripts/dev-run.sh --env-file .env.dev --profile dev
+```
+
+### 3) 테스트/빌드
+
+Windows:
+
+```powershell
+.\gradlew.bat test
+.\gradlew.bat build
+```
+
+macOS/Linux:
+
+```bash
+./gradlew test
+./gradlew build
 ```
 
 DB/Redis/Object Storage는 사전에 실행되어 있어야 합니다.
@@ -87,8 +120,8 @@ docker compose -f docker-compose.minio.yml up -d
 
 ## 프로파일
 
-- `dev`: `application-dev.yml` 사용, 개발용 DB/Redis 키(`DEV_*`) 사용
-- `prod`: `application-prod.yml` 사용, 운영용 키(`DB_*`, `REDIS_*`) 사용
+- `dev`: `application-dev.yml` 사용, 공통 DB/Redis 키(`DB_*`, `REDIS_*`)를 개발 값으로 사용
+- `prod`: `application-prod.yml` 사용, 공통 DB/Redis 키(`DB_*`, `REDIS_*`)를 운영 값으로 사용
 
 ## 핵심 환경 변수
 
@@ -112,8 +145,23 @@ docker compose -f docker-compose.minio.yml up -d
 | `OBJECT_STORAGE_PUBLIC_BASE_URL` | 퍼블릭 조회 URL 베이스(선택) |
 | `OBJECT_STORAGE_PRESIGN_ENDPOINT` | Presigned URL 생성 기준 엔드포인트(선택) |
 | `OBJECT_STORAGE_PRESIGN_EXPIRE_SECONDS` | Presigned URL 만료(초) |
-| `DEV_DB_URL` / `DB_URL` | PostgreSQL 접속 URL(프로파일별) |
-| `DEV_REDIS_HOST` / `REDIS_HOST` | Redis 호스트(프로파일별) |
+| `OBJECT_STORAGE_PROTECTED_VIEW_EXPIRE_SECONDS` | 보호 파일 조회용 Presigned URL 만료(초) |
+| `OBJECT_STORAGE_UPLOAD_PROXY_PREFIX` | Presigned 업로드 URL 프록시 prefix(기본 `/storage`) |
+| `UPLOAD_SESSION_TTL_SECONDS` | Presigned 업로드 세션 만료(초) |
+| `UPLOAD_ORPHAN_CLEANUP_GRACE_SECONDS` | 업로드 세션 만료 후 고아 정리 유예 시간(초) |
+| `UPLOAD_ORPHAN_CLEANUP_INTERVAL_MS` | Presigned 고아 파일 정리 스케줄 주기(ms) |
+| `UPLOAD_ORPHAN_CLEANUP_BATCH_SIZE` | Presigned 고아 파일 정리 배치 크기 |
+| `STORAGE_DELETE_RETRY_ENABLED` | 오브젝트 삭제 재시도 큐 활성화 여부 |
+| `STORAGE_DELETE_RETRY_INTERVAL_MS` | 오브젝트 삭제 재시도 워커 주기(ms) |
+| `STORAGE_DELETE_RETRY_BATCH_SIZE` | 오브젝트 삭제 재시도 처리 배치 크기 |
+| `STORAGE_DELETE_RETRY_INITIAL_DELAY_SEC` | 삭제 재시도 초기 지연 시간(초) |
+| `STORAGE_DELETE_RETRY_MAX_DELAY_SEC` | 삭제 재시도 최대 지연 시간(초) |
+| `STORAGE_DELETE_RETRY_MAX_ATTEMPTS` | 삭제 재시도 최대 횟수 |
+| `STORAGE_DELETE_DLQ_RETENTION_SEC` | 삭제 재시도 DLQ 보관 시간(초) |
+| `APP_FILE_TEMP_EXPIRE_HOURS` | 임시 파일 만료 시간(시간) |
+| `APP_FILE_TEMP_CLEANUP_INTERVAL_MS` | 임시 파일 정리 스케줄 주기(ms) |
+| `DB_URL` | PostgreSQL 접속 URL(프로파일별 값만 다르게 관리) |
+| `REDIS_HOST` | Redis 호스트(프로파일별 값만 다르게 관리) |
 
 ## API 문서(개발)
 
@@ -124,6 +172,7 @@ docker compose -f docker-compose.minio.yml up -d
 
 ```text
 com.mocktalkback/
+├── dev/         # 개발용 시드/보조 코드
 ├── global/
 │   ├── auth/
 │   ├── common/
@@ -134,9 +183,11 @@ com.mocktalkback/
 │   ├── article/
 │   ├── board/
 │   ├── comment/
+│   ├── common/
 │   ├── file/
 │   ├── moderation/
 │   ├── notification/
+│   ├── realtime/
 │   ├── role/
 │   └── search/
 └── infra/

@@ -1,0 +1,66 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Mocktalkback: Test",
+            "type": "shell",
+            "command": ".\\gradlew.bat",
+            "args": [
+                "--no-daemon",
+                "test"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gradle"
+            ]
+        },
+        {
+            "label": "Mocktalkback: Build",
+            "type": "shell",
+            "command": ".\\gradlew.bat",
+            "args": [
+                "--no-daemon",
+                "build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gradle"
+            ]
+        },
+        {
+            "label": "Mocktalkback: Clean",
+            "type": "shell",
+            "command": ".\\gradlew.bat",
+            "args": [
+                "--no-daemon",
+                "clean"
+            ],
+            "problemMatcher": [
+                "$gradle"
+            ]
+        },
+        {
+            "label": "Mocktalkback: Run DEV",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoLogo",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                ".\\scripts\\dev-run.ps1",
+                "-EnvFile",
+                ".env.dev",
+                "-Profile",
+                "dev"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}

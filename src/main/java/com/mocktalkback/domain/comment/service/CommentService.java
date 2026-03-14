@@ -1,6 +1,5 @@
 package com.mocktalkback.domain.comment.service;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -22,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.article.service.ArticleSyncVersionService;
+import com.mocktalkback.domain.article.service.ArticleTrendingService;
 import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
@@ -32,17 +32,16 @@ import com.mocktalkback.domain.comment.dto.CommentUpdateRequest;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentReactionRepository;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
+import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
+import com.mocktalkback.domain.common.policy.BoardAccessPolicy;
+import com.mocktalkback.domain.common.policy.PageNormalizer;
+import com.mocktalkback.domain.common.policy.SanctionGuard;
 import com.mocktalkback.domain.notification.service.NotificationService;
 import com.mocktalkback.domain.realtime.service.BoardRealtimeSseService;
 import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.entity.BoardMemberEntity;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
-import com.mocktalkback.domain.board.type.BoardRole;
-import com.mocktalkback.domain.board.type.BoardVisibility;
-import com.mocktalkback.domain.moderation.repository.SanctionRepository;
-import com.mocktalkback.domain.moderation.type.SanctionScopeType;
 import com.mocktalkback.domain.role.type.ContentVisibility;
-import com.mocktalkback.domain.role.type.RoleNames;
 import com.mocktalkback.domain.user.entity.UserEntity;
 import com.mocktalkback.domain.user.repository.UserRepository;
 import com.mocktalkback.global.auth.CurrentUserService;
@@ -68,15 +67,19 @@ public class CommentService {
     private final BoardMemberRepository boardMemberRepository;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
-    private final SanctionRepository sanctionRepository;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final ArticleSyncVersionService articleSyncVersionService;
+    private final ArticleTrendingService articleTrendingService;
+    private final BoardAccessPolicy boardAccessPolicy;
+    private final SanctionGuard sanctionGuard;
+    private final PageNormalizer pageNormalizer;
+    private final AuthorDisplayResolver authorDisplayResolver;
 
     @Transactional
     public CommentTreeResponse createRoot(Long articleId, CommentCreateRequest request) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getAccessibleArticle(articleId, user);
-        requireNotSanctioned(user, article.getBoard(), "제재 상태라 댓글을 작성할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 댓글을 작성할 수 없습니다.");
         String content = normalizeContent(request.content());
 
         CommentEntity entity = CommentEntity.builder()
@@ -93,6 +96,7 @@ public class CommentService {
         notifyArticleComment(user, article);
         long syncVersion = articleSyncVersionService.increaseAndGet(article.getId());
         article.applySyncVersion(syncVersion);
+        articleTrendingService.recordCommentCreated(article.getId());
         publishCommentChanged(saved, "CREATED", syncVersion);
         return toTreeResponse(saved);
     }
@@ -101,7 +105,7 @@ public class CommentService {
     public CommentTreeResponse createReply(Long articleId, Long parentCommentId, CommentCreateRequest request) {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getAccessibleArticle(articleId, user);
-        requireNotSanctioned(user, article.getBoard(), "제재 상태라 댓글을 작성할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 댓글을 작성할 수 없습니다.");
         CommentEntity parent = getComment(parentCommentId);
         if (!parent.getArticle().getId().equals(article.getId())) {
             throw new IllegalArgumentException("댓글이 다른 게시글에 속해 있습니다.");
@@ -124,6 +128,7 @@ public class CommentService {
         notifyCommentReply(user, article, parent, saved);
         long syncVersion = articleSyncVersionService.increaseAndGet(article.getId());
         article.applySyncVersion(syncVersion);
+        articleTrendingService.recordCommentCreated(article.getId());
         publishCommentChanged(saved, "CREATED", syncVersion);
         return toTreeResponse(saved);
     }
@@ -144,8 +149,8 @@ public class CommentService {
     }
 
     private CommentPageResponse<CommentTreeResponse> getArticleComments(ArticleEntity article, UserEntity currentUser, int page, int size) {
-        int resolvedPage = normalizePage(page);
-        int resolvedSize = normalizeSize(size);
+        int resolvedPage = pageNormalizer.normalizePage(page);
+        int resolvedSize = pageNormalizer.normalizeSize(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ROOT_COMMENT_SORT);
 
         Page<CommentEntity> rootPage = commentRepository.findByArticleIdAndParentCommentIsNull(
@@ -221,7 +226,7 @@ public class CommentService {
             throw new IllegalArgumentException("삭제된 댓글에는 반응할 수 없습니다.");
         }
         getAccessibleArticle(comment.getArticle().getId(), user);
-        requireNotSanctioned(user, comment.getArticle().getBoard(), "제재 상태라 댓글에 반응할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, comment.getArticle().getBoard(), "제재 상태라 댓글에 반응할 수 없습니다.");
 
         short myReaction = commentReactionRepository.upsertToggleReaction(
             user.getId(),
@@ -246,7 +251,7 @@ public class CommentService {
         if (entity.isDeleted()) {
             throw new IllegalArgumentException("삭제된 댓글은 수정할 수 없습니다.");
         }
-        requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 수정할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 수정할 수 없습니다.");
         requireOwnership(user, entity);
         entity.updateContent(normalizeContent(request.content()));
         long syncVersion = articleSyncVersionService.increaseAndGet(entity.getArticle().getId());
@@ -259,12 +264,13 @@ public class CommentService {
     public void delete(Long id) {
         CommentEntity entity = getComment(id);
         UserEntity user = getCurrentUser();
-        requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 삭제할 수 없습니다.");
+        sanctionGuard.requireNotSanctioned(user, entity.getArticle().getBoard(), "제재 상태라 댓글을 삭제할 수 없습니다.");
         requireOwnership(user, entity);
         if (!entity.isDeleted()) {
             entity.softDelete();
             long syncVersion = articleSyncVersionService.increaseAndGet(entity.getArticle().getId());
             entity.getArticle().applySyncVersion(syncVersion);
+            articleTrendingService.recordCommentDeleted(entity.getArticle().getId());
             publishCommentChanged(entity, "DELETED", syncVersion);
             if (entity.getUser().getId().equals(user.getId())) {
                 user.changePoint(ActivityPointPolicy.DELETE_REPLY.delta);
@@ -305,10 +311,10 @@ public class CommentService {
             ? null
             : boardMemberRepository.findByUserIdAndBoardId(user.getId(), board.getId()).orElse(null);
 
-        if (!canAccessBoard(board, user, member)) {
+        if (!boardAccessPolicy.canAccessBoard(board, user, member)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "board not found");
         }
-        EnumSet<ContentVisibility> allowed = resolveAllowedVisibilities(board, user, member);
+        EnumSet<ContentVisibility> allowed = boardAccessPolicy.resolveAllowedVisibilities(board, user, member);
         if (!allowed.contains(article.getVisibility())) {
             throw new AccessDeniedException("댓글 조회 권한이 없습니다.");
         }
@@ -334,7 +340,7 @@ public class CommentService {
         return new CommentTreeResponse(
             entity.getId(),
             entity.getUser().getId(),
-            resolveAuthorName(entity.getUser()),
+            authorDisplayResolver.resolveAuthorName(entity.getUser()),
             content,
             entity.getDepth(),
             parentId,
@@ -353,7 +359,7 @@ public class CommentService {
         if (entity.getUser().getId().equals(user.getId())) {
             return;
         }
-        if (isManagerOrAdmin(user)) {
+        if (boardAccessPolicy.isManagerOrAdmin(user)) {
             return;
         }
         throw new AccessDeniedException("댓글 수정/삭제 권한이 없습니다.");
@@ -415,20 +421,6 @@ public class CommentService {
         boardRealtimeSseService.publishReactionChanged(comment.getArticle().getBoard().getId(), payload);
     }
 
-    private int normalizePage(int page) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page는 0 이상이어야 합니다.");
-        }
-        return page;
-    }
-
-    private int normalizeSize(int size) {
-        if (size <= 0 || size > MAX_PAGE_SIZE) {
-            throw new IllegalArgumentException("size는 1~" + MAX_PAGE_SIZE + " 사이여야 합니다.");
-        }
-        return size;
-    }
-
     private ReactionCounts getReactionCounts(Long commentId) {
         long likeCount = commentReactionRepository.countByCommentIdAndReactionType(commentId, (short) 1);
         long dislikeCount = commentReactionRepository.countByCommentIdAndReactionType(commentId, (short) -1);
@@ -464,95 +456,6 @@ public class CommentService {
             result.put(view.getCommentId(), view.getReactionType());
         }
         return result;
-    }
-
-    private boolean canAccessBoard(BoardEntity board, UserEntity user, BoardMemberEntity member) {
-        BoardVisibility visibility = board.getVisibility();
-        if (user == null) {
-            return visibility == BoardVisibility.PUBLIC;
-        }
-        if (isManagerOrAdmin(user)) {
-            return true;
-        }
-        if (member != null && member.getBoardRole() == BoardRole.BANNED) {
-            return false;
-        }
-        if (visibility == BoardVisibility.PUBLIC || visibility == BoardVisibility.GROUP) {
-            return true;
-        }
-        if (visibility == BoardVisibility.PRIVATE) {
-            return member != null && member.getBoardRole() == BoardRole.OWNER;
-        }
-        return false;
-    }
-
-    private EnumSet<ContentVisibility> resolveAllowedVisibilities(
-        BoardEntity board,
-        UserEntity user,
-        BoardMemberEntity member
-    ) {
-        if (user == null) {
-            return EnumSet.of(ContentVisibility.PUBLIC);
-        }
-        if (isManagerOrAdmin(user)) {
-            return EnumSet.allOf(ContentVisibility.class);
-        }
-        BoardVisibility visibility = board.getVisibility();
-        if (visibility == BoardVisibility.UNLISTED) {
-            return EnumSet.noneOf(ContentVisibility.class);
-        }
-        if (visibility == BoardVisibility.PRIVATE) {
-            if (member != null && member.getBoardRole() == BoardRole.OWNER) {
-                return EnumSet.of(ContentVisibility.PUBLIC, ContentVisibility.MEMBERS, ContentVisibility.MODERATORS);
-            }
-            return EnumSet.noneOf(ContentVisibility.class);
-        }
-        EnumSet<ContentVisibility> allowed = EnumSet.of(ContentVisibility.PUBLIC);
-        if (visibility == BoardVisibility.PUBLIC) {
-            allowed.add(ContentVisibility.MEMBERS);
-        }
-        if (visibility == BoardVisibility.GROUP && isActiveMember(member)) {
-            allowed.add(ContentVisibility.MEMBERS);
-        }
-        if (member != null && (member.getBoardRole() == BoardRole.OWNER || member.getBoardRole() == BoardRole.MODERATOR)) {
-            allowed.add(ContentVisibility.MODERATORS);
-        }
-        return allowed;
-    }
-
-    private boolean isActiveMember(BoardMemberEntity member) {
-        if (member == null) {
-            return false;
-        }
-        BoardRole role = member.getBoardRole();
-        return role == BoardRole.OWNER || role == BoardRole.MODERATOR || role == BoardRole.MEMBER;
-    }
-
-    private boolean isManagerOrAdmin(UserEntity user) {
-        String roleName = user.getRole().getRoleName();
-        return RoleNames.MANAGER.equals(roleName) || RoleNames.ADMIN.equals(roleName);
-    }
-
-    private void requireNotSanctioned(UserEntity user, BoardEntity board, String message) {
-        Instant now = Instant.now();
-        boolean sanctioned = sanctionRepository.existsActiveSanction(
-            user.getId(),
-            SanctionScopeType.GLOBAL,
-            SanctionScopeType.BOARD,
-            board.getId(),
-            now
-        );
-        if (sanctioned) {
-            throw new AccessDeniedException(message);
-        }
-    }
-
-    private String resolveAuthorName(UserEntity user) {
-        String displayName = user.getDisplayName();
-        if (displayName != null && !displayName.isBlank()) {
-            return displayName;
-        }
-        return user.getUserName();
     }
 
     private record ReactionCounts(long likeCount, long dislikeCount) {

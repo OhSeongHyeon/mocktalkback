@@ -24,6 +24,7 @@ import com.mocktalkback.domain.user.dto.AuthTokens;
 import com.mocktalkback.domain.user.dto.JoinRequest;
 import com.mocktalkback.domain.user.dto.LoginRequest;
 import com.mocktalkback.domain.user.dto.RefreshTokens;
+import com.mocktalkback.domain.realtime.service.NotificationRealtimeTicketService;
 import com.mocktalkback.domain.user.service.AuthService;
 import com.mocktalkback.global.auth.CookieUtil;
 import com.mocktalkback.global.auth.OriginAllowlistFilter;
@@ -77,6 +78,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
+
+    @MockitoBean
+    private NotificationRealtimeTicketService notificationRealtimeTicketService;
 
     // 회원가입 API는 성공 응답을 반환해야 한다.
     @Test
