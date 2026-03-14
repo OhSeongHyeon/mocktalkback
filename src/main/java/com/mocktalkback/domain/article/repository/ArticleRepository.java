@@ -70,6 +70,9 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long>, A
     @EntityGraph(attributePaths = {"user", "board"})
     Optional<ArticleEntity> findByIdAndDeletedAtIsNull(Long id);
 
+    @EntityGraph(attributePaths = {"user", "board", "category"})
+    List<ArticleEntity> findAllByIdInAndDeletedAtIsNull(Collection<Long> ids);
+
     @EntityGraph(attributePaths = {"user"})
     Page<ArticleEntity> findByBoardIdAndNoticeFalseAndVisibilityInAndDeletedAtIsNull(
         Long boardId,
@@ -99,9 +102,10 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long>, A
         Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"user", "board"})
-    Slice<ArticleEntity> findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+    @EntityGraph(attributePaths = {"user", "board", "category"})
+    Slice<ArticleEntity> findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
         BoardVisibility boardVisibility,
+        Collection<String> boardSlugs,
         ContentVisibility visibility,
         Pageable pageable
     );

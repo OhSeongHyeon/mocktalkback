@@ -83,6 +83,10 @@ spring:
     # baseline-version: 1
 
 app:
+  article:
+    view:
+      dedupe-ttl-seconds: ${ARTICLE_VIEW_DEDUPE_TTL_SECONDS:86400}
+      anon-hash-secret: ${ARTICLE_VIEW_ANON_HASH_SECRET:mocktalk-article-view-anon-secret}
   oauth2:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
     redirect-path: ${OAUTH2_REDIRECT_PATH}

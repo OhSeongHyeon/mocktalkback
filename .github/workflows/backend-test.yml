@@ -1,0 +1,40 @@
+name: Backend Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - src/**
+      - gradle/**
+      - build.gradle
+      - settings.gradle
+      - .github/workflows/backend-test.yml
+      - .github/workflows/build-backend-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: JDK 21 설정
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: 백엔드 테스트 실행
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test

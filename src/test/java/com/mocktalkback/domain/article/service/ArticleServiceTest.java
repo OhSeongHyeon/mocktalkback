@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.mocktalkback.domain.article.dto.ArticleCategoryResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
+import com.mocktalkback.domain.article.dto.ArticleDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
@@ -39,6 +41,7 @@ import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.entity.ArticleFileEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
+import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
 import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
@@ -133,6 +136,12 @@ class ArticleServiceTest {
     private ArticleContentService articleContentService;
 
     @Mock
+    private ArticleViewService articleViewService;
+
+    @Mock
+    private ArticleTrendingService articleTrendingService;
+
+    @Mock
     private SanctionGuard sanctionGuard;
 
     @Mock
@@ -149,6 +158,9 @@ class ArticleServiceTest {
 
     @Spy
     private AuthorDisplayResolver authorDisplayResolver = new AuthorDisplayResolver();
+
+    @Spy
+    private PublicArticleFeedPolicy publicArticleFeedPolicy = new PublicArticleFeedPolicy();
 
     @InjectMocks
     private ArticleService articleService;
@@ -340,6 +352,54 @@ class ArticleServiceTest {
         assertThat(result.get(0).categoryName()).isEqualTo("공지");
     }
 
+    // 게시글 상세 조회는 조회수 증가 요청 시 조회 dedupe 서비스의 최신 hit 값을 반영해야 한다.
+    @Test
+    void findDetailById_uses_article_view_service_when_view_is_eligible() {
+        // Given: 공개 게시판의 게시글과 증가된 조회수 값
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user, null);
+        ReflectionTestUtils.setField(article, "hit", 7L);
+
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleViewService.increaseHitIfEligible(10L, 7L, "127.0.0.1", "MockBrowser/1.0")).thenReturn(8L);
+        when(commentRepository.countByArticleIds(List.of(10L))).thenReturn(List.of());
+        when(articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(10L)).thenReturn(List.of());
+        when(boardFileRepository.findAllByBoardIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        // When: 상세 조회에서 조회수 증가를 요청하면
+        ArticleDetailResponse response = articleService.findDetailById(10L, "127.0.0.1", "MockBrowser/1.0");
+
+        // Then: 조회 dedupe 서비스의 최신 값을 응답에 반영해야 한다.
+        assertThat(response.hit()).isEqualTo(8L);
+        verify(articleViewService).increaseHitIfEligible(10L, 7L, "127.0.0.1", "MockBrowser/1.0");
+    }
+
+    // 게시글 상세 조회는 중복 조회거나 Redis 장애면 현재 hit 값을 그대로 반환해야 한다.
+    @Test
+    void findDetailById_returns_current_hit_when_view_is_not_eligible() {
+        // Given: 공개 게시판의 게시글과 현재 조회수
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user, null);
+        ReflectionTestUtils.setField(article, "hit", 7L);
+
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(currentUserService.getOptionalUserId()).thenReturn(Optional.empty());
+        when(articleViewService.increaseHitIfEligible(10L, 7L, "127.0.0.1", "MockBrowser/1.0")).thenReturn(7L);
+        when(commentRepository.countByArticleIds(List.of(10L))).thenReturn(List.of());
+        when(articleFileRepository.findAllByArticleIdOrderByCreatedAtAsc(10L)).thenReturn(List.of());
+        when(boardFileRepository.findAllByBoardIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        // When: 상세 조회에서 조회 dedupe가 증가 불가를 반환하면
+        ArticleDetailResponse response = articleService.findDetailById(10L, "127.0.0.1", "MockBrowser/1.0");
+
+        // Then: 현재 조회수만 반환해야 한다.
+        assertThat(response.hit()).isEqualTo(7L);
+        verify(articleViewService).increaseHitIfEligible(10L, 7L, "127.0.0.1", "MockBrowser/1.0");
+    }
+
     // 게시글 목록 조회는 카테고리 필터가 있으면 고정글을 제외하고 카테고리 기준으로 조회해야 한다.
     @Test
     void getBoardArticles_with_category_filter_uses_category_query_without_pinned() {
@@ -486,8 +546,9 @@ class ArticleServiceTest {
         when(reactionCountView.getReactionType()).thenReturn((short) 1);
         when(reactionCountView.getCount()).thenReturn(7L);
 
-        when(articleRepository.findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+        when(articleRepository.findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
             eq(BoardVisibility.PUBLIC),
+            eq(Set.of("notice", "inquiry")),
             eq(ContentVisibility.PUBLIC),
             any()
         )).thenReturn(slice);
@@ -505,6 +566,12 @@ class ArticleServiceTest {
         assertThat(response.items().get(0).likeCount()).isEqualTo(7L);
         assertThat(response.items().get(0).hit()).isEqualTo(12L);
         assertThat(response.hasNext()).isTrue();
+        verify(articleRepository).findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+            eq(BoardVisibility.PUBLIC),
+            eq(Set.of("notice", "inquiry")),
+            eq(ContentVisibility.PUBLIC),
+            any()
+        );
     }
 
     // 반응 토글은 원자 upsert를 사용해 경합 상황에서도 일관된 결과를 반환해야 한다.
@@ -535,6 +602,7 @@ class ArticleServiceTest {
         assertThat(response.likeCount()).isEqualTo(5L);
         assertThat(response.dislikeCount()).isEqualTo(2L);
         verify(articleReactionRepository).upsertToggleReaction(2L, 10L, (short) 1);
+        verify(articleTrendingService).recordArticleReactionChanged(10L, (short) 0, (short) 1);
     }
 
     // 첨부파일 다운로드 URL 조회는 접근 가능한 게시글의 첨부파일 URL을 반환해야 한다.
