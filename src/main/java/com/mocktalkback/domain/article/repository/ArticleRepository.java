@@ -103,8 +103,9 @@ public interface ArticleRepository extends JpaRepository<ArticleEntity, Long>, A
     );
 
     @EntityGraph(attributePaths = {"user", "board"})
-    Slice<ArticleEntity> findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+    Slice<ArticleEntity> findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
         BoardVisibility boardVisibility,
+        Collection<String> boardSlugs,
         ContentVisibility visibility,
         Pageable pageable
     );

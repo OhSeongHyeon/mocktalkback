@@ -19,6 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
+import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.article.type.ArticleContentFormat;
@@ -56,6 +57,7 @@ class ArticleTrendingServiceTest {
             commentRepository,
             articleReactionRepository,
             new AuthorDisplayResolver(),
+            new PublicArticleFeedPolicy(),
             Clock.fixed(Instant.parse("2026-03-12T09:15:30Z"), ZoneId.of("UTC"))
         );
 
@@ -78,6 +80,7 @@ class ArticleTrendingServiceTest {
             commentRepository,
             articleReactionRepository,
             new AuthorDisplayResolver(),
+            new PublicArticleFeedPolicy(),
             Clock.fixed(Instant.parse("2026-03-12T09:15:30Z"), ZoneId.of("UTC"))
         );
 
@@ -121,5 +124,56 @@ class ArticleTrendingServiceTest {
         assertThat(items.get(0).articleId()).isEqualTo(10L);
         assertThat(items.get(0).boardSlug()).isEqualTo("free");
         assertThat(items.get(0).trendScore()).isEqualTo(18.0d);
+    }
+
+    // 공개 인기글 조회는 공지사항/문의 게시판 글을 제외해야 한다.
+    @Test
+    void findTrendingPublic_excludes_notice_and_inquiry_boards() {
+        // Given: 공지사항 게시판 글 1건과 Redis 랭킹
+        ArticleTrendingService service = new ArticleTrendingService(
+            articleTrendingStore,
+            articleRepository,
+            commentRepository,
+            articleReactionRepository,
+            new AuthorDisplayResolver(),
+            new PublicArticleFeedPolicy(),
+            Clock.fixed(Instant.parse("2026-03-12T09:15:30Z"), ZoneId.of("UTC"))
+        );
+
+        BoardEntity board = BoardEntity.builder()
+            .boardName("공지사항")
+            .slug("notice")
+            .description("테스트")
+            .visibility(BoardVisibility.PUBLIC)
+            .build();
+        ReflectionTestUtils.setField(board, "id", 1L);
+
+        RoleEntity role = RoleEntity.create("USER", 0, "테스트");
+        UserEntity user = UserEntity.createLocal(role, "login", "user@test.com", "pw", "user", "display", "handle");
+        ReflectionTestUtils.setField(user, "id", 2L);
+
+        ArticleEntity article = ArticleEntity.builder()
+            .board(board)
+            .user(user)
+            .category(null)
+            .visibility(ContentVisibility.PUBLIC)
+            .title("공지 제목")
+            .content("content")
+            .contentSource("content")
+            .contentFormat(ArticleContentFormat.HTML)
+            .notice(false)
+            .hit(12L)
+            .build();
+        ReflectionTestUtils.setField(article, "id", 10L);
+
+        when(articleTrendingStore.findTopArticles("trend:article:day:20260312", 30))
+            .thenReturn(List.of(new ArticleTrendingStore.RankedArticle(10L, 18.0d)));
+        when(articleRepository.findAllByIdInAndDeletedAtIsNull(List.of(10L))).thenReturn(List.of(article));
+
+        // When: 일간 인기글을 조회하면
+        List<ArticleTrendingItemResponse> items = service.findTrendingPublic(ArticleTrendingWindow.DAY, 10);
+
+        // Then: 공지사항 게시판 글은 결과에서 제외되어야 한다.
+        assertThat(items).isEmpty();
     }
 }

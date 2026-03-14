@@ -16,15 +16,13 @@ import org.springframework.stereotype.Service;
 
 import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
+import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository.ArticleReactionCountView;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.article.type.ArticleTrendingWindow;
-import com.mocktalkback.domain.board.entity.BoardEntity;
-import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
-import com.mocktalkback.domain.role.type.ContentVisibility;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -52,6 +50,7 @@ public class ArticleTrendingService {
     private final CommentRepository commentRepository;
     private final ArticleReactionRepository articleReactionRepository;
     private final AuthorDisplayResolver authorDisplayResolver;
+    private final PublicArticleFeedPolicy publicArticleFeedPolicy;
     private final Clock clock;
 
     @Autowired
@@ -60,7 +59,8 @@ public class ArticleTrendingService {
         ArticleRepository articleRepository,
         CommentRepository commentRepository,
         ArticleReactionRepository articleReactionRepository,
-        AuthorDisplayResolver authorDisplayResolver
+        AuthorDisplayResolver authorDisplayResolver,
+        PublicArticleFeedPolicy publicArticleFeedPolicy
     ) {
         this(
             articleTrendingStore,
@@ -68,6 +68,7 @@ public class ArticleTrendingService {
             commentRepository,
             articleReactionRepository,
             authorDisplayResolver,
+            publicArticleFeedPolicy,
             Clock.system(TREND_ZONE)
         );
     }
@@ -78,6 +79,7 @@ public class ArticleTrendingService {
         CommentRepository commentRepository,
         ArticleReactionRepository articleReactionRepository,
         AuthorDisplayResolver authorDisplayResolver,
+        PublicArticleFeedPolicy publicArticleFeedPolicy,
         Clock clock
     ) {
         this.articleTrendingStore = articleTrendingStore;
@@ -85,6 +87,7 @@ public class ArticleTrendingService {
         this.commentRepository = commentRepository;
         this.articleReactionRepository = articleReactionRepository;
         this.authorDisplayResolver = authorDisplayResolver;
+        this.publicArticleFeedPolicy = publicArticleFeedPolicy;
         this.clock = clock;
     }
 
@@ -204,17 +207,8 @@ public class ArticleTrendingService {
         }
 
         return articleRepository.findAllByIdInAndDeletedAtIsNull(articleIds).stream()
-            .filter(this::isPublicTrendingTarget)
+            .filter(publicArticleFeedPolicy::isPublicFeedTarget)
             .collect(LinkedHashMap::new, (map, article) -> map.put(article.getId(), article), Map::putAll);
-    }
-
-    private boolean isPublicTrendingTarget(ArticleEntity article) {
-        BoardEntity board = article.getBoard();
-        return !article.isDeleted()
-            && article.getVisibility() == ContentVisibility.PUBLIC
-            && board != null
-            && !board.isDeleted()
-            && board.getVisibility() == BoardVisibility.PUBLIC;
     }
 
     private Map<Long, Long> loadCommentCounts(List<Long> articleIds) {

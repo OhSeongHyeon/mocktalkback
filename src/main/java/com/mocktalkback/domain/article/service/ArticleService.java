@@ -43,6 +43,7 @@ import com.mocktalkback.domain.article.entity.ArticleFileEntity;
 import com.mocktalkback.domain.article.entity.ArticleBookmarkEntity;
 import com.mocktalkback.domain.article.entity.ArticleReactionEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
+import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
 import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
@@ -121,6 +122,7 @@ public class ArticleService {
     private final SanctionGuard sanctionGuard;
     private final PageNormalizer pageNormalizer;
     private final AuthorDisplayResolver authorDisplayResolver;
+    private final PublicArticleFeedPolicy publicArticleFeedPolicy;
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
@@ -364,8 +366,9 @@ public class ArticleService {
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ARTICLE_SORT);
 
         Slice<ArticleEntity> slice = articleRepository
-            .findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+            .findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
                 BoardVisibility.PUBLIC,
+                publicArticleFeedPolicy.excludedBoardSlugs(),
                 ContentVisibility.PUBLIC,
                 pageable
             );

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +41,7 @@ import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.entity.ArticleFileEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
+import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
 import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
@@ -156,6 +158,9 @@ class ArticleServiceTest {
 
     @Spy
     private AuthorDisplayResolver authorDisplayResolver = new AuthorDisplayResolver();
+
+    @Spy
+    private PublicArticleFeedPolicy publicArticleFeedPolicy = new PublicArticleFeedPolicy();
 
     @InjectMocks
     private ArticleService articleService;
@@ -541,8 +546,9 @@ class ArticleServiceTest {
         when(reactionCountView.getReactionType()).thenReturn((short) 1);
         when(reactionCountView.getCount()).thenReturn(7L);
 
-        when(articleRepository.findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+        when(articleRepository.findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
             eq(BoardVisibility.PUBLIC),
+            eq(Set.of("notice", "inquiry")),
             eq(ContentVisibility.PUBLIC),
             any()
         )).thenReturn(slice);
@@ -560,6 +566,12 @@ class ArticleServiceTest {
         assertThat(response.items().get(0).likeCount()).isEqualTo(7L);
         assertThat(response.items().get(0).hit()).isEqualTo(12L);
         assertThat(response.hasNext()).isTrue();
+        verify(articleRepository).findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+            eq(BoardVisibility.PUBLIC),
+            eq(Set.of("notice", "inquiry")),
+            eq(ContentVisibility.PUBLIC),
+            any()
+        );
     }
 
     // 반응 토글은 원자 upsert를 사용해 경합 상황에서도 일관된 결과를 반환해야 한다.
