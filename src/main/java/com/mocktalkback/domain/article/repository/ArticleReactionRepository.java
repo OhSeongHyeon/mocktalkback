@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,6 +13,9 @@ import com.mocktalkback.domain.article.entity.ArticleReactionEntity;
 
 public interface ArticleReactionRepository extends JpaRepository<ArticleReactionEntity, Long> {
     Optional<ArticleReactionEntity> findByUserIdAndArticleId(Long userId, Long articleId);
+
+    @EntityGraph(attributePaths = {"article", "article.board", "article.user", "article.category"})
+    List<ArticleReactionEntity> findTop20ByUserIdOrderByUpdatedAtDescIdDesc(Long userId);
 
     long countByArticleIdAndReactionType(Long articleId, short reactionType);
 

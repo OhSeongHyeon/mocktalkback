@@ -36,6 +36,7 @@ import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
 import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecommendedItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
@@ -335,6 +336,43 @@ class ArticleControllerTest {
             .andExpect(jsonPath("$.data.items[0].boardSlug").value("free"))
             .andExpect(jsonPath("$.data.items[0].previewText").value("본문 미리보기"))
             .andExpect(jsonPath("$.data.hasNext").value(true));
+    }
+
+    // 홈 추천 게시글 API는 추천 목록을 반환해야 한다.
+    @Test
+    void findRecommendedPublic_returns_items() throws Exception {
+        // Given: 추천 게시글 응답
+        List<ArticleRecommendedItemResponse> response = List.of(
+            new ArticleRecommendedItemResponse(
+                21L,
+                1L,
+                "free",
+                "자유게시판",
+                2L,
+                "author",
+                "추천 글",
+                18L,
+                4L,
+                9L,
+                1L,
+                14.5d,
+                "북마크한 글과 비슷한 게시판 기반",
+                true,
+                FIXED_TIME
+            )
+        );
+        when(articleService.findRecommendedPublic(9)).thenReturn(response);
+
+        // When: 홈 추천 게시글 API 호출
+        ResultActions result = mockMvc.perform(get("/api/articles/recommended")
+            .param("limit", "9"));
+
+        // Then: 추천 목록이 반환되어야 한다.
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data[0].articleId").value(21L))
+            .andExpect(jsonPath("$.data[0].recommendationReason").value("북마크한 글과 비슷한 게시판 기반"))
+            .andExpect(jsonPath("$.data[0].personalized").value(true));
     }
 
     // 게시글 반응 토글 API는 성공 응답을 반환해야 한다.
