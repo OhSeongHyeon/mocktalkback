@@ -1,6 +1,7 @@
 package com.mocktalkback.domain.comment.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,9 +18,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.article.service.ArticleSyncVersionService;
+import com.mocktalkback.domain.article.service.ArticleTrendingService;
 import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.repository.BoardMemberRepository;
 import com.mocktalkback.domain.board.type.BoardVisibility;
+import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionToggleRequest;
 import com.mocktalkback.domain.comment.entity.CommentEntity;
@@ -71,6 +74,9 @@ class CommentServiceTest {
     @Mock
     private ArticleSyncVersionService articleSyncVersionService;
 
+    @Mock
+    private ArticleTrendingService articleTrendingService;
+
     @Spy
     private RoleEvaluator roleEvaluator = new RoleEvaluator();
 
@@ -116,6 +122,50 @@ class CommentServiceTest {
         assertThat(response.likeCount()).isEqualTo(3L);
         assertThat(response.dislikeCount()).isEqualTo(1L);
         verify(commentReactionRepository).upsertToggleReaction(2L, 100L, (short) 1);
+    }
+
+    // 루트 댓글 생성은 트렌딩 점수에 댓글 가중치를 반영해야 한다.
+    @Test
+    void createRoot_records_comment_trending_score() {
+        // Given: 공개 게시글에 루트 댓글을 작성하는 사용자
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user);
+        CommentEntity saved = createComment(100L, article, user);
+
+        when(currentUserService.getUserId()).thenReturn(2L);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(articleRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(article));
+        when(boardMemberRepository.findByUserIdAndBoardId(2L, 1L)).thenReturn(Optional.empty());
+        when(commentRepository.save(any(CommentEntity.class))).thenReturn(saved);
+        when(articleSyncVersionService.increaseAndGet(10L)).thenReturn(1L);
+
+        // When: 루트 댓글을 생성하면
+        commentService.createRoot(10L, new CommentCreateRequest("댓글"));
+
+        // Then: 댓글 생성 트렌딩 점수를 반영해야 한다.
+        verify(articleTrendingService).recordCommentCreated(10L);
+    }
+
+    // 댓글 삭제는 트렌딩 점수에서 댓글 가중치를 차감해야 한다.
+    @Test
+    void delete_records_comment_trending_score() {
+        // Given: 삭제되지 않은 댓글
+        BoardEntity board = createBoard(1L);
+        UserEntity user = createUser(2L);
+        ArticleEntity article = createArticle(10L, board, user);
+        CommentEntity comment = createComment(100L, article, user);
+
+        when(currentUserService.getUserId()).thenReturn(2L);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(commentRepository.findById(100L)).thenReturn(Optional.of(comment));
+        when(articleSyncVersionService.increaseAndGet(10L)).thenReturn(2L);
+
+        // When: 댓글을 삭제하면
+        commentService.delete(100L);
+
+        // Then: 댓글 삭제 트렌딩 점수를 반영해야 한다.
+        verify(articleTrendingService).recordCommentDeleted(10L);
     }
 
     private BoardEntity createBoard(Long id) {

@@ -39,8 +39,10 @@ import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
+import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.type.ArticleContentFormat;
+import com.mocktalkback.domain.article.type.ArticleTrendingWindow;
 import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.global.common.dto.SliceResponse;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
@@ -111,6 +113,38 @@ class ArticleControllerTest {
             .andExpect(jsonPath("$.data.id").value(10L));
     }
 
+    // 공개 인기 게시글 조회 API는 트렌딩 목록을 반환해야 한다.
+    @Test
+    void findTrendingPublic_returns_items() throws Exception {
+        // Given: 공개 인기 게시글 응답
+        List<ArticleTrendingItemResponse> response = List.of(
+            new ArticleTrendingItemResponse(
+                10L,
+                1L,
+                "free",
+                2L,
+                "author",
+                "title",
+                12L,
+                3L,
+                7L,
+                1L,
+                18.0d,
+                FIXED_TIME
+            )
+        );
+        when(articleService.findTrendingPublic(ArticleTrendingWindow.DAY, 10)).thenReturn(response);
+
+        // When: 공개 인기 게시글 API를 호출하면
+        ResultActions result = mockMvc.perform(get("/api/articles/trending"));
+
+        // Then: 트렌딩 목록이 반환되어야 한다.
+        result.andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data[0].articleId").value(10L))
+            .andExpect(jsonPath("$.data[0].trendScore").value(18.0d));
+    }
+
     // 게시글 단건 조회 API는 응답 데이터를 반환해야 한다.
     @Test
     void findById_returns_article() throws Exception {
@@ -142,15 +176,18 @@ class ArticleControllerTest {
             FIXED_TIME,
             List.of()
         );
-        when(articleService.findDetailById(10L, true)).thenReturn(response);
+        when(articleService.findDetailById(10L, "203.0.113.10", "MockBrowser/1.0")).thenReturn(response);
 
         // When: 게시글 조회 API 호출
-        ResultActions result = mockMvc.perform(get("/api/articles/10"));
+        ResultActions result = mockMvc.perform(get("/api/articles/10")
+            .header("X-Forwarded-For", "203.0.113.10")
+            .header("User-Agent", "MockBrowser/1.0"));
 
         // Then: 응답 데이터 확인
         result.andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.id").value(10L));
+            .andExpect(jsonPath("$.data.id").value(10L))
+            .andExpect(header().doesNotExist("Set-Cookie"));
     }
 
     // 게시글 수정용 조회 API는 작성 원본과 포맷을 반환해야 한다.

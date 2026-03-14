@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.article.service.ArticleSyncVersionService;
+import com.mocktalkback.domain.article.service.ArticleTrendingService;
 import com.mocktalkback.domain.comment.dto.CommentCreateRequest;
 import com.mocktalkback.domain.comment.dto.CommentPageResponse;
 import com.mocktalkback.domain.comment.dto.CommentReactionSummaryResponse;
@@ -68,6 +69,7 @@ public class CommentService {
     private final NotificationService notificationService;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final ArticleSyncVersionService articleSyncVersionService;
+    private final ArticleTrendingService articleTrendingService;
     private final BoardAccessPolicy boardAccessPolicy;
     private final SanctionGuard sanctionGuard;
     private final PageNormalizer pageNormalizer;
@@ -94,6 +96,7 @@ public class CommentService {
         notifyArticleComment(user, article);
         long syncVersion = articleSyncVersionService.increaseAndGet(article.getId());
         article.applySyncVersion(syncVersion);
+        articleTrendingService.recordCommentCreated(article.getId());
         publishCommentChanged(saved, "CREATED", syncVersion);
         return toTreeResponse(saved);
     }
@@ -125,6 +128,7 @@ public class CommentService {
         notifyCommentReply(user, article, parent, saved);
         long syncVersion = articleSyncVersionService.increaseAndGet(article.getId());
         article.applySyncVersion(syncVersion);
+        articleTrendingService.recordCommentCreated(article.getId());
         publishCommentChanged(saved, "CREATED", syncVersion);
         return toTreeResponse(saved);
     }
@@ -266,6 +270,7 @@ public class CommentService {
             entity.softDelete();
             long syncVersion = articleSyncVersionService.increaseAndGet(entity.getArticle().getId());
             entity.getArticle().applySyncVersion(syncVersion);
+            articleTrendingService.recordCommentDeleted(entity.getArticle().getId());
             publishCommentChanged(entity, "DELETED", syncVersion);
             if (entity.getUser().getId().equals(user.getId())) {
                 user.changePoint(ActivityPointPolicy.DELETE_REPLY.delta);

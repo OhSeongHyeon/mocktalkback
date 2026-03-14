@@ -4,10 +4,11 @@ import { Counter, Rate } from 'k6/metrics';
 import {
   authJsonParams,
   authParams,
-  loginAndGetAccessToken,
-  requireLoginEnv,
   resolveApiBaseUrl,
+  selectAccessToken,
+  setupAuth,
 } from './lib/k6-auth.js';
+import { createSummaryHandler } from './lib/k6-summary.js';
 
 const API_BASE_URL = resolveApiBaseUrl();
 const ARTICLE_ID = Number(__ENV.K6_ARTICLE_ID || 1);
@@ -38,19 +39,20 @@ export const options = {
   },
 };
 
+export const handleSummary = createSummaryHandler('article-unit');
+
 export function setup() {
-  // Given: 테스트 사용자 로그인 정보를 환경변수로 받는다.
-  const { loginId, password } = requireLoginEnv();
-  // When: 로그인 API를 호출해 AccessToken을 발급받는다.
-  const accessToken = loginAndGetAccessToken(API_BASE_URL, loginId, password);
-  // Then: 이후 시나리오에서 재사용할 인증 토큰을 반환한다.
-  return { accessToken };
+  // Given: 단일 사용자 또는 다중 사용자 로그인 정보가 환경변수에 준비되어 있다.
+  // When: 로그인 API를 호출해 테스트용 AccessToken 풀을 발급받는다.
+  // Then: 각 VU는 자신의 순서에 맞는 토큰을 재사용한다.
+  return setupAuth(API_BASE_URL);
 }
 
 export function articleDetailReadScenario(data) {
   // Given: 대상 게시글 ID와 인증 토큰이 준비되어 있다.
+  const accessToken = selectAccessToken(data);
   // When: 게시글 상세 조회 API를 반복 호출한다.
-  const response = http.get(`${API_BASE_URL}/articles/${ARTICLE_ID}`, authParams(data.accessToken));
+  const response = http.get(`${API_BASE_URL}/articles/${ARTICLE_ID}`, authParams(accessToken));
   article_requests.add(1);
 
   // Then: 응답 상태/엔벨로프/핵심 필드 형식을 검증한다.
@@ -72,13 +74,14 @@ export function articleDetailReadScenario(data) {
 
 export function articleReactionToggleScenario(data) {
   // Given: 대상 게시글 반응 토글 요청값(-1 또는 1)을 준비한다.
+  const accessToken = selectAccessToken(data);
   const reactionType = Math.random() < 0.5 ? 1 : -1;
 
   // When: 게시글 반응 토글 API를 호출한다.
   const response = http.post(
     `${API_BASE_URL}/articles/${ARTICLE_ID}/reactions`,
     JSON.stringify({ reactionType }),
-    authJsonParams(data.accessToken)
+    authJsonParams(accessToken)
   );
   article_requests.add(1);
 

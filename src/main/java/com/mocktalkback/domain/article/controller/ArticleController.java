@@ -1,15 +1,12 @@
 package com.mocktalkback.domain.article.controller;
 
 import java.net.URI;
-import java.time.Duration;
 import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,13 +29,16 @@ import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
+import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleUpdateRequest;
 import com.mocktalkback.domain.article.dto.ArticleBookmarkDeleteRequest;
 import com.mocktalkback.domain.article.service.ArticleService;
 import com.mocktalkback.domain.article.service.ArticleBookmarkService;
+import com.mocktalkback.domain.article.type.ArticleTrendingWindow;
 import com.mocktalkback.global.common.dto.ApiEnvelope;
 import com.mocktalkback.global.common.dto.PageResponse;
 import com.mocktalkback.global.common.dto.SliceResponse;
+import com.mocktalkback.global.common.util.RequestMetadataResolver;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -58,8 +58,6 @@ public class ArticleController {
 
     private final ArticleService articleService;
     private final ArticleBookmarkService articleBookmarkService;
-    private static final String VIEW_COOKIE_PREFIX = "article_viewed_";
-    private static final Duration VIEW_COOKIE_TTL = Duration.ofHours(24);
 
     @PostMapping("/articles")
     @Operation(summary = "게시글 작성", description = "게시글을 작성합니다.")
@@ -72,6 +70,20 @@ public class ArticleController {
         return ApiEnvelope.ok(articleService.create(request));
     }
 
+    @GetMapping("/articles/trending")
+    @Operation(summary = "공개 인기 게시글 조회", description = "일간/주간 기준의 공개 인기 게시글을 조회합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class)))
+    })
+    public ApiEnvelope<List<ArticleTrendingItemResponse>> findTrendingPublic(
+        @Parameter(description = "집계 윈도우", example = "DAY")
+        @RequestParam(name = "window", defaultValue = "DAY") ArticleTrendingWindow window,
+        @Parameter(description = "최대 개수(최대 50)", example = "10")
+        @RequestParam(name = "limit", defaultValue = "10") int limit
+    ) {
+        return ApiEnvelope.ok(articleService.findTrendingPublic(window, limit));
+    }
+
     @GetMapping("/articles/{id}")
     @Operation(summary = "게시글 상세 조회", description = "게시글 상세 정보를 조회합니다.")
     @ApiResponses({
@@ -81,21 +93,11 @@ public class ArticleController {
     })
     public ApiEnvelope<ArticleDetailResponse> findById(
         @PathVariable("id") Long id,
-        HttpServletRequest request,
-        HttpServletResponse response
+        HttpServletRequest request
     ) {
-        String cookieName = VIEW_COOKIE_PREFIX + id;
-        boolean shouldIncrease = shouldIncreaseHit(request, cookieName);
-        ArticleDetailResponse detail = articleService.findDetailById(id, shouldIncrease);
-        if (shouldIncrease) {
-            ResponseCookie cookie = ResponseCookie.from(cookieName, "1")
-                .path("/")
-                .httpOnly(true)
-                .sameSite("Lax")
-                .maxAge(VIEW_COOKIE_TTL)
-                .build();
-            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        }
+        String clientIp = RequestMetadataResolver.resolveClientIp(request);
+        String userAgent = RequestMetadataResolver.resolveUserAgent(request);
+        ArticleDetailResponse detail = articleService.findDetailById(id, clientIp, userAgent);
         return ApiEnvelope.ok(detail);
     }
 
@@ -260,17 +262,4 @@ public class ArticleController {
         articleService.delete(id);
         return ApiEnvelope.ok();
     }
-
-    private boolean shouldIncreaseHit(HttpServletRequest request, String cookieName) {
-        if (request.getCookies() == null) {
-            return true;
-        }
-        for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
-            if (cookieName.equals(cookie.getName())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
 }

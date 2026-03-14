@@ -32,6 +32,7 @@ import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
+import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.dto.BoardArticleListResponse;
 import com.mocktalkback.domain.article.dto.ArticleCreateRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
@@ -42,12 +43,14 @@ import com.mocktalkback.domain.article.entity.ArticleFileEntity;
 import com.mocktalkback.domain.article.entity.ArticleBookmarkEntity;
 import com.mocktalkback.domain.article.entity.ArticleReactionEntity;
 import com.mocktalkback.domain.article.mapper.ArticleMapper;
+import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleCategoryRepository;
 import com.mocktalkback.domain.article.repository.ArticleFileRepository;
 import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository.ArticleReactionCountView;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
+import com.mocktalkback.domain.article.type.ArticleTrendingWindow;
 import com.mocktalkback.domain.board.entity.BoardFileEntity;
 import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.entity.BoardMemberEntity;
@@ -112,11 +115,14 @@ public class ArticleService {
     private final TemporaryFilePolicy temporaryFilePolicy;
     private final CurrentUserService currentUserService;
     private final ArticleContentService articleContentService;
+    private final ArticleViewService articleViewService;
+    private final ArticleTrendingService articleTrendingService;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final BoardAccessPolicy boardAccessPolicy;
     private final SanctionGuard sanctionGuard;
     private final PageNormalizer pageNormalizer;
     private final AuthorDisplayResolver authorDisplayResolver;
+    private final PublicArticleFeedPolicy publicArticleFeedPolicy;
 
     @Transactional
     public ArticleResponse create(ArticleCreateRequest request) {
@@ -167,7 +173,7 @@ public class ArticleService {
     }
 
     @Transactional
-    public ArticleDetailResponse findDetailById(Long id, boolean increaseHit) {
+    public ArticleDetailResponse findDetailById(Long id, String clientIp, String userAgent) {
         ArticleEntity article = articleRepository.findByIdAndDeletedAtIsNull(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "article not found"));
 
@@ -187,9 +193,7 @@ public class ArticleService {
             throw new AccessDeniedException("게시글 조회 권한이 없습니다.");
         }
 
-        if (increaseHit) {
-            article.increaseHit();
-        }
+        long hit = articleViewService.increaseHitIfEligible(article.getId(), article.getHit(), clientIp, userAgent);
 
         long commentCount = getCommentCount(article.getId());
         ReactionCounts reactionCounts = getReactionCounts(article.getId());
@@ -214,7 +218,7 @@ public class ArticleService {
             article.getVisibility(),
             article.getTitle(),
             article.getContent(),
-            article.getHit(),
+            hit,
             commentCount,
             reactionCounts.likeCount(),
             reactionCounts.dislikeCount(),
@@ -292,6 +296,7 @@ public class ArticleService {
             .article(article)
             .build();
         articleBookmarkRepository.save(entity);
+        articleTrendingService.recordBookmarkCreated(article.getId());
         return new ArticleBookmarkStatusResponse(article.getId(), true);
     }
 
@@ -304,6 +309,7 @@ public class ArticleService {
             return new ArticleBookmarkStatusResponse(articleId, false);
         }
         articleBookmarkRepository.deleteByUserIdAndArticleId(user.getId(), articleId);
+        articleTrendingService.recordBookmarkDeleted(articleId);
         return new ArticleBookmarkStatusResponse(articleId, false);
     }
 
@@ -321,6 +327,7 @@ public class ArticleService {
         UserEntity user = getCurrentUser();
         ArticleEntity article = getArticleForReaction(articleId, user);
         sanctionGuard.requireNotSanctioned(user, article.getBoard(), "제재 상태라 게시글에 반응할 수 없습니다.");
+        short previousReaction = resolveMyReaction(article.getId(), user);
 
         short myReaction = articleReactionRepository.upsertToggleReaction(
             user.getId(),
@@ -329,6 +336,7 @@ public class ArticleService {
         );
 
         ReactionCounts counts = getReactionCounts(article.getId());
+        articleTrendingService.recordArticleReactionChanged(article.getId(), previousReaction, myReaction);
         publishArticleReactionChanged(article, counts, myReaction);
         return new ArticleReactionSummaryResponse(
             article.getId(),
@@ -336,6 +344,12 @@ public class ArticleService {
             counts.dislikeCount(),
             myReaction
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ArticleTrendingItemResponse> findTrendingPublic(ArticleTrendingWindow window, int limit) {
+        ArticleTrendingWindow resolvedWindow = window == null ? ArticleTrendingWindow.DAY : window;
+        return articleTrendingService.findTrendingPublic(resolvedWindow, limit);
     }
 
     @Transactional(readOnly = true)
@@ -352,8 +366,9 @@ public class ArticleService {
         Pageable pageable = PageRequest.of(resolvedPage, resolvedSize, ARTICLE_SORT);
 
         Slice<ArticleEntity> slice = articleRepository
-            .findByBoardVisibilityAndBoardDeletedAtIsNullAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
+            .findByBoardVisibilityAndBoardDeletedAtIsNullAndBoardSlugNotInAndVisibilityAndNoticeFalseAndDeletedAtIsNull(
                 BoardVisibility.PUBLIC,
+                publicArticleFeedPolicy.excludedBoardSlugs(),
                 ContentVisibility.PUBLIC,
                 pageable
             );
