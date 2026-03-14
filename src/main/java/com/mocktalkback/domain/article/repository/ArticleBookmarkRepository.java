@@ -1,5 +1,7 @@
 package com.mocktalkback.domain.article.repository;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -17,6 +19,9 @@ public interface ArticleBookmarkRepository extends JpaRepository<ArticleBookmark
         Long userId,
         Pageable pageable
     );
+
+    @EntityGraph(attributePaths = {"article", "article.board", "article.user", "article.category"})
+    List<ArticleBookmarkEntity> findTop20ByUserIdOrderByCreatedAtDescIdDesc(Long userId);
 
     void deleteByUserId(Long userId);
 

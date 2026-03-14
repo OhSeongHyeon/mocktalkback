@@ -26,6 +26,7 @@ import com.mocktalkback.domain.article.dto.ArticleBookmarkItemResponse;
 import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
 import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecommendedItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleResponse;
@@ -113,6 +114,18 @@ public class ArticleController {
         @RequestParam(name = "size", defaultValue = "8") int size
     ) {
         return ApiEnvelope.ok(articleService.findRecentPublic(page, size));
+    }
+
+    @GetMapping("/articles/recommended")
+    @Operation(summary = "홈 추천 게시글 조회", description = "로그인 사용자에게는 활동 기반 추천을, 비로그인 사용자에게는 인기글 기반 추천을 반환합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(schema = @Schema(implementation = ApiEnvelope.class)))
+    })
+    public ApiEnvelope<List<ArticleRecommendedItemResponse>> findRecommendedPublic(
+        @Parameter(description = "최대 개수(최대 50)", example = "9")
+        @RequestParam(name = "limit", defaultValue = "9") int limit
+    ) {
+        return ApiEnvelope.ok(articleService.findRecommendedPublic(limit));
     }
 
     @GetMapping("/articles/{id}/editor")

@@ -29,6 +29,7 @@ import com.mocktalkback.domain.article.dto.ArticleEditorDetailResponse;
 import com.mocktalkback.domain.article.dto.ArticlePreviewRequest;
 import com.mocktalkback.domain.article.dto.ArticlePreviewResponse;
 import com.mocktalkback.domain.article.dto.ArticleRecentItemResponse;
+import com.mocktalkback.domain.article.dto.ArticleRecommendedItemResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionSummaryResponse;
 import com.mocktalkback.domain.article.dto.ArticleReactionToggleRequest;
 import com.mocktalkback.domain.article.dto.ArticleSummaryResponse;
@@ -117,6 +118,7 @@ public class ArticleService {
     private final ArticleContentService articleContentService;
     private final ArticleViewService articleViewService;
     private final ArticleTrendingService articleTrendingService;
+    private final ArticleRecommendationService articleRecommendationService;
     private final BoardRealtimeSseService boardRealtimeSseService;
     private final BoardAccessPolicy boardAccessPolicy;
     private final SanctionGuard sanctionGuard;
@@ -387,6 +389,11 @@ public class ArticleService {
             slice.hasNext(),
             slice.hasPrevious()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ArticleRecommendedItemResponse> findRecommendedPublic(int limit) {
+        return articleRecommendationService.findRecommendedPublic(limit);
     }
 
     @Transactional(readOnly = true)
