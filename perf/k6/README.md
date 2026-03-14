@@ -18,6 +18,11 @@
 - `perf/k6/article.trending.load.js`
   - 조회/반응/북마크/댓글 혼합 쓰기
   - 공개 인기글 조회 API 동시 호출
+- `perf/k6/article.recommended.load.js`
+  - 비로그인 fallback 추천
+  - warm user 개인화 추천
+  - cold user fallback 추천
+  - 홈 `최신글 -> 트렌딩 -> 추천` 탭 전환 혼합 호출
 - `perf/k6/comment.unit.load.js`
   - 댓글 목록 조회
   - 댓글 스냅샷 조회
@@ -38,6 +43,9 @@
   - `K6_PASSWORD`
   - 다중 사용자 시나리오 필요 시 `K6_LOGIN_USERS`
     - 형식: `login1:password1,login2:password2`
+  - 추천 시나리오 계정군 분리 필요 시
+    - `K6_RECOMMEND_WARM_USERS`
+    - `K6_RECOMMEND_COLD_USERS`
 - 테스트 대상 데이터 준비
   - `K6_ARTICLE_ID`
   - `K6_COMMENT_ID`
@@ -132,12 +140,28 @@ k6 run perf/k6/article.trending.load.js \
 k6 run perf/k6/article.trending.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_USERS=user1:pw1,user2:pw2,user3:pw3 -e K6_ARTICLE_ID=1 -e K6_TREND_LIMIT=10
 ```
 
+### 4.7 추천 API 부하 테스트
+```bash
+k6 run perf/k6/article.recommended.load.js \
+  -e BASE_URL=http://localhost:8082 \
+  -e K6_LOGIN_ID=seed_user \
+  -e K6_PASSWORD=123123123 \
+  -e K6_LOGIN_USERS=warm_user1:pw,warm_user2:pw,warm_user3:pw \
+  -e K6_RECOMMEND_COLD_USERS=cold_user1:pw \
+  -e K6_RECOMMEND_LIMIT=9
+```
+
+```bash
+k6 run perf/k6/article.recommended.load.js -e BASE_URL=http://localhost:8082 -e K6_LOGIN_ID=seed_user -e K6_PASSWORD=123123123 -e K6_LOGIN_USERS=warm_user1:pw,warm_user2:pw,warm_user3:pw -e K6_RECOMMEND_COLD_USERS=cold_user1:pw -e K6_RECOMMEND_LIMIT=9
+```
+
 ## 5) 기본 임계치
 
 - `http_req_failed < 1%`
 - `http_req_duration p95 < 800ms`
 - `http_req_duration p99 < 1200ms`
 - 도메인별 실패율 메트릭(`*_failures`) `== 0`
+- 추천 시나리오 `p99 < 1500ms`
 
 ## 6) 결과 파일 저장
 
@@ -185,11 +209,19 @@ k6 run perf/k6/article.trending.load.js -e BASE_URL=http://localhost:8082 -e K6_
   - `K6_COMMENT_ID` (기본값: `1`)
   - `K6_SEARCH_QUERY` (기본값: `공지`)
   - `K6_TREND_LIMIT` (기본값: `10`)
+  - `K6_RECOMMEND_LIMIT` (기본값: `9`)
 - 익명 시나리오
   - `K6_ANON_IP_FIXED`
   - `K6_ANON_USER_AGENT_FIXED`
   - `K6_ANON_IP_PREFIX`
   - `K6_ANON_USER_AGENT_PREFIX`
+- 추천 시나리오
+  - `K6_RECOMMEND_WARM_USERS` (`K6_LOGIN_USERS` fallback 가능)
+  - `K6_RECOMMEND_COLD_USERS` (없으면 `K6_LOGIN_ID`, `K6_PASSWORD` fallback)
+  - `K6_RECOMMEND_HOME_PAGE` (기본값: `0`)
+  - `K6_RECOMMEND_HOME_RECENT_SIZE` (기본값: `15`)
+  - `K6_RECOMMEND_HOME_TREND_WINDOW` (기본값: `DAY`)
+  - `K6_RECOMMEND_HOME_TREND_LIMIT` (기본값: `9`)
 
 ## 10) 결과 해석 포인트
 
@@ -206,6 +238,10 @@ k6 run perf/k6/article.trending.load.js -e BASE_URL=http://localhost:8082 -e K6_
 - Redis 장애 검증:
   - 경고 로그 발생 여부 확인
   - 상세 조회는 성공하지만 `hit` 과 트렌딩 반영이 생략되는지 확인
+- 추천 검증:
+  - guest / cold / warm 경로 응답시간 차이 확인
+  - `notice`, `inquiry` 비노출 확인
+  - warm user에서 DB slow query 여부 확인
 
 ## 11) 운영 안전 모드 프리셋(리눅스)
 
@@ -246,6 +282,7 @@ k6 run perf/k6/integration.load.js
 k6 run perf/k6/article.unit.load.js
 k6 run perf/k6/article.view.load.js
 k6 run perf/k6/article.trending.load.js
+k6 run perf/k6/article.recommended.load.js
 k6 run perf/k6/comment.unit.load.js
 k6 run perf/k6/search.unit.load.js
 ```
