@@ -14,6 +14,8 @@ CONTENT_MARKET_RANGE: 외부 API 조회 범위
 CONTENT_MARKET_USER_AGENT: 외부 호출 User-Agent
 CONTENT_MARKET_CONNECT_TIMEOUT_MS: 연결 timeout
 CONTENT_MARKET_READ_TIMEOUT_MS: 응답 읽기 timeout
+CONTENT_MARKET_SERIES_CACHE_ENABLED: 장기 시계열 Redis 캐시 on/off
+CONTENT_MARKET_SERIES_CACHE_TTL_SECONDS: 장기 시계열 Redis 캐시 TTL
  */
 @ConfigurationProperties(prefix = "app.content.market")
 public class ContentMarketProperties {
@@ -29,6 +31,8 @@ public class ContentMarketProperties {
     private String userAgent = "mocktalkback/0.1";
     private int connectTimeoutMs = 3000;
     private int readTimeoutMs = 5000;
+    private boolean seriesCacheEnabled = true;
+    private long seriesCacheTtlSeconds = 86400L;
 
     public boolean isEnabled() {
         return enabled;
@@ -116,5 +120,21 @@ public class ContentMarketProperties {
 
     public void setReadTimeoutMs(int readTimeoutMs) {
         this.readTimeoutMs = readTimeoutMs;
+    }
+
+    public boolean isSeriesCacheEnabled() {
+        return seriesCacheEnabled;
+    }
+
+    public void setSeriesCacheEnabled(boolean seriesCacheEnabled) {
+        this.seriesCacheEnabled = seriesCacheEnabled;
+    }
+
+    public long getSeriesCacheTtlSeconds() {
+        return seriesCacheTtlSeconds;
+    }
+
+    public void setSeriesCacheTtlSeconds(long seriesCacheTtlSeconds) {
+        this.seriesCacheTtlSeconds = seriesCacheTtlSeconds;
     }
 }

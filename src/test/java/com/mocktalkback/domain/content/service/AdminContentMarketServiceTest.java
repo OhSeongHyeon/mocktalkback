@@ -33,6 +33,9 @@ class AdminContentMarketServiceTest {
     @Mock
     private MarketSnapshotCommandService marketSnapshotCommandService;
 
+    @Mock
+    private ContentMarketSeriesCacheStore contentMarketSeriesCacheStore;
+
     // 시세 임포트는 저장 후 영향받은 종목 전체의 변동률 재계산을 요청해야 한다.
     @Test
     void importSnapshots_recalculates_changes_for_impacted_instruments() {
@@ -41,6 +44,7 @@ class AdminContentMarketServiceTest {
             marketSnapshotCollectorService,
             marketSnapshotImportService,
             marketSnapshotCommandService,
+            contentMarketSeriesCacheStore,
             Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
         );
         MockMultipartFile file = new MockMultipartFile(
@@ -68,6 +72,7 @@ class AdminContentMarketServiceTest {
 
         // Then: 저장 후 영향 종목 전체 재계산이 실행되어야 한다.
         verify(marketSnapshotCommandService).recalculateChanges(Set.of(MarketInstrumentCode.USD_KRW, MarketInstrumentCode.XAU_USD));
+        verify(contentMarketSeriesCacheStore).evictPresetSeries(Set.of(MarketInstrumentCode.USD_KRW, MarketInstrumentCode.XAU_USD));
         assertThat(response.createdCount()).isEqualTo(2);
         assertThat(response.failedCount()).isZero();
     }

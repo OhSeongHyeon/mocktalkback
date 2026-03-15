@@ -28,18 +28,24 @@ import com.mocktalkback.domain.content.type.MarketSeriesPeriod;
 public class ContentMarketService {
 
     private final MarketSnapshotRepository marketSnapshotRepository;
+    private final ContentMarketSeriesCacheStore contentMarketSeriesCacheStore;
     private final Clock clock;
 
     @Autowired
-    public ContentMarketService(MarketSnapshotRepository marketSnapshotRepository) {
-        this(marketSnapshotRepository, Clock.systemUTC());
+    public ContentMarketService(
+        MarketSnapshotRepository marketSnapshotRepository,
+        ContentMarketSeriesCacheStore contentMarketSeriesCacheStore
+    ) {
+        this(marketSnapshotRepository, contentMarketSeriesCacheStore, Clock.systemUTC());
     }
 
     ContentMarketService(
         MarketSnapshotRepository marketSnapshotRepository,
+        ContentMarketSeriesCacheStore contentMarketSeriesCacheStore,
         Clock clock
     ) {
         this.marketSnapshotRepository = marketSnapshotRepository;
+        this.contentMarketSeriesCacheStore = contentMarketSeriesCacheStore;
         this.clock = clock;
     }
 
@@ -89,6 +95,11 @@ public class ContentMarketService {
         LocalDate endDate
     ) {
         MarketSeriesRange range = resolveRange(period, startDate, endDate);
+        Optional<MarketSeriesResponse> cachedResponse = contentMarketSeriesCacheStore.find(instrumentCode, range.period());
+        if (cachedResponse.isPresent()) {
+            return cachedResponse.get();
+        }
+
         List<MarketSnapshotEntity> snapshots = marketSnapshotRepository
             .findByInstrumentCodeAndObservedAtGreaterThanEqualAndObservedAtLessThanOrderByObservedAtAsc(
                 instrumentCode,
@@ -100,7 +111,7 @@ public class ContentMarketService {
             .toList();
         Instant lastObservedAt = snapshots.isEmpty() ? null : snapshots.get(snapshots.size() - 1).getObservedAt();
 
-        return new MarketSeriesResponse(
+        MarketSeriesResponse response = new MarketSeriesResponse(
             instrumentCode,
             instrumentCode.getDisplayName(),
             instrumentCode.getMarketGroup(),
@@ -109,6 +120,8 @@ public class ContentMarketService {
             lastObservedAt,
             points
         );
+        contentMarketSeriesCacheStore.put(response);
+        return response;
     }
 
     private MarketSeriesRange resolveRange(

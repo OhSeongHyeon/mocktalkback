@@ -5,8 +5,10 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ public class MarketSnapshotCollectorService {
     private final ExternalMarketQuoteClient externalMarketQuoteClient;
     private final MarketSnapshotRepository marketSnapshotRepository;
     private final MarketSnapshotCommandService marketSnapshotCommandService;
+    private final ContentMarketSeriesCacheStore contentMarketSeriesCacheStore;
 
     @Transactional
     public List<MarketSnapshotWriteResult> collectLatestSnapshots() {
@@ -42,6 +45,7 @@ public class MarketSnapshotCollectorService {
 
         deriveGoldKrw(collectedQuotes)
             .ifPresent(writeResults::add);
+        evictSeriesCache(writeResults);
         return writeResults;
     }
 
@@ -83,5 +87,16 @@ public class MarketSnapshotCollectorService {
             log.info("시세 스냅샷을 갱신했습니다. instrument={}, observedAt={}", marketQuote.instrumentCode(), marketQuote.observedAt());
         }
         return writeResult;
+    }
+
+    private void evictSeriesCache(List<MarketSnapshotWriteResult> writeResults) {
+        Set<MarketInstrumentCode> impactedInstruments = new LinkedHashSet<>();
+        for (MarketSnapshotWriteResult writeResult : writeResults) {
+            if (writeResult.status() == MarketSnapshotWriteStatus.SKIPPED) {
+                continue;
+            }
+            impactedInstruments.add(writeResult.instrumentCode());
+        }
+        contentMarketSeriesCacheStore.evictPresetSeries(impactedInstruments);
     }
 }

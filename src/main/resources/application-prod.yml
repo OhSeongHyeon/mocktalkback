@@ -100,6 +100,8 @@ app:
       user-agent: ${CONTENT_MARKET_USER_AGENT:mocktalkback/0.1}
       connect-timeout-ms: ${CONTENT_MARKET_CONNECT_TIMEOUT_MS:3000}
       read-timeout-ms: ${CONTENT_MARKET_READ_TIMEOUT_MS:5000}
+      series-cache-enabled: ${CONTENT_MARKET_SERIES_CACHE_ENABLED:true}
+      series-cache-ttl-seconds: ${CONTENT_MARKET_SERIES_CACHE_TTL_SECONDS:86400}
   oauth2:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
     redirect-path: ${OAUTH2_REDIRECT_PATH}

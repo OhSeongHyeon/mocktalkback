@@ -25,26 +25,36 @@ public class AdminContentMarketService {
     private final MarketSnapshotCollectorService marketSnapshotCollectorService;
     private final MarketSnapshotImportService marketSnapshotImportService;
     private final MarketSnapshotCommandService marketSnapshotCommandService;
+    private final ContentMarketSeriesCacheStore contentMarketSeriesCacheStore;
     private final Clock clock;
 
     @Autowired
     public AdminContentMarketService(
         MarketSnapshotCollectorService marketSnapshotCollectorService,
         MarketSnapshotImportService marketSnapshotImportService,
-        MarketSnapshotCommandService marketSnapshotCommandService
+        MarketSnapshotCommandService marketSnapshotCommandService,
+        ContentMarketSeriesCacheStore contentMarketSeriesCacheStore
     ) {
-        this(marketSnapshotCollectorService, marketSnapshotImportService, marketSnapshotCommandService, Clock.systemUTC());
+        this(
+            marketSnapshotCollectorService,
+            marketSnapshotImportService,
+            marketSnapshotCommandService,
+            contentMarketSeriesCacheStore,
+            Clock.systemUTC()
+        );
     }
 
     AdminContentMarketService(
         MarketSnapshotCollectorService marketSnapshotCollectorService,
         MarketSnapshotImportService marketSnapshotImportService,
         MarketSnapshotCommandService marketSnapshotCommandService,
+        ContentMarketSeriesCacheStore contentMarketSeriesCacheStore,
         Clock clock
     ) {
         this.marketSnapshotCollectorService = marketSnapshotCollectorService;
         this.marketSnapshotImportService = marketSnapshotImportService;
         this.marketSnapshotCommandService = marketSnapshotCommandService;
+        this.contentMarketSeriesCacheStore = contentMarketSeriesCacheStore;
         this.clock = clock;
     }
 
@@ -104,6 +114,7 @@ public class AdminContentMarketService {
 
         if (!impactedInstruments.isEmpty()) {
             marketSnapshotCommandService.recalculateChanges(impactedInstruments);
+            contentMarketSeriesCacheStore.evictPresetSeries(impactedInstruments);
         }
 
         return new AdminMarketImportResponse(

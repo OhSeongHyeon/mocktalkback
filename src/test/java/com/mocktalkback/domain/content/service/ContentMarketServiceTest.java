@@ -1,6 +1,7 @@
 package com.mocktalkback.domain.content.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -17,6 +18,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.mocktalkback.domain.content.dto.MarketSeriesPointResponse;
+import com.mocktalkback.domain.content.dto.MarketSeriesResponse;
 import com.mocktalkback.domain.content.entity.MarketSnapshotEntity;
 import com.mocktalkback.domain.content.repository.MarketSnapshotRepository;
 import com.mocktalkback.domain.content.type.MarketInstrumentCode;
@@ -28,12 +31,16 @@ class ContentMarketServiceTest {
     @Mock
     private MarketSnapshotRepository marketSnapshotRepository;
 
+    @Mock
+    private ContentMarketSeriesCacheStore contentMarketSeriesCacheStore;
+
     // 요약 조회는 표시 순서대로 최신 시세 목록을 반환해야 한다.
     @Test
     void findOverview_returns_latest_items_in_display_order() {
         // Given: 두 종목의 최신 스냅샷이 저장되어 있다.
         ContentMarketService service = new ContentMarketService(
             marketSnapshotRepository,
+            contentMarketSeriesCacheStore,
             Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
         );
         MarketSnapshotEntity usdSnapshot = createSnapshot(
@@ -78,6 +85,7 @@ class ContentMarketServiceTest {
         // Given: 최신값과 직전값이 함께 저장되어 있다.
         ContentMarketService service = new ContentMarketService(
             marketSnapshotRepository,
+            contentMarketSeriesCacheStore,
             Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
         );
         MarketSnapshotEntity latestSnapshot = createSnapshot(
@@ -117,8 +125,10 @@ class ContentMarketServiceTest {
         // Given: 최근 7일 시세 포인트가 저장되어 있다.
         ContentMarketService service = new ContentMarketService(
             marketSnapshotRepository,
+            contentMarketSeriesCacheStore,
             Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
         );
+        when(contentMarketSeriesCacheStore.find(MarketInstrumentCode.XAU_USD, MarketSeriesPeriod.WEEK)).thenReturn(Optional.empty());
         List<MarketSnapshotEntity> snapshots = List.of(
             createSnapshot(1L, MarketInstrumentCode.XAU_USD, new BigDecimal("2990.00000000"), Instant.parse("2026-03-10T03:05:00Z")),
             createSnapshot(2L, MarketInstrumentCode.XAU_USD, new BigDecimal("3012.12000000"), Instant.parse("2026-03-15T03:05:00Z"))
@@ -144,8 +154,10 @@ class ContentMarketServiceTest {
         // Given: 직접 선택 기간 시세 포인트가 저장되어 있다.
         ContentMarketService service = new ContentMarketService(
             marketSnapshotRepository,
+            contentMarketSeriesCacheStore,
             Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
         );
+        when(contentMarketSeriesCacheStore.find(MarketInstrumentCode.USD_KRW, MarketSeriesPeriod.CUSTOM)).thenReturn(Optional.empty());
         List<MarketSnapshotEntity> snapshots = List.of(
             createSnapshot(1L, MarketInstrumentCode.USD_KRW, new BigDecimal("1448.10000000"), Instant.parse("2026-03-01T03:05:00Z")),
             createSnapshot(2L, MarketInstrumentCode.USD_KRW, new BigDecimal("1450.12000000"), Instant.parse("2026-03-15T03:05:00Z"))
@@ -168,6 +180,34 @@ class ContentMarketServiceTest {
         assertThat(response.period()).isEqualTo(MarketSeriesPeriod.CUSTOM);
         assertThat(response.points()).hasSize(2);
         assertThat(response.points().get(1).value()).isEqualByComparingTo("1450.12000000");
+    }
+
+    // 장기 preset 기간 조회는 캐시 hit면 DB를 조회하지 않고 캐시 응답을 반환해야 한다.
+    @Test
+    void findSeries_returns_cached_response_for_long_preset_period() {
+        // Given: 1년 시계열 응답이 Redis 캐시에 저장되어 있다.
+        ContentMarketService service = new ContentMarketService(
+            marketSnapshotRepository,
+            contentMarketSeriesCacheStore,
+            Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
+        );
+        MarketSeriesResponse cachedResponse = new MarketSeriesResponse(
+            MarketInstrumentCode.USD_KRW,
+            "USD/KRW",
+            MarketInstrumentCode.USD_KRW.getMarketGroup(),
+            MarketInstrumentCode.USD_KRW.getUnitLabel(),
+            MarketSeriesPeriod.YEAR,
+            Instant.parse("2026-03-15T03:05:00Z"),
+            List.of(new MarketSeriesPointResponse(Instant.parse("2026-03-15T03:05:00Z"), new BigDecimal("1450.12000000")))
+        );
+        when(contentMarketSeriesCacheStore.find(MarketInstrumentCode.USD_KRW, MarketSeriesPeriod.YEAR)).thenReturn(Optional.of(cachedResponse));
+
+        // When: 1년 시계열을 조회하면
+        MarketSeriesResponse response = service.findSeries(MarketInstrumentCode.USD_KRW, MarketSeriesPeriod.YEAR, null, null);
+
+        // Then: DB 조회 없이 캐시 응답이 반환되어야 한다.
+        assertThat(response).isSameAs(cachedResponse);
+        verifyNoInteractions(marketSnapshotRepository);
     }
 
     private MarketSnapshotEntity createSnapshot(
