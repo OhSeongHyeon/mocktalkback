@@ -23,6 +23,8 @@ public interface MarketSnapshotRepository extends JpaRepository<MarketSnapshotEn
         Instant observedAt
     );
 
+    List<MarketSnapshotEntity> findByInstrumentCodeOrderByObservedAtAsc(MarketInstrumentCode instrumentCode);
+
     List<MarketSnapshotEntity> findByInstrumentCodeAndObservedAtGreaterThanEqualAndObservedAtLessThanOrderByObservedAtAsc(
         MarketInstrumentCode instrumentCode,
         Instant startObservedAt,

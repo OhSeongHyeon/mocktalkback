@@ -2,7 +2,9 @@ package com.mocktalkback.domain.content.service;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -77,6 +79,7 @@ public class AdminContentMarketService {
         int createdCount = 0;
         int updatedCount = 0;
         int skippedCount = 0;
+        Set<MarketInstrumentCode> impactedInstruments = new LinkedHashSet<>();
 
         for (MarketSnapshotImportRow row : parsedResult.rows()) {
             try {
@@ -93,9 +96,14 @@ public class AdminContentMarketService {
                 } else {
                     skippedCount += 1;
                 }
+                impactedInstruments.add(row.instrumentCode());
             } catch (IllegalArgumentException ex) {
                 failures.add(new AdminMarketImportFailureResponse(row.rowNumber(), ex.getMessage()));
             }
+        }
+
+        if (!impactedInstruments.isEmpty()) {
+            marketSnapshotCommandService.recalculateChanges(impactedInstruments);
         }
 
         return new AdminMarketImportResponse(
