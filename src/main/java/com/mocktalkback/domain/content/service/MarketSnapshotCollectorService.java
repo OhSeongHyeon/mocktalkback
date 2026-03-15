@@ -3,14 +3,14 @@ package com.mocktalkback.domain.content.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.mocktalkback.domain.content.entity.MarketSnapshotEntity;
 import com.mocktalkback.domain.content.repository.MarketSnapshotRepository;
 import com.mocktalkback.domain.content.type.MarketInstrumentCode;
 import com.mocktalkback.infra.market.ExternalMarketQuoteClient;
@@ -26,30 +26,34 @@ public class MarketSnapshotCollectorService {
 
     private final ExternalMarketQuoteClient externalMarketQuoteClient;
     private final MarketSnapshotRepository marketSnapshotRepository;
+    private final MarketSnapshotCommandService marketSnapshotCommandService;
 
     @Transactional
-    public void collectLatestSnapshots() {
+    public List<MarketSnapshotWriteResult> collectLatestSnapshots() {
         Map<MarketInstrumentCode, MarketQuote> collectedQuotes = new EnumMap<>(MarketInstrumentCode.class);
+        List<MarketSnapshotWriteResult> writeResults = new ArrayList<>();
         for (MarketInstrumentCode instrumentCode : MarketInstrumentCode.rawTargets()) {
             externalMarketQuoteClient.fetchQuote(instrumentCode)
                 .ifPresent(quote -> {
                     collectedQuotes.put(instrumentCode, quote);
-                    saveSnapshotIfNeeded(quote);
+                    writeResults.add(saveSnapshot(quote));
                 });
         }
 
-        deriveGoldKrw(collectedQuotes);
+        deriveGoldKrw(collectedQuotes)
+            .ifPresent(writeResults::add);
+        return writeResults;
     }
 
     public boolean hasAnySnapshot() {
         return marketSnapshotRepository.count() > 0L;
     }
 
-    private void deriveGoldKrw(Map<MarketInstrumentCode, MarketQuote> collectedQuotes) {
+    private java.util.Optional<MarketSnapshotWriteResult> deriveGoldKrw(Map<MarketInstrumentCode, MarketQuote> collectedQuotes) {
         MarketQuote goldUsdQuote = collectedQuotes.get(MarketInstrumentCode.XAU_USD);
         MarketQuote usdKrwQuote = collectedQuotes.get(MarketInstrumentCode.USD_KRW);
         if (goldUsdQuote == null || usdKrwQuote == null) {
-            return;
+            return java.util.Optional.empty();
         }
 
         BigDecimal derivedPrice = goldUsdQuote.priceValue().multiply(usdKrwQuote.priceValue())
@@ -63,42 +67,21 @@ public class MarketSnapshotCollectorService {
             observedAt,
             "DERIVED_YAHOO_FINANCE"
         );
-        saveSnapshotIfNeeded(derivedQuote);
+        return java.util.Optional.of(saveSnapshot(derivedQuote));
     }
 
-    private void saveSnapshotIfNeeded(MarketQuote marketQuote) {
-        if (marketSnapshotRepository.existsByInstrumentCodeAndObservedAtAndProviderName(
-            marketQuote.instrumentCode(),
-            marketQuote.observedAt(),
-            marketQuote.providerName()
-        )) {
-            return;
-        }
-
-        Optional<MarketSnapshotEntity> latestSnapshot = marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(
-            marketQuote.instrumentCode()
-        );
-        BigDecimal changeValue = latestSnapshot
-            .map(snapshot -> marketQuote.priceValue().subtract(snapshot.getPriceValue()).setScale(8, RoundingMode.HALF_UP))
-            .orElse(null);
-        BigDecimal changeRate = latestSnapshot
-            .filter(snapshot -> snapshot.getPriceValue().compareTo(BigDecimal.ZERO) > 0)
-            .map(snapshot -> marketQuote.priceValue()
-                .subtract(snapshot.getPriceValue())
-                .divide(snapshot.getPriceValue(), 6, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100L))
-                .setScale(6, RoundingMode.HALF_UP))
-            .orElse(null);
-
-        MarketSnapshotEntity entity = MarketSnapshotEntity.create(
+    private MarketSnapshotWriteResult saveSnapshot(MarketQuote marketQuote) {
+        MarketSnapshotWriteResult writeResult = marketSnapshotCommandService.upsert(
             marketQuote.instrumentCode(),
             marketQuote.providerName(),
             marketQuote.priceValue(),
-            changeValue,
-            changeRate,
             marketQuote.observedAt()
         );
-        marketSnapshotRepository.save(entity);
-        log.info("시세 스냅샷을 저장했습니다. instrument={}, observedAt={}", marketQuote.instrumentCode(), marketQuote.observedAt());
+        if (writeResult.status() == MarketSnapshotWriteStatus.CREATED) {
+            log.info("시세 스냅샷을 저장했습니다. instrument={}, observedAt={}", marketQuote.instrumentCode(), marketQuote.observedAt());
+        } else if (writeResult.status() == MarketSnapshotWriteStatus.UPDATED) {
+            log.info("시세 스냅샷을 갱신했습니다. instrument={}, observedAt={}", marketQuote.instrumentCode(), marketQuote.observedAt());
+        }
+        return writeResult;
     }
 }

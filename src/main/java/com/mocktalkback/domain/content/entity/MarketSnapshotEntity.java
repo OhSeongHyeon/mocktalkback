@@ -32,8 +32,8 @@ import lombok.NoArgsConstructor;
     name = "tb_market_snapshots",
     uniqueConstraints = {
         @UniqueConstraint(
-            name = "uq_tb_market_snapshots_instrument_code_observed_at_provider_name",
-            columnNames = {"instrument_code", "observed_at", "provider_name"}
+            name = "uq_tb_market_snapshots_instrument_code_observed_at",
+            columnNames = {"instrument_code", "observed_at"}
         )
     }
 )
@@ -119,5 +119,17 @@ public class MarketSnapshotEntity {
             .changeRate(changeRate)
             .observedAt(observedAt)
             .build();
+    }
+
+    public void updateSnapshot(
+        String providerName,
+        BigDecimal priceValue,
+        BigDecimal changeValue,
+        BigDecimal changeRate
+    ) {
+        this.providerName = providerName;
+        this.priceValue = priceValue;
+        this.changeValue = changeValue;
+        this.changeRate = changeRate;
     }
 }

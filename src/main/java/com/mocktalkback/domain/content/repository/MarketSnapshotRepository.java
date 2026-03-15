@@ -11,13 +11,17 @@ import com.mocktalkback.domain.content.type.MarketInstrumentCode;
 
 public interface MarketSnapshotRepository extends JpaRepository<MarketSnapshotEntity, Long> {
 
-    boolean existsByInstrumentCodeAndObservedAtAndProviderName(
+    Optional<MarketSnapshotEntity> findFirstByInstrumentCodeAndObservedAt(
         MarketInstrumentCode instrumentCode,
-        Instant observedAt,
-        String providerName
+        Instant observedAt
     );
 
     Optional<MarketSnapshotEntity> findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode instrumentCode);
+
+    Optional<MarketSnapshotEntity> findFirstByInstrumentCodeAndObservedAtLessThanOrderByObservedAtDesc(
+        MarketInstrumentCode instrumentCode,
+        Instant observedAt
+    );
 
     List<MarketSnapshotEntity> findByInstrumentCodeAndObservedAtGreaterThanEqualAndObservedAtLessThanOrderByObservedAtAsc(
         MarketInstrumentCode instrumentCode,

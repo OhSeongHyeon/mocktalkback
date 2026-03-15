@@ -53,6 +53,14 @@ class ContentMarketServiceTest {
         when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.JPY_KRW)).thenReturn(Optional.empty());
         when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.XAU_USD)).thenReturn(Optional.of(goldSnapshot));
         when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.XAU_KRW)).thenReturn(Optional.empty());
+        when(marketSnapshotRepository.findFirstByInstrumentCodeAndObservedAtLessThanOrderByObservedAtDesc(
+            MarketInstrumentCode.USD_KRW,
+            Instant.parse("2026-03-15T03:05:00Z")
+        )).thenReturn(Optional.empty());
+        when(marketSnapshotRepository.findFirstByInstrumentCodeAndObservedAtLessThanOrderByObservedAtDesc(
+            MarketInstrumentCode.XAU_USD,
+            Instant.parse("2026-03-15T03:05:00Z")
+        )).thenReturn(Optional.empty());
 
         // When: 요약 목록을 조회하면
         var response = service.findOverview();
@@ -62,6 +70,45 @@ class ContentMarketServiceTest {
         assertThat(response.items().get(0).instrumentCode()).isEqualTo(MarketInstrumentCode.USD_KRW);
         assertThat(response.items().get(1).instrumentCode()).isEqualTo(MarketInstrumentCode.XAU_USD);
         assertThat(response.lastObservedAt()).isEqualTo(Instant.parse("2026-03-15T03:05:00Z"));
+    }
+
+    // 요약 조회는 최신 스냅샷 직전 값 기준으로 변화량을 다시 계산해야 한다.
+    @Test
+    void findOverview_recalculates_change_from_previous_snapshot() {
+        // Given: 최신값과 직전값이 함께 저장되어 있다.
+        ContentMarketService service = new ContentMarketService(
+            marketSnapshotRepository,
+            Clock.fixed(Instant.parse("2026-03-15T12:00:00Z"), ZoneOffset.UTC)
+        );
+        MarketSnapshotEntity latestSnapshot = createSnapshot(
+            1L,
+            MarketInstrumentCode.USD_KRW,
+            new BigDecimal("1450.12000000"),
+            Instant.parse("2026-03-15T03:05:00Z")
+        );
+        MarketSnapshotEntity previousSnapshot = createSnapshot(
+            2L,
+            MarketInstrumentCode.USD_KRW,
+            new BigDecimal("1440.12000000"),
+            Instant.parse("2026-03-14T03:05:00Z")
+        );
+        when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.USD_KRW)).thenReturn(Optional.of(latestSnapshot));
+        when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.EUR_KRW)).thenReturn(Optional.empty());
+        when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.JPY_KRW)).thenReturn(Optional.empty());
+        when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.XAU_USD)).thenReturn(Optional.empty());
+        when(marketSnapshotRepository.findFirstByInstrumentCodeOrderByObservedAtDesc(MarketInstrumentCode.XAU_KRW)).thenReturn(Optional.empty());
+        when(marketSnapshotRepository.findFirstByInstrumentCodeAndObservedAtLessThanOrderByObservedAtDesc(
+            MarketInstrumentCode.USD_KRW,
+            Instant.parse("2026-03-15T03:05:00Z")
+        )).thenReturn(Optional.of(previousSnapshot));
+
+        // When: 요약 목록을 조회하면
+        var response = service.findOverview();
+
+        // Then: 최신값 기준 변화량이 다시 계산되어야 한다.
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).changeValue()).isEqualByComparingTo("10.00000000");
+        assertThat(response.items().get(0).changeRate()).isEqualByComparingTo("0.694400");
     }
 
     // 시계열 조회는 선택한 기간의 포인트 목록을 시간순으로 반환해야 한다.

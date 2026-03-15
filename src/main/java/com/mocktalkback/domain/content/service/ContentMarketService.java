@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,11 @@ public class ContentMarketService {
             }
 
             MarketSnapshotEntity snapshot = latestSnapshot.get();
+            Optional<MarketSnapshotEntity> previousSnapshot = marketSnapshotRepository
+                .findFirstByInstrumentCodeAndObservedAtLessThanOrderByObservedAtDesc(
+                    snapshot.getInstrumentCode(),
+                    snapshot.getObservedAt()
+                );
             items.add(new MarketOverviewItemResponse(
                 snapshot.getInstrumentCode(),
                 snapshot.getInstrumentCode().getDisplayName(),
@@ -61,8 +68,8 @@ public class ContentMarketService {
                 snapshot.getQuoteCurrency(),
                 snapshot.getInstrumentCode().getUnitLabel(),
                 snapshot.getPriceValue(),
-                snapshot.getChangeValue(),
-                snapshot.getChangeRate(),
+                resolveChangeValue(snapshot.getPriceValue(), previousSnapshot),
+                resolveChangeRate(snapshot.getPriceValue(), previousSnapshot),
                 snapshot.getObservedAt()
             ));
             if (lastObservedAt == null || snapshot.getObservedAt().isAfter(lastObservedAt)) {
@@ -142,5 +149,22 @@ public class ContentMarketService {
         Instant startObservedAt,
         Instant endObservedAtExclusive
     ) {
+    }
+
+    private BigDecimal resolveChangeValue(BigDecimal currentPriceValue, Optional<MarketSnapshotEntity> previousSnapshot) {
+        return previousSnapshot
+            .map(snapshot -> currentPriceValue.subtract(snapshot.getPriceValue()).setScale(8, RoundingMode.HALF_UP))
+            .orElse(null);
+    }
+
+    private BigDecimal resolveChangeRate(BigDecimal currentPriceValue, Optional<MarketSnapshotEntity> previousSnapshot) {
+        return previousSnapshot
+            .filter(snapshot -> snapshot.getPriceValue().compareTo(BigDecimal.ZERO) > 0)
+            .map(snapshot -> currentPriceValue
+                .subtract(snapshot.getPriceValue())
+                .divide(snapshot.getPriceValue(), 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100L))
+                .setScale(6, RoundingMode.HALF_UP))
+            .orElse(null);
     }
 }
