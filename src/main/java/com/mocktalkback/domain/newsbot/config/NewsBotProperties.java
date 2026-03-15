@@ -9,6 +9,7 @@ NEWS_BOT_CONNECT_TIMEOUT_MS: 외부 호출 연결 timeout
 NEWS_BOT_READ_TIMEOUT_MS: 외부 호출 응답 읽기 timeout
 NEWS_BOT_USER_AGENT: 외부 호출 User-Agent
 NEWS_BOT_DEFAULT_TIMEZONE: 잡 timezone 기본값
+NEWS_BOT_RUN_LOCK_TIMEOUT_MINUTES: 비정상 종료된 RUNNING 상태 재선점 허용 시간
  */
 @ConfigurationProperties(prefix = "app.news-bot")
 public class NewsBotProperties {
@@ -19,6 +20,7 @@ public class NewsBotProperties {
     private int readTimeoutMs = 5000;
     private String userAgent = "mocktalk-news-bot/1.0";
     private String defaultTimezone = "Asia/Seoul";
+    private int runLockTimeoutMinutes = 30;
 
     public boolean isEnabled() {
         return enabled;
@@ -66,5 +68,13 @@ public class NewsBotProperties {
 
     public void setDefaultTimezone(String defaultTimezone) {
         this.defaultTimezone = defaultTimezone;
+    }
+
+    public int getRunLockTimeoutMinutes() {
+        return runLockTimeoutMinutes;
+    }
+
+    public void setRunLockTimeoutMinutes(int runLockTimeoutMinutes) {
+        this.runLockTimeoutMinutes = runLockTimeoutMinutes;
     }
 }

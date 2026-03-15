@@ -1,8 +1,8 @@
 package com.mocktalkback.domain.newsbot.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -17,14 +17,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.board.entity.BoardEntity;
-import com.mocktalkback.domain.board.type.BoardArticleWritePolicy;
-import com.mocktalkback.domain.board.type.BoardVisibility;
 import com.mocktalkback.domain.newsbot.dto.AdminNewsBotJobRunResponse;
 import com.mocktalkback.domain.newsbot.entity.NewsCollectionJobEntity;
-import com.mocktalkback.domain.newsbot.repository.NewsCollectedItemRepository;
 import com.mocktalkback.domain.newsbot.repository.NewsCollectionJobRepository;
+import com.mocktalkback.domain.newsbot.type.NewsJobExecutionStatus;
 import com.mocktalkback.domain.newsbot.type.NewsSourceType;
 import com.mocktalkback.domain.role.entity.RoleEntity;
 import com.mocktalkback.domain.user.entity.UserEntity;
@@ -36,31 +32,87 @@ class NewsBotJobExecutorTest {
     private NewsCollectionJobRepository newsCollectionJobRepository;
 
     @Mock
-    private NewsCollectedItemRepository newsCollectedItemRepository;
-
-    @Mock
     private NewsBotSourceFetchService newsBotSourceFetchService;
 
     @Mock
-    private NewsBotBoardProvisionService newsBotBoardProvisionService;
+    private NewsBotJobExecutionClaimService newsBotJobExecutionClaimService;
 
     @Mock
-    private NewsBotArticlePublishService newsBotArticlePublishService;
+    private NewsBotJobExecutionPersistenceService newsBotJobExecutionPersistenceService;
 
-    // 첫 수집 항목은 내부 게시글을 생성하고 CREATED 로 집계해야 한다.
+    // 스케줄 실행 선점에 실패하면 외부 호출 없이 바로 건너뛰어야 한다.
     @Test
-    void runNow_createsArticleForNewCollectedItem() {
-        // Given: 새 수집 항목 1건이 있고 기존 dedupe 기록은 없다.
+    void runScheduled_skipsWhenClaimFails() {
+        // Given: 다른 실행 주체가 이미 잡을 선점했다.
         Instant now = Instant.parse("2026-03-15T10:00:00Z");
         NewsBotJobExecutor executor = new NewsBotJobExecutor(
             newsCollectionJobRepository,
-            newsCollectedItemRepository,
             newsBotSourceFetchService,
-            newsBotBoardProvisionService,
-            newsBotArticlePublishService,
-            new NewsBotPayloadHasher(),
+            newsBotJobExecutionClaimService,
+            newsBotJobExecutionPersistenceService,
             Clock.fixed(now, ZoneOffset.UTC)
         );
+        when(newsBotJobExecutionClaimService.claimScheduledRun(1L, now)).thenReturn(false);
+
+        // When: 스케줄러가 해당 잡을 실행하려고 하면
+        AdminNewsBotJobRunResponse response = executor.runScheduled(1L);
+
+        // Then: 실제 수집은 시작되지 않아야 한다.
+        assertThat(response).isNull();
+        verify(newsBotJobExecutionClaimService).claimScheduledRun(1L, now);
+        verifyNoInteractions(newsCollectionJobRepository, newsBotSourceFetchService, newsBotJobExecutionPersistenceService);
+    }
+
+    // 수동 실행은 선점 이후 외부 조회와 적재 처리로 이어져야 한다.
+    @Test
+    void runNow_fetchesItemsAndDelegatesPersistence() {
+        // Given: 수동 실행 선점이 성공했고 외부 소스에서 항목 1건을 가져온다.
+        Instant now = Instant.parse("2026-03-15T10:00:00Z");
+        NewsBotJobExecutor executor = new NewsBotJobExecutor(
+            newsCollectionJobRepository,
+            newsBotSourceFetchService,
+            newsBotJobExecutionClaimService,
+            newsBotJobExecutionPersistenceService,
+            Clock.fixed(now, ZoneOffset.UTC)
+        );
+        NewsCollectionJobEntity job = createJob(now);
+        NewsBotSourceItem item = new NewsBotSourceItem(
+            "dev-1",
+            "Spring Boot Release",
+            "https://dev.to/example",
+            "새 릴리스 요약",
+            "DEV Community",
+            "Ben",
+            now,
+            now
+        );
+        AdminNewsBotJobRunResponse expected = new AdminNewsBotJobRunResponse(
+            1L,
+            now,
+            1,
+            1,
+            0,
+            0,
+            0,
+            NewsJobExecutionStatus.SUCCESS,
+            null
+        );
+
+        when(newsCollectionJobRepository.findById(1L)).thenReturn(Optional.of(job));
+        when(newsBotSourceFetchService.fetchItems(job)).thenReturn(List.of(item));
+        when(newsBotJobExecutionPersistenceService.processFetchedItems(1L, now, List.of(item))).thenReturn(expected);
+
+        // When: 운영자가 지금 실행을 누르면
+        AdminNewsBotJobRunResponse response = executor.runNow(1L);
+
+        // Then: 선점 후 적재 서비스로 위임되어야 한다.
+        assertThat(response).isEqualTo(expected);
+        verify(newsBotJobExecutionClaimService).claimManualRun(1L, now);
+        verify(newsBotSourceFetchService).fetchItems(job);
+        verify(newsBotJobExecutionPersistenceService).processFetchedItems(1L, now, List.of(item));
+    }
+
+    private NewsCollectionJobEntity createJob(Instant now) {
         UserEntity admin = createUser(10L, "admin", "Admin");
         UserEntity newsBot = createUser(20L, "news_bot", "뉴스봇");
         NewsCollectionJobEntity job = NewsCollectionJobEntity.create(
@@ -80,55 +132,7 @@ class NewsBotJobExecutorTest {
             now
         );
         ReflectionTestUtils.setField(job, "id", 1L);
-        BoardEntity board = BoardEntity.builder()
-            .boardName("백엔드 새소식")
-            .slug("backend-news")
-            .description("설명")
-            .visibility(BoardVisibility.PUBLIC)
-            .articleWritePolicy(BoardArticleWritePolicy.OWNER)
-            .build();
-        ArticleEntity article = ArticleEntity.builder()
-            .board(board)
-            .user(newsBot)
-            .visibility(com.mocktalkback.domain.role.type.ContentVisibility.PUBLIC)
-            .title("Spring Boot Release")
-            .content("content")
-            .contentSource("content")
-            .contentFormat(com.mocktalkback.domain.article.type.ArticleContentFormat.MARKDOWN)
-            .hit(0L)
-            .notice(false)
-            .build();
-        ReflectionTestUtils.setField(article, "id", 100L);
-        NewsBotSourceItem item = new NewsBotSourceItem(
-            "dev-1",
-            "Spring Boot Release",
-            "https://dev.to/example",
-            "새 릴리스 요약",
-            "DEV Community",
-            "Ben",
-            now,
-            now
-        );
-
-        when(newsCollectionJobRepository.findById(1L)).thenReturn(Optional.of(job));
-        when(newsBotSourceFetchService.fetchItems(job)).thenReturn(List.of(item));
-        when(newsBotBoardProvisionService.ensureBoard(job)).thenReturn(board);
-        when(newsBotBoardProvisionService.ensureCategory(board, job)).thenReturn(null);
-        when(newsCollectedItemRepository.findByNewsJob_IdAndExternalItemKey(1L, "dev-1")).thenReturn(Optional.empty());
-        when(newsCollectedItemRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(newsBotArticlePublishService.createArticle(job, board, newsBot, null, item)).thenReturn(article);
-
-        // When: 잡을 즉시 실행하면
-        AdminNewsBotJobRunResponse response = executor.runNow(1L);
-
-        // Then: 새 게시글이 1건 생성되어야 한다.
-        assertThat(response.status()).isEqualTo(com.mocktalkback.domain.newsbot.type.NewsJobExecutionStatus.SUCCESS);
-        assertThat(response.fetchedCount()).isEqualTo(1);
-        assertThat(response.createdCount()).isEqualTo(1);
-        assertThat(response.updatedCount()).isZero();
-        assertThat(response.skippedCount()).isZero();
-        assertThat(response.failedCount()).isZero();
-        verify(newsBotArticlePublishService).createArticle(job, board, newsBot, null, item);
+        return job;
     }
 
     private UserEntity createUser(Long userId, String loginId, String displayName) {

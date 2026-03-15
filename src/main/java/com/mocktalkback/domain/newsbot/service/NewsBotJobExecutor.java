@@ -2,226 +2,79 @@ package com.mocktalkback.domain.newsbot.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
-import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.newsbot.dto.AdminNewsBotJobRunResponse;
-import com.mocktalkback.domain.newsbot.entity.NewsCollectedItemEntity;
 import com.mocktalkback.domain.newsbot.entity.NewsCollectionJobEntity;
-import com.mocktalkback.domain.newsbot.repository.NewsCollectedItemRepository;
 import com.mocktalkback.domain.newsbot.repository.NewsCollectionJobRepository;
-import com.mocktalkback.domain.newsbot.type.NewsJobExecutionStatus;
 
 @Service
 public class NewsBotJobExecutor {
 
     private final NewsCollectionJobRepository newsCollectionJobRepository;
-    private final NewsCollectedItemRepository newsCollectedItemRepository;
     private final NewsBotSourceFetchService newsBotSourceFetchService;
-    private final NewsBotBoardProvisionService newsBotBoardProvisionService;
-    private final NewsBotArticlePublishService newsBotArticlePublishService;
-    private final NewsBotPayloadHasher newsBotPayloadHasher;
+    private final NewsBotJobExecutionClaimService newsBotJobExecutionClaimService;
+    private final NewsBotJobExecutionPersistenceService newsBotJobExecutionPersistenceService;
     private final Clock clock;
 
     @Autowired
     public NewsBotJobExecutor(
         NewsCollectionJobRepository newsCollectionJobRepository,
-        NewsCollectedItemRepository newsCollectedItemRepository,
         NewsBotSourceFetchService newsBotSourceFetchService,
-        NewsBotBoardProvisionService newsBotBoardProvisionService,
-        NewsBotArticlePublishService newsBotArticlePublishService,
-        NewsBotPayloadHasher newsBotPayloadHasher
+        NewsBotJobExecutionClaimService newsBotJobExecutionClaimService,
+        NewsBotJobExecutionPersistenceService newsBotJobExecutionPersistenceService
     ) {
         this(
             newsCollectionJobRepository,
-            newsCollectedItemRepository,
             newsBotSourceFetchService,
-            newsBotBoardProvisionService,
-            newsBotArticlePublishService,
-            newsBotPayloadHasher,
+            newsBotJobExecutionClaimService,
+            newsBotJobExecutionPersistenceService,
             Clock.systemUTC()
         );
     }
 
     NewsBotJobExecutor(
         NewsCollectionJobRepository newsCollectionJobRepository,
-        NewsCollectedItemRepository newsCollectedItemRepository,
         NewsBotSourceFetchService newsBotSourceFetchService,
-        NewsBotBoardProvisionService newsBotBoardProvisionService,
-        NewsBotArticlePublishService newsBotArticlePublishService,
-        NewsBotPayloadHasher newsBotPayloadHasher,
+        NewsBotJobExecutionClaimService newsBotJobExecutionClaimService,
+        NewsBotJobExecutionPersistenceService newsBotJobExecutionPersistenceService,
         Clock clock
     ) {
         this.newsCollectionJobRepository = newsCollectionJobRepository;
-        this.newsCollectedItemRepository = newsCollectedItemRepository;
         this.newsBotSourceFetchService = newsBotSourceFetchService;
-        this.newsBotBoardProvisionService = newsBotBoardProvisionService;
-        this.newsBotArticlePublishService = newsBotArticlePublishService;
-        this.newsBotPayloadHasher = newsBotPayloadHasher;
+        this.newsBotJobExecutionClaimService = newsBotJobExecutionClaimService;
+        this.newsBotJobExecutionPersistenceService = newsBotJobExecutionPersistenceService;
         this.clock = clock;
     }
 
-    @Transactional
     public AdminNewsBotJobRunResponse runNow(Long jobId) {
-        return execute(jobId);
-    }
-
-    @Transactional
-    public AdminNewsBotJobRunResponse runScheduled(Long jobId) {
-        return execute(jobId);
-    }
-
-    private AdminNewsBotJobRunResponse execute(Long jobId) {
         Instant startedAt = clock.instant();
+        newsBotJobExecutionClaimService.claimManualRun(jobId, startedAt);
+        return execute(jobId, startedAt);
+    }
+
+    public AdminNewsBotJobRunResponse runScheduled(Long jobId) {
+        Instant startedAt = clock.instant();
+        if (!newsBotJobExecutionClaimService.claimScheduledRun(jobId, startedAt)) {
+            return null;
+        }
+        return execute(jobId, startedAt);
+    }
+
+    private AdminNewsBotJobRunResponse execute(Long jobId, Instant startedAt) {
         NewsCollectionJobEntity job = newsCollectionJobRepository.findById(jobId)
             .orElseThrow(() -> new IllegalArgumentException("뉴스봇 잡을 찾을 수 없습니다: " + jobId));
 
-        job.markRunning(startedAt);
-
-        List<NewsBotSourceItem> items;
+        java.util.List<NewsBotSourceItem> items;
         try {
             items = newsBotSourceFetchService.fetchItems(job);
         } catch (Exception exception) {
-            return failJob(job, startedAt, 0, 0, 0, 0, extractMessage(exception));
+            return newsBotJobExecutionPersistenceService.markFetchFailure(jobId, startedAt, extractMessage(exception));
         }
 
-        BoardEntity board;
-        ArticleCategoryEntity category;
-        try {
-            board = newsBotBoardProvisionService.ensureBoard(job);
-            category = newsBotBoardProvisionService.ensureCategory(board, job);
-        } catch (Exception exception) {
-            return failJob(job, startedAt, items.size(), 0, 0, 0, extractMessage(exception));
-        }
-
-        int createdCount = 0;
-        int updatedCount = 0;
-        int skippedCount = 0;
-        int failedCount = 0;
-        String firstErrorMessage = null;
-
-        for (NewsBotSourceItem item : items) {
-            Instant collectedAt = clock.instant();
-            String payloadHash = newsBotPayloadHasher.hash(item);
-            NewsCollectedItemEntity collectedItem = newsCollectedItemRepository
-                .findByNewsJob_IdAndExternalItemKey(job.getId(), item.externalItemKey())
-                .orElse(null);
-
-            if (collectedItem == null) {
-                collectedItem = NewsCollectedItemEntity.create(
-                    job,
-                    item.externalItemKey(),
-                    item.externalUrl(),
-                    item.title(),
-                    payloadHash,
-                    item.publishedAt(),
-                    item.sourceUpdatedAt(),
-                    collectedAt
-                );
-                newsCollectedItemRepository.save(collectedItem);
-            } else {
-                collectedItem.refreshSourceSnapshot(
-                    item.externalUrl(),
-                    item.title(),
-                    item.publishedAt(),
-                    item.sourceUpdatedAt()
-                );
-            }
-
-            try {
-                if (payloadHash.equals(collectedItem.getPayloadHash()) && collectedItem.getArticle() != null) {
-                    collectedItem.markSkipped(payloadHash, collectedAt);
-                    skippedCount += 1;
-                    continue;
-                }
-
-                ArticleEntity article;
-                if (collectedItem.getArticle() == null) {
-                    article = newsBotArticlePublishService.createArticle(
-                        job,
-                        board,
-                        job.getAuthorUser(),
-                        category,
-                        item
-                    );
-                    collectedItem.markCreated(article, payloadHash, collectedAt);
-                    createdCount += 1;
-                } else {
-                    article = newsBotArticlePublishService.updateArticle(job, collectedItem.getArticle(), category, item);
-                    collectedItem.markUpdated(article, payloadHash, collectedAt);
-                    updatedCount += 1;
-                }
-            } catch (Exception exception) {
-                String errorMessage = extractMessage(exception);
-                collectedItem.markFailure(payloadHash, collectedAt, errorMessage);
-                failedCount += 1;
-                if (firstErrorMessage == null) {
-                    firstErrorMessage = errorMessage;
-                }
-            }
-        }
-
-        Instant finishedAt = clock.instant();
-        Instant nextRunAt = finishedAt.plus(job.getCollectIntervalMinutes(), ChronoUnit.MINUTES);
-        if (firstErrorMessage == null) {
-            job.markSuccess(finishedAt, nextRunAt);
-            return new AdminNewsBotJobRunResponse(
-                job.getId(),
-                finishedAt,
-                items.size(),
-                createdCount,
-                updatedCount,
-                skippedCount,
-                failedCount,
-                NewsJobExecutionStatus.SUCCESS,
-                null
-            );
-        }
-
-        job.markFailure(finishedAt, nextRunAt, firstErrorMessage);
-        return new AdminNewsBotJobRunResponse(
-            job.getId(),
-            finishedAt,
-            items.size(),
-            createdCount,
-            updatedCount,
-            skippedCount,
-            failedCount,
-            NewsJobExecutionStatus.FAILED,
-            firstErrorMessage
-        );
-    }
-
-    private AdminNewsBotJobRunResponse failJob(
-        NewsCollectionJobEntity job,
-        Instant startedAt,
-        int fetchedCount,
-        int createdCount,
-        int updatedCount,
-        int skippedCount,
-        String errorMessage
-    ) {
-        Instant finishedAt = clock.instant();
-        Instant nextRunAt = finishedAt.plus(job.getCollectIntervalMinutes(), ChronoUnit.MINUTES);
-        job.markFailure(finishedAt, nextRunAt, errorMessage);
-        return new AdminNewsBotJobRunResponse(
-            job.getId(),
-            startedAt,
-            fetchedCount,
-            createdCount,
-            updatedCount,
-            skippedCount,
-            fetchedCount == 0 ? 0 : fetchedCount,
-            NewsJobExecutionStatus.FAILED,
-            errorMessage
-        );
+        return newsBotJobExecutionPersistenceService.processFetchedItems(jobId, startedAt, items);
     }
 
     private String extractMessage(Exception exception) {
