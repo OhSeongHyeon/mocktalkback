@@ -93,6 +93,13 @@ app:
     view:
       dedupe-ttl-seconds: ${ARTICLE_VIEW_DEDUPE_TTL_SECONDS:86400}
       anon-hash-secret: ${ARTICLE_VIEW_ANON_HASH_SECRET:mocktalk-article-view-anon-secret}
+  news-bot:
+    enabled: ${NEWS_BOT_ENABLED:true}
+    dispatcher-interval-ms: ${NEWS_BOT_DISPATCHER_INTERVAL_MS:60000}
+    connect-timeout-ms: ${NEWS_BOT_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${NEWS_BOT_READ_TIMEOUT_MS:5000}
+    user-agent: ${NEWS_BOT_USER_AGENT:mocktalk-news-bot/1.0}
+    default-timezone: ${NEWS_BOT_DEFAULT_TIMEZONE:Asia/Seoul}
   content:
     market:
       enabled: ${CONTENT_MARKET_ENABLED:true}
