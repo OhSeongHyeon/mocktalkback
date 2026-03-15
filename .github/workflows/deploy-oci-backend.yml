@@ -29,8 +29,8 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          eval "$(ssh-agent -s)"
-          printf '%s\n' "$OCI_SSH_KEY" | tr -d '\r' | ssh-add -
+          printf '%s\n' "$OCI_SSH_KEY" | tr -d '\r' > ~/.ssh/oci_deploy_key
+          chmod 600 ~/.ssh/oci_deploy_key
 
       - name: known_hosts 등록
         env:
@@ -56,7 +56,7 @@ jobs:
           SSH_PORT="${OCI_SSH_PORT:-22}"
           DEPLOY_PATH="${OCI_DEPLOY_PATH:-~/mocktalkback}"
 
-          ssh -p "$SSH_PORT" "${OCI_USER}@${OCI_HOST}" bash -s <<EOF
+          ssh -i ~/.ssh/oci_deploy_key -o IdentitiesOnly=yes -p "$SSH_PORT" "${OCI_USER}@${OCI_HOST}" bash -s <<EOF
           set -euo pipefail
           cd "$DEPLOY_PATH"
           export BACKEND_IMAGE="$BACKEND_IMAGE"
