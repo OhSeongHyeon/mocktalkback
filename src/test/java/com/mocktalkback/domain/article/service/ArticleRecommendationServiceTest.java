@@ -22,14 +22,12 @@ import com.mocktalkback.domain.article.dto.ArticleTrendingItemResponse;
 import com.mocktalkback.domain.article.entity.ArticleBookmarkEntity;
 import com.mocktalkback.domain.article.entity.ArticleCategoryEntity;
 import com.mocktalkback.domain.article.entity.ArticleEntity;
-import com.mocktalkback.domain.article.entity.ArticleReactionEntity;
 import com.mocktalkback.domain.article.policy.PublicArticleFeedPolicy;
 import com.mocktalkback.domain.article.repository.ArticleBookmarkRepository;
 import com.mocktalkback.domain.article.repository.ArticleReactionRepository;
 import com.mocktalkback.domain.article.repository.ArticleRepository;
 import com.mocktalkback.domain.board.entity.BoardEntity;
 import com.mocktalkback.domain.board.type.BoardVisibility;
-import com.mocktalkback.domain.comment.entity.CommentEntity;
 import com.mocktalkback.domain.comment.repository.CommentRepository;
 import com.mocktalkback.domain.common.policy.AuthorDisplayResolver;
 import com.mocktalkback.domain.role.entity.RoleEntity;
@@ -241,28 +239,4 @@ class ArticleRecommendationServiceTest {
         return bookmark;
     }
 
-    @SuppressWarnings("unused")
-    private ArticleReactionEntity createReaction(Long id, UserEntity user, ArticleEntity article, short reactionType) {
-        ArticleReactionEntity reaction = ArticleReactionEntity.builder()
-            .user(user)
-            .article(article)
-            .reactionType(reactionType)
-            .build();
-        ReflectionTestUtils.setField(reaction, "id", id);
-        return reaction;
-    }
-
-    @SuppressWarnings("unused")
-    private CommentEntity createComment(Long id, UserEntity user, ArticleEntity article) {
-        CommentEntity comment = CommentEntity.builder()
-            .user(user)
-            .article(article)
-            .parentComment(null)
-            .rootComment(null)
-            .depth(0)
-            .content("content")
-            .build();
-        ReflectionTestUtils.setField(comment, "id", id);
-        return comment;
-    }
 }
