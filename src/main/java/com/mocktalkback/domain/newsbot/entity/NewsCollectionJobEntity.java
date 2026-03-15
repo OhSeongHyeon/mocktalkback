@@ -241,6 +241,11 @@ public class NewsCollectionJobEntity extends BaseTimeEntity {
         this.updatedByUser = actor;
     }
 
+    public void scheduleNextRun(Instant nextRunAt, UserEntity actor) {
+        this.nextRunAt = nextRunAt;
+        this.updatedByUser = actor;
+    }
+
     public void markRunning(Instant startedAt) {
         this.lastStartedAt = startedAt;
         this.lastStatus = NewsJobExecutionStatus.RUNNING;
