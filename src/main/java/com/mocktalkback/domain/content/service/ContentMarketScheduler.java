@@ -29,15 +29,12 @@ public class ContentMarketScheduler {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    public void collectOnStartupWhenEmpty() {
+    public void collectOnStartup() {
         if (!properties.isEnabled() || !properties.isStartupCollectEnabled()) {
             return;
         }
-        if (marketSnapshotCollectorService.hasAnySnapshot()) {
-            return;
-        }
 
-        log.info("초기 시세 데이터가 없어 앱 시작 시 1회 수집을 시도합니다.");
+        log.info("앱 시작 시 환율/금 시세 수집을 1회 시도합니다.");
         marketSnapshotCollectorService.collectLatestSnapshots();
     }
 }

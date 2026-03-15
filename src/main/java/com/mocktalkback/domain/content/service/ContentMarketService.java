@@ -1,8 +1,9 @@
 package com.mocktalkback.domain.content.service;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -74,10 +75,19 @@ public class ContentMarketService {
     }
 
     @Transactional(readOnly = true)
-    public MarketSeriesResponse findSeries(MarketInstrumentCode instrumentCode, MarketSeriesPeriod period) {
-        Instant start = clock.instant().minus(Duration.ofDays(period.getDays()));
+    public MarketSeriesResponse findSeries(
+        MarketInstrumentCode instrumentCode,
+        MarketSeriesPeriod period,
+        LocalDate startDate,
+        LocalDate endDate
+    ) {
+        MarketSeriesRange range = resolveRange(period, startDate, endDate);
         List<MarketSnapshotEntity> snapshots = marketSnapshotRepository
-            .findByInstrumentCodeAndObservedAtGreaterThanEqualOrderByObservedAtAsc(instrumentCode, start);
+            .findByInstrumentCodeAndObservedAtGreaterThanEqualAndObservedAtLessThanOrderByObservedAtAsc(
+                instrumentCode,
+                range.startObservedAt(),
+                range.endObservedAtExclusive()
+            );
         List<MarketSeriesPointResponse> points = snapshots.stream()
             .map(snapshot -> new MarketSeriesPointResponse(snapshot.getObservedAt(), snapshot.getPriceValue()))
             .toList();
@@ -88,9 +98,49 @@ public class ContentMarketService {
             instrumentCode.getDisplayName(),
             instrumentCode.getMarketGroup(),
             instrumentCode.getUnitLabel(),
-            period,
+            range.period(),
             lastObservedAt,
             points
         );
+    }
+
+    private MarketSeriesRange resolveRange(
+        MarketSeriesPeriod period,
+        LocalDate startDate,
+        LocalDate endDate
+    ) {
+        if (period == MarketSeriesPeriod.CUSTOM) {
+            if (startDate == null || endDate == null) {
+                throw new IllegalArgumentException("직접 선택 기간은 시작일과 종료일을 함께 입력해야 합니다.");
+            }
+            if (startDate.isAfter(endDate)) {
+                throw new IllegalArgumentException("시작일은 종료일보다 늦을 수 없습니다.");
+            }
+            return new MarketSeriesRange(
+                MarketSeriesPeriod.CUSTOM,
+                startDate.atStartOfDay(ZoneOffset.UTC).toInstant(),
+                endDate.plusDays(1L).atStartOfDay(ZoneOffset.UTC).toInstant()
+            );
+        }
+
+        if (startDate != null || endDate != null) {
+            throw new IllegalArgumentException("커스텀 기간 조회는 period=CUSTOM과 시작일/종료일을 함께 전달해야 합니다.");
+        }
+
+        LocalDate today = LocalDate.now(clock);
+        LocalDate resolvedStartDate = today.minusDays(period.getDays() - 1L);
+
+        return new MarketSeriesRange(
+            period,
+            resolvedStartDate.atStartOfDay(ZoneOffset.UTC).toInstant(),
+            today.plusDays(1L).atStartOfDay(ZoneOffset.UTC).toInstant()
+        );
+    }
+
+    private record MarketSeriesRange(
+        MarketSeriesPeriod period,
+        Instant startObservedAt,
+        Instant endObservedAtExclusive
+    ) {
     }
 }

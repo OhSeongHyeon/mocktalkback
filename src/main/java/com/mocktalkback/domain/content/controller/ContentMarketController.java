@@ -1,5 +1,8 @@
 package com.mocktalkback.domain.content.controller;
 
+import java.time.LocalDate;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,9 +49,15 @@ public class ContentMarketController {
     public ApiEnvelope<MarketSeriesResponse> findSeries(
         @Parameter(description = "종목 코드", example = "USD_KRW")
         @RequestParam(name = "instrument") MarketInstrumentCode instrumentCode,
-        @Parameter(description = "조회 기간", example = "WEEK")
-        @RequestParam(name = "period", defaultValue = "WEEK") MarketSeriesPeriod period
+        @Parameter(description = "조회 기간", example = "MONTH")
+        @RequestParam(name = "period", defaultValue = "MONTH") MarketSeriesPeriod period,
+        @Parameter(description = "직접 선택 시작일", example = "2026-03-01")
+        @RequestParam(name = "startDate", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @Parameter(description = "직접 선택 종료일", example = "2026-03-15")
+        @RequestParam(name = "endDate", required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        return ApiEnvelope.ok(contentMarketService.findSeries(instrumentCode, period));
+        return ApiEnvelope.ok(contentMarketService.findSeries(instrumentCode, period, startDate, endDate));
     }
 }
