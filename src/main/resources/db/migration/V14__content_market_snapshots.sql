@@ -11,6 +11,7 @@ CREATE TABLE tb_market_snapshots
   change_rate        NUMERIC(12,6),
   observed_at        TIMESTAMPTZ   NOT NULL,
   created_at         TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ   NOT NULL DEFAULT now(),
   PRIMARY KEY (market_snapshot_id)
 );
 
@@ -27,18 +28,11 @@ COMMENT ON COLUMN tb_market_snapshots.change_value IS '직전 저장값 대비 �
 COMMENT ON COLUMN tb_market_snapshots.change_rate IS '직전 저장값 대비 변화율';
 COMMENT ON COLUMN tb_market_snapshots.observed_at IS '외부 공급자 기준 시각';
 COMMENT ON COLUMN tb_market_snapshots.created_at IS '내부 저장 시각';
+COMMENT ON COLUMN tb_market_snapshots.updated_at IS '내부 수정 시각';
 
 ALTER TABLE tb_market_snapshots
   ADD CONSTRAINT uq_tb_market_snapshots_instrument_code_observed_at
     UNIQUE (instrument_code, observed_at);
-
-ALTER TABLE tb_market_snapshots
-  ADD CONSTRAINT ck_tb_market_snapshots_market_group
-    CHECK (market_group IN ('FX', 'METAL'));
-
-ALTER TABLE tb_market_snapshots
-  ADD CONSTRAINT ck_tb_market_snapshots_price_value
-    CHECK (price_value >= 0);
 
 CREATE INDEX IF NOT EXISTS ix_tb_market_snapshots_instrument_code_observed_at
   ON tb_market_snapshots (instrument_code, observed_at DESC);

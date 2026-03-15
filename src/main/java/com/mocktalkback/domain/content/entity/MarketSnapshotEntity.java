@@ -3,15 +3,12 @@ package com.mocktalkback.domain.content.entity;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import com.mocktalkback.domain.content.type.MarketGroup;
 import com.mocktalkback.domain.content.type.MarketInstrumentCode;
+import com.mocktalkback.global.common.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
@@ -27,7 +24,6 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
-@EntityListeners(AuditingEntityListener.class)
 @Table(
     name = "tb_market_snapshots",
     uniqueConstraints = {
@@ -37,7 +33,7 @@ import lombok.NoArgsConstructor;
         )
     }
 )
-public class MarketSnapshotEntity {
+public class MarketSnapshotEntity extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -72,10 +68,6 @@ public class MarketSnapshotEntity {
 
     @Column(name = "observed_at", nullable = false)
     private Instant observedAt;
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
 
     @Builder
     private MarketSnapshotEntity(
