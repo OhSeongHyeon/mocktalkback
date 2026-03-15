@@ -87,6 +87,19 @@ app:
     view:
       dedupe-ttl-seconds: ${ARTICLE_VIEW_DEDUPE_TTL_SECONDS:86400}
       anon-hash-secret: ${ARTICLE_VIEW_ANON_HASH_SECRET:mocktalk-article-view-anon-secret}
+  content:
+    market:
+      enabled: ${CONTENT_MARKET_ENABLED:true}
+      startup-collect-enabled: ${CONTENT_MARKET_STARTUP_COLLECT_ENABLED:true}
+      collect-cron: ${CONTENT_MARKET_COLLECT_CRON:0 5 3 * * *}
+      timezone: ${CONTENT_MARKET_TIMEZONE:Asia/Seoul}
+      base-url: ${CONTENT_MARKET_BASE_URL:https://query1.finance.yahoo.com}
+      chart-path: ${CONTENT_MARKET_CHART_PATH:/v8/finance/chart/{symbol}}
+      interval: ${CONTENT_MARKET_INTERVAL:1d}
+      range: ${CONTENT_MARKET_RANGE:5d}
+      user-agent: ${CONTENT_MARKET_USER_AGENT:mocktalkback/0.1}
+      connect-timeout-ms: ${CONTENT_MARKET_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${CONTENT_MARKET_READ_TIMEOUT_MS:5000}
   oauth2:
     code-ttl-seconds: ${OAUTH2_CODE_TTL_SECONDS}
     redirect-path: ${OAUTH2_REDIRECT_PATH}

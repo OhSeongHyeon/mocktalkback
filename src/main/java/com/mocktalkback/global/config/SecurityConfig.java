@@ -12,16 +12,17 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.mocktalkback.domain.realtime.service.NotificationRealtimeTicketService;
 import com.mocktalkback.global.auth.OriginAllowlistFilter;
 import com.mocktalkback.global.auth.jwt.JwtAccessDeniedHandler;
 import com.mocktalkback.global.auth.jwt.JwtAuthEntryPoint;
 import com.mocktalkback.global.auth.jwt.JwtAuthFilter;
 import com.mocktalkback.global.auth.jwt.JwtTokenProvider;
-import com.mocktalkback.global.auth.realtime.NotificationRealtimeTicketAuthFilter;
 import com.mocktalkback.global.auth.oauth2.CustomOAuth2UserService;
 import com.mocktalkback.global.auth.oauth2.OAuth2LoginFailureHandler;
 import com.mocktalkback.global.auth.oauth2.OAuth2LoginSuccessHandler;
-import com.mocktalkback.domain.realtime.service.NotificationRealtimeTicketService;
+import com.mocktalkback.global.auth.realtime.NotificationRealtimeTicketAuthFilter;
 
 import jakarta.servlet.DispatcherType;
 
@@ -101,7 +102,7 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/", 
+                        .requestMatchers("/",
                                 "/api/health",
                                 "/actuator/prometheus", "/actuator/info", "/actuator/health",
                                 "/api/auth/join", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
@@ -109,8 +110,9 @@ public class SecurityConfig {
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
                         )
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, 
+                        .requestMatchers(HttpMethod.GET,
                             "/api/boards/**", "/api/articles/**", "/api/search/**",
+                            "/api/contents/**",
                             "/api/files/*/view",
                             "/api/realtime/boards/**"
                         )
