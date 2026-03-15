@@ -63,6 +63,7 @@ dependencies {
 	implementation 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20260102.1'  // owasp sanitizer
 	implementation 'com.vladsch.flexmark:flexmark-all:0.64.8'  // markdown 렌더링
 	implementation 'org.yaml:snakeyaml:2.4'  // yaml frontmatter / manifest 파싱
+	implementation 'org.apache.poi:poi-ooxml:5.4.1'  // XLSX 임포트 파싱
 
 	implementation 'org.flywaydb:flyway-core'  // flyway
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
